@@ -1,0 +1,2053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Study Board</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#151821">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Study Board">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --board:#151821;
+    --board-2:#1A1E29;
+    --card:#222634;
+    --card-line: rgba(255,255,255,0.09);
+    --chalk:#FFFFFF;
+    --chalk-dim:#B9BFCB;
+    --chalk-faint:#9CA3AF;
+    --accent:#22D3EE;
+    --accent-rgb: 34,211,238;
+    --accent-dim: rgba(34,211,238,0.16);
+    --ink: #0B1420; /* dark text painted on bright accent/coral surfaces */
+    --danger:#FF5A5F;
+    --c1:#FF5A5F; /* coral */
+    --c1-rgb: 255,90,95;
+    --c1-dim: rgba(255,90,95,0.16);
+    --c2:#7FB3D5; /* blue chalk */
+    --c3:#8FCB9B; /* mint */
+    --c4:#B8A0D9; /* lavender */
+    --c5:#E6A0C4; /* pink */
+    --c6:#E8C468; /* yellow */
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background: radial-gradient(ellipse at 20% 0%, #1C2130 0%, var(--board) 55%), var(--board);
+    color: var(--chalk);
+    font-family:'Inter', sans-serif;
+    overscroll-behavior:none;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+  }
+  /* subtle chalk dust texture */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image:
+      radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 3px 3px;
+    pointer-events:none;
+    z-index:0;
+  }
+  #app{
+    width:100%; max-width:480px;
+    min-height:100vh;
+    display:flex; flex-direction:column;
+    position:relative; z-index:1;
+  }
+  .app-content{
+    display:flex; flex-direction:column; flex:1; min-width:0; width:100%;
+  }
+  header.top{
+    padding:22px 20px 14px;
+    display:flex; align-items:baseline; justify-content:space-between;
+  }
+  header.top h1{
+    font-family:'Kalam', cursive;
+    font-size:28px; font-weight:700; margin:0;
+    letter-spacing:0.3px;
+    text-shadow: 0 0 1px rgba(255,255,255,0.25);
+  }
+  header.top .sub{
+    font-size:11px; color:var(--chalk-faint); text-transform:uppercase; letter-spacing:1.5px;
+  }
+  main{
+    flex:1; padding:0 16px 100px; overflow-y:auto;
+  }
+  .screen{ display:none; animation: fadeIn .25s ease; }
+  .screen.active{ display:block; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+  /* ---------- Bottom nav ---------- */
+  nav.tabs{
+    position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:480px;
+    background: linear-gradient(180deg, rgba(31,46,40,0.4), var(--board-2) 30%);
+    border-top:1px solid var(--card-line);
+    display:flex;
+    padding: 6px 10px calc(10px + env(safe-area-inset-bottom));
+    z-index:10;
+    backdrop-filter: blur(6px);
+  }
+  nav.tabs button{
+    flex:1; background:none; border:none; color:var(--chalk-faint);
+    font-family:'Inter'; font-size:11px; font-weight:600; letter-spacing:0.5px;
+    padding:8px 4px 6px; display:flex; flex-direction:column; align-items:center; gap:4px;
+    cursor:pointer; border-radius:10px; transition: color .15s;
+  }
+  nav.tabs button svg{ width:20px; height:20px; opacity:0.7; }
+  nav.tabs button.active{ color:var(--accent); }
+  nav.tabs button.active svg{ opacity:1; }
+
+  /* ---------- Timer screen ---------- */
+  .mode-switch{
+    display:flex; background:var(--card); border-radius:14px; padding:4px; margin:6px 0 22px;
+    border:1px solid var(--card-line);
+  }
+  .mode-switch button{
+    flex:1; padding:9px 0; border:none; background:none; color:var(--chalk-dim);
+    font-family:'Inter'; font-weight:600; font-size:13px; border-radius:11px; cursor:pointer;
+  }
+  .mode-switch button.active{ background:var(--accent-dim); color:var(--accent); }
+
+  .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; }
+  .ring-outer{ position:relative; width:230px; height:230px; }
+  .ring-svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; }
+  .ring-track{ fill:none; stroke:var(--card); stroke-width:14; }
+  .ring-progress{
+    fill:none; stroke-width:14; stroke-linecap:round; stroke:var(--accent);
+    transition: stroke-dashoffset .3s linear, stroke .4s ease;
+  }
+  .ring-outer.running .ring-progress{
+    filter: drop-shadow(0 0 10px rgba(var(--accent-rgb),0.65));
+    animation: ringGlow 1.8s ease-in-out infinite;
+  }
+  @keyframes ringGlow{ 0%,100%{ opacity:1; } 50%{ opacity:0.72; } }
+  .timer-face{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center;
+  }
+  .timer-digits{
+    font-family:'JetBrains Mono'; font-weight:700; font-size:38px; letter-spacing:0.5px;
+    color:var(--chalk);
+  }
+  .timer-label{ font-size:12px; color:var(--chalk-faint); margin-top:6px; letter-spacing:0.5px; }
+
+  /* ---------- Digital stopwatch (no dial — continuous count) ---------- */
+  .stopwatch-face{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:230px; text-align:center;
+  }
+  .sw-digits{ display:flex; align-items:baseline; font-family:'JetBrains Mono'; font-weight:700; color:var(--chalk); }
+  .sw-main{ font-size:54px; letter-spacing:0.5px; transition: color .25s, text-shadow .25s; }
+  .sw-sec{ font-size:22px; color:var(--chalk-faint); margin-left:2px; font-weight:600; }
+  .stopwatch-face.running .sw-main{ color:var(--accent); text-shadow: 0 0 14px rgba(var(--accent-rgb),0.45); }
+
+  select, input[type=text], input[type=number], input[type=date]{
+    color-scheme: dark;
+    background:var(--card); border:1px solid var(--card-line); color:var(--chalk);
+    font-family:'Inter'; font-size:14px; padding:10px 12px; border-radius:10px; width:100%;
+  }
+  select:focus, input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  .field-row{ margin-bottom:14px; }
+  .field-row label{ display:block; font-size:11px; color:var(--chalk-faint); margin-bottom:6px; letter-spacing:0.5px; text-transform:uppercase; }
+
+  .timer-controls{ display:flex; gap:10px; margin-top:6px; }
+  .btn{
+    flex:1; padding:14px 0; border-radius:14px; border:none; font-family:'Inter'; font-weight:700; font-size:14px;
+    cursor:pointer; letter-spacing:0.3px;
+  }
+  .btn-primary{
+    background:var(--c1); color:var(--ink);
+    box-shadow: 0 6px 20px rgba(var(--c1-rgb),0.45), 0 0 0 1px rgba(var(--c1-rgb),0.15) inset;
+  }
+  .btn-primary:active{ transform: scale(0.98); }
+  .btn-ghost{ background:var(--card); color:var(--chalk); border:1px solid var(--card-line); }
+  .btn-danger{ background:var(--c1-dim); color:var(--c1); border:1px solid rgba(var(--c1-rgb),0.3); }
+
+  .session-log{ margin-top:26px; }
+  .session-log h3{ font-family:'Kalam'; font-size:18px; margin:0 0 10px; color:var(--chalk); }
+  .session-item{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 12px; background:var(--card); border-radius:12px; margin-bottom:8px;
+    border:1px solid var(--card-line); font-size:13px;
+  }
+  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:8px; }
+
+  /* ---------- Today screen ---------- */
+  .day-scroller{
+    display:flex; gap:8px; overflow-x:auto; padding:4px 0 18px; scrollbar-width:none;
+  }
+  .day-scroller::-webkit-scrollbar{ display:none; }
+  .day-chip{
+    flex:0 0 auto; width:52px; padding:9px 0; border-radius:14px; text-align:center;
+    background:var(--card); border:1px solid var(--card-line); cursor:pointer;
+  }
+  .day-chip.active{ background:var(--accent-dim); border-color:var(--accent); }
+  .day-chip .dname{ font-size:10px; color:var(--chalk-faint); letter-spacing:0.5px; }
+  .day-chip.active .dname{ color:var(--accent); }
+  .day-chip .dnum{ font-family:'JetBrains Mono'; font-weight:700; font-size:16px; margin-top:2px; color:var(--chalk); }
+
+  .task-card{
+    display:flex; align-items:flex-start; gap:12px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:14px;
+    padding:14px; margin-bottom:10px;
+  }
+  .task-card.done{ opacity:0.45; }
+  .task-card .time{ font-family:'JetBrains Mono'; font-size:12px; color:var(--chalk-faint); min-width:48px; padding-top:2px; }
+  .task-card .body{ flex:1; }
+  .task-card .name{ font-size:15px; font-weight:600; color:var(--chalk); }
+  .task-card .name.strike{ text-decoration: line-through; }
+  .task-card .meta{ font-size:11px; color:var(--chalk-faint); margin-top:3px; }
+  .check{
+    width:22px; height:22px; border-radius:7px; border:2px solid var(--chalk-faint);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto; margin-top:1px;
+  }
+  .check.checked, .check.done{ background:var(--accent); border-color:var(--accent); color:var(--ink); font-weight:900; font-size:14px; }
+  .task-del{ background:none; border:none; color:var(--chalk-faint); font-size:18px; cursor:pointer; padding:0 2px; }
+
+  .empty{
+    text-align:center; padding:50px 20px; color:var(--chalk-faint);
+  }
+  .empty .big{ font-family:'Kalam'; font-size:20px; color:var(--chalk-dim); margin-bottom:6px; }
+
+  .fab{
+    position:fixed; bottom:88px; left:50%; transform:translateX(170px);
+    width:52px; height:52px; border-radius:50%; background:var(--accent); color:var(--ink);
+    border:none; font-size:26px; font-weight:700; cursor:pointer; z-index:9;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  }
+  @media (max-width:480px){ .fab{ transform: translateX(calc(50vw - 76px)); } }
+
+  /* ---------- Wide layout: iPad / tablet landscape / desktop ---------- */
+  @media (min-width:700px) and (orientation:landscape), (min-width:1000px){
+    body{ align-items:flex-start; justify-content:center; }
+    #app{
+      max-width:1100px; height:100vh; min-height:100vh;
+      flex-direction:row; align-items:stretch;
+    }
+    .app-content{ height:100%; min-height:0; }
+    main{ min-height:0; padding:0 32px 40px; }
+    nav.tabs{
+      position:sticky; top:0; left:auto; bottom:auto; transform:none; order:-1;
+      width:96px; max-width:96px; flex:0 0 96px; height:100%;
+      flex-direction:column; justify-content:flex-start; gap:10px;
+      padding:28px 8px; border-top:none; border-right:1px solid var(--card-line);
+      background:var(--board-2); backdrop-filter:none;
+    }
+    nav.tabs button{ flex:none; padding:14px 2px; }
+    .fab{ position:fixed; left:auto; right:32px; bottom:32px; transform:none; }
+    .screen#screen-timer.active{
+      display:grid; grid-template-columns:minmax(260px,380px) 1fr; gap:32px; align-items:start;
+    }
+    .screen#screen-timer.active #friendTimerBanner{ grid-column:1 / -1; }
+    .screen#screen-timer.active #timerControlsWrap{ grid-column:1; }
+    .screen#screen-timer.active .session-log{ grid-column:2; margin-top:0; }
+    .screen#screen-today.active, .screen#screen-week.active, .screen#screen-history.active{ max-width:640px; }
+  }
+
+  /* ---------- Week screen ---------- */
+  .week-day{ margin-bottom:20px; }
+  .week-day h4{
+    font-family:'Kalam'; font-size:17px; margin:0 0 8px; color:var(--chalk);
+    display:flex; align-items:center; gap:8px;
+  }
+  .week-day h4 .count{ font-family:'Inter'; font-size:11px; color:var(--chalk-faint); font-weight:500; }
+  .block-chip{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--card); border:1px solid var(--card-line); border-left:4px solid var(--c1);
+    border-radius:10px; padding:10px 12px; margin-bottom:6px; font-size:13px;
+  }
+  .block-chip .left{ display:flex; flex-direction:column; }
+  .block-chip .t{ font-family:'JetBrains Mono'; font-size:11px; color:var(--chalk-faint); }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(10,15,12,0.6); z-index:20;
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  .modal{
+    width:100%; max-width:480px; background:var(--board-2); border-radius:22px 22px 0 0;
+    padding:22px 20px calc(24px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--card-line);
+    animation: slideUp .22s ease;
+  }
+  @keyframes slideUp{ from{ transform:translateY(30px); opacity:0.4;} to{transform:none; opacity:1;} }
+  .modal h3{ font-family:'Kalam'; font-size:20px; margin:0 0 16px; }
+  .modal-actions{ display:flex; gap:10px; margin-top:18px; }
+  .color-row{ display:flex; gap:10px; margin-top:6px; }
+  .swatch{ width:30px; height:30px; border-radius:50%; cursor:pointer; border:2px solid transparent; }
+  .swatch.sel{ border-color:var(--chalk); }
+  .day-toggle-row{ display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+  .day-toggle{
+    padding:8px 10px; border-radius:9px; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:12px; cursor:pointer; font-weight:600;
+  }
+  .day-toggle.sel{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
+  .close-x{ position:absolute; top:20px; right:20px; background:none; border:none; color:var(--chalk-faint); font-size:20px; cursor:pointer; }
+
+  /* ---------- People switcher ---------- */
+  .people-row{
+    display:flex; gap:8px; overflow-x:auto; padding:0 16px 14px; scrollbar-width:none;
+  }
+  .people-row::-webkit-scrollbar{ display:none; }
+  .person-chip{
+    flex:0 0 auto; display:flex; align-items:center; gap:7px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:20px;
+    padding:6px 12px 6px 6px; cursor:pointer; font-size:12px; font-weight:600; color:var(--chalk-dim);
+  }
+  .person-chip.active{ border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+  .person-chip .avatar{
+    width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; color:var(--ink);
+  }
+  .viewing-banner{
+    margin:0 0 14px; padding:9px 12px; background:var(--accent-dim); border:1px solid rgba(var(--accent-rgb),0.35);
+    border-radius:12px; font-size:12px; color:var(--accent); text-align:center;
+  }
+
+  /* ---------- Today: sections, 3-state check, shared tasks ---------- */
+  .section-title{
+    font-family:'Kalam'; font-size:16px; color:var(--chalk-dim); margin:18px 0 8px; letter-spacing:0.2px;
+  }
+  .section-title:first-child{ margin-top:2px; }
+  .check.missed{ background:var(--c1); border-color:var(--c1); color:var(--ink); }
+  .task-card.missed{ opacity:0.6; }
+  .task-card.readonly{ opacity:0.85; }
+  .task-card.shared{ border-color: rgba(var(--accent-rgb),0.35); }
+  .badge{
+    font-size:9px; font-weight:700; color:var(--accent); background:var(--accent-dim);
+    padding:2px 7px; border-radius:8px; letter-spacing:0.5px; text-transform:uppercase; margin-left:6px;
+  }
+  .who-row{ display:flex; gap:8px; margin-top:8px; }
+  .who-chip{ display:flex; flex-direction:column; align-items:center; gap:2px; opacity:0.55; }
+  .who-chip.mine{ opacity:1; cursor:pointer; }
+  .who-chip .avatar{
+    width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; color:var(--ink); border:2px solid transparent;
+  }
+  .who-chip.done .avatar{ border-color:var(--accent); }
+  .who-chip.missed .avatar{ border-color:var(--c1); }
+  .who-chip .who-mark{ font-size:11px; font-weight:800; color:var(--chalk); height:12px; }
+  .who-chip.done .who-mark{ color:var(--accent); }
+  .who-chip.missed .who-mark{ color:var(--c1); }
+
+  .together-toggle{
+    display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--card-line);
+    border-radius:12px; padding:12px; cursor:pointer; font-size:13px; color:var(--chalk-dim);
+  }
+  .together-toggle.sel{ color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
+  .together-toggle .check{ margin:0; }
+
+  /* ---------- Auth screen ---------- */
+  .auth-screen{
+    min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center;
+    padding:24px; position:relative; z-index:2;
+  }
+  .auth-card{
+    width:100%; max-width:380px; background:var(--card); border:1px solid var(--card-line);
+    border-radius:20px; padding:28px 24px;
+  }
+  .auth-logo{ font-family:'Kalam'; font-size:26px; margin:0 0 2px; }
+  .auth-card h2{ font-family:'Kalam'; font-size:19px; margin:0 0 16px; color:var(--chalk); }
+  .auth-error{ color:var(--c1); font-size:12px; min-height:16px; margin:2px 0 10px; }
+  .auth-toggle{ text-align:center; font-size:12px; color:var(--chalk-faint); margin-top:16px; cursor:pointer; text-decoration:underline; }
+
+  .header-actions{ display:flex; gap:8px; align-self:flex-start; }
+  .logout-btn{
+    background:var(--card); border:1px solid var(--card-line); color:var(--chalk-faint);
+    width:36px; height:36px; border-radius:50%; font-size:16px; cursor:pointer; align-self:flex-start;
+  }
+
+  /* ---------- live studying indicator ---------- */
+  .live-row{
+    display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--card-line);
+    border-radius:12px; padding:10px 12px; margin-bottom:8px; font-size:13px;
+  }
+  .bulb{
+    width:11px; height:11px; border-radius:50%; background:#3a4a42; flex:0 0 auto;
+    box-shadow:none; transition: all .3s;
+  }
+  .bulb.on{
+    background:var(--accent);
+    box-shadow: 0 0 8px 2px rgba(var(--accent-rgb),0.75), 0 0 2px rgba(var(--accent-rgb),1);
+    animation: bulbPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes bulbPulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.55; } }
+  .live-row .avatar{
+    width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:700; color:var(--ink); flex:0 0 auto;
+  }
+  .live-name{ font-weight:600; color:var(--chalk); }
+  .live-sub{ color:var(--chalk-faint); font-size:11px; flex:1; }
+  .live-time{ font-family:'JetBrains Mono'; font-size:13px; color:var(--accent); }
+
+  /* ---------- header profile + bell ---------- */
+  .avatar-btn{
+    width:40px; height:40px; border-radius:50%; border:2px solid var(--card-line); cursor:pointer;
+    padding:0; background:var(--card); display:flex; align-items:center; justify-content:center;
+    font-family:'Inter'; font-weight:700; font-size:15px; color:var(--chalk); overflow:hidden; flex:0 0 auto;
+  }
+  .avatar-btn img{ width:100%; height:100%; object-fit:cover; }
+  .bell-btn{
+    position:relative; background:var(--card); border:1px solid var(--card-line); color:var(--chalk-faint);
+    width:36px; height:36px; border-radius:50%; font-size:16px; cursor:pointer; align-self:flex-start;
+  }
+  .bell-badge{
+    position:absolute; top:-3px; right:-3px; min-width:16px; height:16px; border-radius:8px;
+    background:var(--c1); color:var(--ink); font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center;
+    padding:0 4px; box-shadow:0 0 0 2px var(--board);
+  }
+  .notif-item{ font-size:13px; padding:10px 12px; background:var(--card); border-radius:10px; margin-bottom:6px; line-height:1.4; }
+  .notif-item .t{ font-size:10px; color:var(--chalk-faint); margin-top:3px; }
+  .notif-item.unread{ border:1px solid rgba(var(--accent-rgb),0.4); }
+
+  /* ---------- account modal ---------- */
+  .acct-photo-row{ display:flex; align-items:center; gap:16px; margin-bottom:18px; }
+  .acct-photo{
+    width:72px; height:72px; border-radius:50%; background:var(--c1-dim); color:var(--c1);
+    display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700; overflow:hidden; flex:0 0 auto;
+  }
+  .acct-photo img{ width:100%; height:100%; object-fit:cover; }
+  .acct-photo-actions{ display:flex; flex-direction:column; gap:8px; }
+  .acct-photo-actions button{ font-size:12px; padding:8px 12px; }
+  .section-divider{ height:1px; background:var(--card-line); margin:18px 0; }
+
+  /* ---------- studying-now presence on person chips ---------- */
+  .person-chip{ position:relative; padding-right:14px; }
+  .person-chip .avatar{ position:relative; }
+  .person-chip.studying .avatar{
+    box-shadow: 0 0 0 2px var(--board), 0 0 0 4px var(--c1), 0 0 9px 2px rgba(var(--c1-rgb),0.85);
+    animation: redPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes redPulse{ 0%,100%{ box-shadow: 0 0 0 2px var(--board), 0 0 0 4px var(--c1), 0 0 9px 2px rgba(var(--c1-rgb),0.85); } 50%{ box-shadow: 0 0 0 2px var(--board), 0 0 0 4px var(--c1), 0 0 3px 0 rgba(var(--c1-rgb),0.4); } }
+  .person-chip .p-meta{ display:flex; flex-direction:column; align-items:flex-start; line-height:1.25; }
+  .person-chip .p-today{ font-family:'JetBrains Mono'; font-size:9.5px; color:var(--chalk-faint); font-weight:600; }
+  .person-chip.studying .p-today{ color:var(--c1); }
+  .person-chip.active .p-today{ color:var(--accent); }
+
+  /* ---------- viewing-friend timer banner ---------- */
+  .friend-timer-card{
+    background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:18px; text-align:center; margin-bottom:10px;
+  }
+  .friend-timer-card .who{ font-family:'Kalam'; font-size:19px; margin-bottom:6px; }
+  .friend-timer-card .stat{ font-family:'JetBrains Mono'; font-size:26px; font-weight:700; color:var(--accent); margin:4px 0; }
+  .friend-timer-card .lbl{ font-size:12px; color:var(--chalk-faint); }
+
+  /* ---------- redesigned session items ---------- */
+  .session-item2{
+    background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:12px 13px; margin-bottom:8px;
+  }
+  .session-item2 .row1{ display:flex; align-items:center; justify-content:space-between; }
+  .session-item2 .subj{ font-weight:700; font-size:14px; color:var(--chalk); }
+  .session-item2 .dur-badge{
+    font-family:'JetBrains Mono'; font-weight:800; font-size:13px; color:var(--ink); background:var(--c1);
+    padding:3px 9px; border-radius:8px; box-shadow: 0 2px 8px rgba(var(--c1-rgb),0.35);
+  }
+  .session-item2 .label{ font-size:12px; color:var(--chalk-dim); margin-top:4px; }
+  .session-item2 .period{ font-family:'JetBrains Mono'; font-size:11px; color:var(--chalk-faint); margin-top:4px; }
+
+  /* ---------- comments ---------- */
+  .cmt-btn{
+    background:none; border:none; color:var(--chalk-faint); font-size:15px; cursor:pointer;
+    padding:0 2px; align-self:flex-start; position:relative;
+  }
+  .cmt-btn.has-unread::after{
+    content:''; position:absolute; top:-2px; right:-2px; width:9px; height:9px; border-radius:50%;
+    background:var(--c1); box-shadow:0 0 0 2px var(--card);
+  }
+  .cmt-item{ font-size:13px; padding:8px 10px; background:var(--card); border-radius:10px; margin-bottom:6px; line-height:1.4; }
+  .cmt-item b{ color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="auth-screen" id="authScreen">
+  <div class="auth-card">
+    <h1 class="auth-logo">Study Board</h1>
+    <div class="sub" style="margin-bottom:22px;">stay on the clock, together</div>
+    <h2 id="authTitle">Welcome back</h2>
+
+    <div class="field-row" id="nameRow" style="display:none;">
+      <label>Your name</label>
+      <input type="text" id="authName" placeholder="e.g. Sam">
+    </div>
+    <div class="field-row">
+      <label>Email</label>
+      <input type="text" id="authEmail" placeholder="you@example.com" autocapitalize="off" autocorrect="off">
+    </div>
+    <div class="field-row">
+      <label>Password</label>
+      <input type="password" id="authPassword" placeholder="At least 6 characters">
+    </div>
+    <div class="auth-error" id="authError"></div>
+    <button class="btn btn-primary" id="authSubmit" style="width:100%; padding:14px 0; margin-top:4px;">Log in</button>
+    <div class="auth-toggle" id="authToggle">New here? Create an account</div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+<div class="app-content">
+
+  <header class="top">
+    <div>
+      <h1 id="headerTitle">Study Board</h1>
+      <div class="sub" id="headerSub">stay on the clock</div>
+    </div>
+    <div class="header-actions">
+      <button class="bell-btn" id="bellBtn" title="Notifications">🔔<span class="bell-badge" id="bellBadge" style="display:none;">0</span></button>
+      <button class="avatar-btn" id="acctBtn" title="Account"></button>
+    </div>
+  </header>
+
+  <div class="people-row" id="peopleRow"></div>
+
+  <main>
+    <div class="viewing-banner" id="viewingBanner" style="display:none;"></div>
+
+    <!-- TIMER SCREEN -->
+    <section class="screen active" id="screen-timer">
+      <div class="friend-timer-card" id="friendTimerBanner" style="display:none;"></div>
+
+      <div id="timerControlsWrap">
+        <div class="mode-switch">
+          <button id="modeStopwatch" class="active">Stopwatch</button>
+          <button id="modeCountdown">Focus Timer</button>
+        </div>
+
+        <div class="field-row">
+          <label>Subject</label>
+          <select id="timerSubject"></select>
+        </div>
+
+        <div class="field-row">
+          <label>Label (optional)</label>
+          <input type="text" id="timerLabel" placeholder="e.g. Ch.4 practice problems">
+        </div>
+
+        <div class="field-row" id="countdownLenRow" style="display:none;">
+          <label>Length (minutes)</label>
+          <input type="number" id="countdownLen" value="25" min="1" max="240">
+        </div>
+
+        <div class="timer-ring-wrap">
+          <div class="ring-outer" id="ringOuter" style="display:none;">
+            <svg viewBox="0 0 220 220" class="ring-svg">
+              <circle cx="110" cy="110" r="100" class="ring-track"></circle>
+              <circle cx="110" cy="110" r="100" class="ring-progress" id="ringProgress"></circle>
+            </svg>
+            <div class="timer-face">
+              <div class="timer-digits" id="timerDigits">00:00:00</div>
+              <div class="timer-label" id="timerStatus">ready</div>
+            </div>
+          </div>
+          <div class="stopwatch-face" id="stopwatchFace">
+            <div class="sw-digits">
+              <span class="sw-main" id="swMain">00:00</span><span class="sw-sec" id="swSec">:00</span>
+            </div>
+            <div class="timer-label" id="swStatus">ready</div>
+          </div>
+        </div>
+
+        <div class="timer-controls">
+          <button class="btn btn-ghost" id="resetBtn">Reset</button>
+          <button class="btn btn-primary" id="startBtn">Start</button>
+        </div>
+      </div>
+
+      <div class="session-log">
+        <h3 id="sessionListTitle">Today's sessions</h3>
+        <div id="sessionList"></div>
+      </div>
+    </section>
+
+    <!-- TODAY SCREEN -->
+    <section class="screen" id="screen-today">
+      <div class="day-scroller" id="dayScroller"></div>
+      <div id="taskList"></div>
+    </section>
+
+    <!-- WEEK SCREEN -->
+    <section class="screen" id="screen-week">
+      <div id="weekList"></div>
+    </section>
+
+    <!-- HISTORY SCREEN -->
+    <section class="screen" id="screen-history">
+      <div class="field-row">
+        <label>Pick a date</label>
+        <input type="date" id="historyDate">
+      </div>
+      <div id="historyList"></div>
+    </section>
+  </main>
+
+  <button class="fab" id="fabAdd">+</button>
+
+</div>
+  <nav class="tabs">
+    <button class="tab-btn active" data-screen="timer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>
+      TIMER
+    </button>
+    <button class="tab-btn" data-screen="today">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+      TODAY
+    </button>
+    <button class="tab-btn" data-screen="week">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7 13h3M7 17h3M14 13h3M14 17h3"/></svg>
+      WEEK
+    </button>
+    <button class="tab-btn" data-screen="history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+      HISTORY
+    </button>
+  </nav>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, setDoc
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  onAuthStateChanged, signOut, updateProfile
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+import {
+  getMessaging, getToken, onMessage, isSupported as messagingIsSupported
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-messaging.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAiX0OPqh8dvHaDaMcjJznTNp7XE1iuPE4",
+  authDomain: "study-board-6c9d0.firebaseapp.com",
+  projectId: "study-board-6c9d0",
+  storageBucket: "study-board-6c9d0.firebasestorage.app",
+  messagingSenderId: "706066762938",
+  appId: "1:706066762938:web:6e0cde4838353927b74683"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+const auth = getAuth(fbApp);
+
+// ---------- PWA: service worker + push notifications ----------
+let swRegistration = null;
+if('serviceWorker' in navigator){
+  window.addEventListener('load', async ()=>{
+    try{ swRegistration = await navigator.serviceWorker.register('./sw.js'); }
+    catch(e){ console.warn('SW registration failed', e); }
+  });
+}
+
+// TODO: paste your Web Push "VAPID key" from
+// Firebase console → Project settings → Cloud Messaging → Web Push certificates
+const VAPID_KEY = 'PASTE_YOUR_VAPID_KEY_HERE';
+
+async function pushPermissionState(){
+  if(!('Notification' in window)) return 'unsupported';
+  return Notification.permission; // 'granted' | 'denied' | 'default'
+}
+
+async function enablePushNotifications(){
+  if(!('Notification' in window)) return { ok:false, reason:'unsupported' };
+  try{
+    const supported = await messagingIsSupported();
+    if(!supported) return { ok:false, reason:'unsupported' };
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted') return { ok:false, reason:perm };
+    if(!swRegistration) swRegistration = await navigator.serviceWorker.ready;
+    const messaging = getMessaging(fbApp);
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
+    if(token && me){
+      await setDoc(doc(db, 'pushTokens', me.id), { token, updatedAt: Date.now() }, { merge:true });
+    }
+    // Foreground messages (app open) show as a normal system notification too
+    onMessage(messaging, (payload)=>{
+      const title = payload.notification?.title || 'Study Board';
+      const body = payload.notification?.body || '';
+      if(swRegistration) swRegistration.showNotification(title, { body, icon:'./icons/icon-192.png' });
+    });
+    return { ok:true };
+  }catch(e){
+    console.warn('Push setup failed', e);
+    return { ok:false, reason:'error' };
+  }
+}
+
+// ---- thin wrapper matching the old window.storage API, backed by Firestore ----
+// personal(shared=false)  -> boards/{myId}          (one doc per person)
+// shared board mirror     -> boards/{userId}        (same doc, readable by everyone in test mode)
+// shared registry         -> registry/users
+// shared "together" tasks -> sharedTasks/{date}
+const storage = {
+  async get(key, shared){
+    const ref = keyToRef(key, shared);
+    const snap = await getDoc(ref);
+    return snap.exists() ? { key, value: JSON.stringify(snap.data().value), shared } : null;
+  },
+  async set(key, value, shared){
+    const ref = keyToRef(key, shared);
+    await setDoc(ref, { value: JSON.parse(value) });
+    return { key, value, shared };
+  }
+};
+function keyToRef(key, shared){
+  if(key === 'study-board-data-v1') return doc(db, 'boards', window.__meId || 'unknown');
+  if(key === 'study-board-profile') return doc(db, 'profiles', window.__meId || 'unknown');
+  if(key === 'study-board-users') return doc(db, 'registry', 'users');
+  if(key.startsWith('board:')) return doc(db, 'boards', key.slice(6));
+  if(key.startsWith('shared-tasks:')) return doc(db, 'sharedTasks', key.slice(13));
+  return doc(db, 'misc', key);
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+window.storage = storage; // keep the rest of the app's code unchanged
+(function(){
+  const COLORS = ['#FF5A5F','#7FB3D5','#8FCB9B','#B8A0D9','#E6A0C4','#E8C468'];
+  const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const STORAGE_KEY = 'study-board-data-v1';
+  const USERS_KEY = 'study-board-users'; // shared: [{id,name,color}]
+
+  let state = {
+    subjects: [
+      {id:'s1', name:'General', color:'#7FB3D5'}
+    ],
+    weeklyTemplate: [], // {id, day(0-6), subject, start, duration, label}
+    dailyExtra: {},     // { 'YYYY-MM-DD': [ {id, subject, start, duration, label} ] }
+    completion: {},     // { 'YYYY-MM-DD|blockId': true }
+    sessions: {}        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt} ] }
+  };
+
+  let selectedDate = new Date();
+  let currentScreen = 'timer';
+
+  let me = null;              // {id, name, color}
+  let usersList = [];         // everyone who has joined (shared)
+  let viewingId = null;       // null/undefined = viewing "me"; else a friend's id
+  let friendCache = {};       // id -> board data (read-only snapshots)
+  let myReads = {};           // cid -> last-read timestamp (for comment badges)
+
+  function isViewingSelf(){ return !viewingId || (me && viewingId === me.id); }
+  function activeData(){ return isViewingSelf() ? state : (friendCache[viewingId] || {subjects:[],weeklyTemplate:[],dailyExtra:{},completion:{},sessions:{}}); }
+
+  // ---------- persistence: my own private working copy ----------
+  async function loadState(){
+    try{
+      const res = await window.storage.get(STORAGE_KEY, false);
+      if(res && res.value){
+        const parsed = JSON.parse(res.value);
+        state = Object.assign(state, parsed);
+      }
+    }catch(e){ /* no saved data yet */ }
+    await loadUsersList();
+    await loadMyReads();
+    renderHeaderAvatar();
+    render();
+    startLiveTimers();
+    setLiveStatus({ studying:false, todayTotalMin: todayTotalMinutes() });
+  }
+  async function loadMyReads(){
+    try{
+      const snap = await getDoc(doc(db, 'commentReads', me.id));
+      myReads = snap.exists() ? snap.data() : {};
+    }catch(e){ myReads = {}; }
+  }
+  async function markRead(cid){
+    myReads[cid] = Date.now();
+    try{ await setDoc(doc(db, 'commentReads', me.id), myReads); }catch(e){}
+  }
+  let saveTimeout = null;
+  function saveState(){
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async ()=>{
+      try{
+        await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+        pushSharedBoard();
+      }
+      catch(e){ console.error('save failed', e); }
+    }, 250);
+  }
+
+  // ---------- auth: login / sign up / logout ----------
+  let booted = false;
+  const authScreen = document.getElementById('authScreen');
+  const appRoot = document.getElementById('app');
+  const authError = document.getElementById('authError');
+  let authMode = 'login'; // or 'signup'
+
+  function showAuth(){
+    authScreen.style.display = 'flex';
+    appRoot.style.display = 'none';
+  }
+  function showApp(){
+    authScreen.style.display = 'none';
+    appRoot.style.display = 'flex';
+  }
+  function setAuthError(msg){ authError.textContent = msg || ''; }
+
+  document.getElementById('authToggle').addEventListener('click', ()=>{
+    authMode = authMode==='login' ? 'signup' : 'login';
+    document.getElementById('nameRow').style.display = authMode==='signup' ? 'block' : 'none';
+    document.getElementById('authSubmit').textContent = authMode==='signup' ? 'Create account' : 'Log in';
+    document.getElementById('authTitle').textContent = authMode==='signup' ? 'Join the board' : 'Welcome back';
+    document.getElementById('authToggle').textContent = authMode==='signup' ? 'Already have an account? Log in' : "New here? Create an account";
+    setAuthError('');
+  });
+
+  document.getElementById('authSubmit').addEventListener('click', async ()=>{
+    const email = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    const name = document.getElementById('authName').value.trim();
+    setAuthError('');
+    if(!email || !password){ setAuthError('Enter an email and password.'); return; }
+    if(authMode==='signup' && !name){ setAuthError('Enter your name.'); return; }
+
+    document.getElementById('authSubmit').disabled = true;
+    try{
+      if(authMode==='signup'){
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        booted = true;
+        window.__meId = cred.user.uid;
+        me = { id: cred.user.uid, name, color: COLORS[Math.floor(Math.random()*COLORS.length)] };
+        await window.storage.set('study-board-profile', JSON.stringify(me), false);
+        await registerUser(me);
+        showApp();
+        await loadState();
+      } else {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        booted = true;
+        window.__meId = cred.user.uid;
+        const res = await window.storage.get('study-board-profile', false);
+        me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
+        showApp();
+        await loadState();
+      }
+    }catch(e){
+      setAuthError(e.message.replace('Firebase: ','').replace(/\(auth\/.*\)\.?/,'').trim() || 'Something went wrong.');
+    }
+    document.getElementById('authSubmit').disabled = false;
+  });
+
+  async function doLogout(){
+    // stop any active timer/session cleanly so it never appears "studying" after logout
+    if(timerRunning){
+      if(elapsedMs > 3000){ finishSession(false); } else { hardReset(); }
+    }
+    await setLiveStatus({ studying:false, baseElapsedMs:0 });
+    stopLiveTimers();
+    friendCache = {};
+    liveCache = {};
+    viewingId = null;
+    await signOut(auth);
+  }
+
+  document.getElementById('acctBtn').addEventListener('click', openAccountModal);
+  document.getElementById('bellBtn').addEventListener('click', openNotificationsModal);
+
+  // ---------- account / profile ----------
+  function renderHeaderAvatar(){
+    const btn = document.getElementById('acctBtn');
+    if(!me){ btn.innerHTML=''; return; }
+    if(me.photo){ btn.style.background = 'transparent'; btn.innerHTML = `<img src="${me.photo}" alt="">`; }
+    else { btn.style.background = me.color; btn.innerHTML = escapeHtml((me.name||'?').slice(0,1).toUpperCase()); }
+  }
+  function resizeImageToDataUrl(file, maxSize){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onerror = ()=>reject(new Error('read failed'));
+      reader.onload = ()=>{
+        const img = new Image();
+        img.onerror = ()=>reject(new Error('decode failed'));
+        img.onload = ()=>{
+          let w = img.width, h = img.height;
+          if(w > h){ if(w>maxSize){ h = Math.round(h*maxSize/w); w = maxSize; } }
+          else { if(h>maxSize){ w = Math.round(w*maxSize/h); h = maxSize; } }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  function openAccountModal(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <button class="close-x">×</button>
+        <h3>Your account</h3>
+        <div class="acct-photo-row">
+          <div class="acct-photo" id="acct-photo-preview">${me.photo ? `<img src="${me.photo}" alt="">` : escapeHtml((me.name||'?').slice(0,1).toUpperCase())}</div>
+          <div class="acct-photo-actions">
+            <input type="file" id="acct-photo-input" accept="image/*" style="display:none;">
+            <button class="btn btn-ghost" id="acct-photo-pick">Change photo</button>
+            ${me.photo ? `<button class="btn btn-ghost" id="acct-photo-remove">Remove photo</button>` : ''}
+          </div>
+        </div>
+        <div class="field-row">
+          <label>Name</label>
+          <input type="text" id="acct-name" value="${escapeHtml(me.name)}">
+        </div>
+        <div class="field-row">
+          <label>Avatar color</label>
+          <div class="color-row" id="acct-colors">
+            ${COLORS.map(c=>`<div class="swatch ${c===me.color?'sel':''}" data-color="${c}" style="background:${c}"></div>`).join('')}
+          </div>
+        </div>
+        <div class="section-divider"></div>
+        <button class="btn btn-ghost" id="acct-manage" style="width:100%; margin-bottom:10px;">Manage members</button>
+        <button class="btn btn-danger" id="acct-logout" style="width:100%;">Log out</button>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="acct-cancel">Cancel</button>
+          <button class="btn btn-primary" id="acct-save">Save</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.querySelector('#acct-cancel').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    let pickedColor = me.color;
+    backdrop.querySelectorAll('#acct-colors .swatch').forEach(sw=>{
+      sw.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('#acct-colors .swatch').forEach(s=>s.classList.remove('sel'));
+        sw.classList.add('sel');
+        pickedColor = sw.dataset.color;
+      });
+    });
+
+    let pickedPhoto = me.photo || null;
+    const fileInput = backdrop.querySelector('#acct-photo-input');
+    backdrop.querySelector('#acct-photo-pick').addEventListener('click', ()=> fileInput.click());
+    fileInput.addEventListener('change', async ()=>{
+      const file = fileInput.files[0];
+      if(!file) return;
+      try{
+        pickedPhoto = await resizeImageToDataUrl(file, 160);
+        backdrop.querySelector('#acct-photo-preview').innerHTML = `<img src="${pickedPhoto}" alt="">`;
+      }catch(e){ alert('Could not read that image — try a different file.'); }
+    });
+    const removeBtn = backdrop.querySelector('#acct-photo-remove');
+    if(removeBtn){
+      removeBtn.addEventListener('click', ()=>{
+        pickedPhoto = null;
+        const nm = backdrop.querySelector('#acct-name').value.trim() || me.name;
+        backdrop.querySelector('#acct-photo-preview').innerHTML = escapeHtml(nm.slice(0,1).toUpperCase());
+      });
+    }
+
+    backdrop.querySelector('#acct-manage').addEventListener('click', ()=>{ close(); openManageModal(); });
+    backdrop.querySelector('#acct-logout').addEventListener('click', async ()=>{ close(); await doLogout(); });
+
+    backdrop.querySelector('#acct-save').addEventListener('click', async ()=>{
+      const newName = backdrop.querySelector('#acct-name').value.trim() || me.name;
+      me.name = newName;
+      me.color = pickedColor;
+      me.photo = pickedPhoto;
+      try{ await window.storage.set('study-board-profile', JSON.stringify(me), false); }catch(e){}
+      await registerUser(me, true);
+      renderHeaderAvatar();
+      render();
+      close();
+    });
+  }
+
+  // ---------- notifications ----------
+  const NOTIF_LIMIT = 60;
+  async function loadNotifications(uid){
+    try{
+      const snap = await getDoc(doc(db, 'notifications', uid));
+      return snap.exists() ? (snap.data().items || []) : [];
+    }catch(e){ return []; }
+  }
+  async function pushNotification(uid, text){
+    if(!uid) return;
+    try{
+      const items = await loadNotifications(uid);
+      items.push({ text, ts: Date.now(), read:false });
+      while(items.length > NOTIF_LIMIT) items.shift();
+      await setDoc(doc(db, 'notifications', uid), { items });
+    }catch(e){ console.error('notify failed', e); }
+  }
+  async function notifyOthers(text, excludeId){
+    const targets = usersList.filter(u=>u.id!==(excludeId||me.id));
+    for(const u of targets){ await pushNotification(u.id, text); }
+  }
+  async function notifyForComment(cid, title, text){
+    const snippet = text.length>60 ? text.slice(0,57)+'…' : text;
+    if(cid.startsWith('p_')){
+      const ownerId = cid.split('_')[1];
+      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`);
+    } else if(cid.startsWith('s_')){
+      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`);
+    }
+  }
+  async function refreshBellBadge(){
+    if(!me) return;
+    const items = await loadNotifications(me.id);
+    const unread = items.filter(i=>!i.read).length;
+    const badge = document.getElementById('bellBadge');
+    if(!badge) return;
+    if(unread>0){ badge.style.display='flex'; badge.textContent = unread>9?'9+':String(unread); }
+    else { badge.style.display='none'; }
+  }
+  async function openNotificationsModal(){
+    const items = await loadNotifications(me.id); // ascending, oldest first
+    const displayItems = items.slice().reverse();
+    const permState = await pushPermissionState();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal" style="max-height:75vh; display:flex; flex-direction:column;">
+        <button class="close-x">×</button>
+        <h3>Notifications</h3>
+        ${permState==='default' ? `
+          <div class="live-row" style="justify-content:space-between; margin-bottom:12px;">
+            <span style="color:var(--chalk-dim);">Get alerts even when the app's closed</span>
+            <button class="btn btn-primary" id="enablePushBtn" style="flex:none; padding:8px 14px;">Enable</button>
+          </div>` : ''}
+        ${permState==='denied' ? `
+          <div style="font-size:11px; color:var(--chalk-faint); margin-bottom:12px;">
+            Notifications are blocked for this app in your browser/phone settings.
+          </div>` : ''}
+        <div style="flex:1; overflow-y:auto;">
+          ${displayItems.length ? displayItems.map(n=>`
+            <div class="notif-item ${n.read?'':'unread'}">
+              <div>${escapeHtml(n.text)}</div>
+              <div class="t">${timeAgo(n.ts)}</div>
+            </div>
+          `).join('') : `<div style="color:var(--chalk-faint); font-size:12px;">No notifications yet.</div>`}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    const pushBtn = backdrop.querySelector('#enablePushBtn');
+    if(pushBtn){
+      pushBtn.addEventListener('click', async ()=>{
+        pushBtn.textContent = '…';
+        const res = await enablePushNotifications();
+        pushBtn.textContent = res.ok ? 'Enabled ✓' : 'Try again';
+      });
+    }
+
+    if(items.length){
+      try{
+        const updated = items.map(n=>({...n, read:true}));
+        await setDoc(doc(db, 'notifications', me.id), { items: updated });
+      }catch(e){}
+      refreshBellBadge();
+    }
+  }
+
+  function openManageModal(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <button class="close-x">×</button>
+        <h3>Manage members</h3>
+        <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:12px;">
+          Remove old test accounts here. This only removes them from the shared list — it won't affect anyone's login.
+        </div>
+        <div id="manage-list"></div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    function draw(){
+      const list = backdrop.querySelector('#manage-list');
+      list.innerHTML = usersList.map(u=>`
+        <div class="session-item">
+          <span><span class="dot" style="background:${u.color||'#7FB3D5'}"></span>${escapeHtml(u.name)}${u.id===me.id?' (you)':''}</span>
+          ${u.id!==me.id ? `<button class="task-del" data-remove="${u.id}">×</button>` : ''}
+        </div>
+      `).join('');
+      list.querySelectorAll('[data-remove]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          usersList = usersList.filter(x=>x.id!==btn.dataset.remove);
+          try{ await window.storage.set(USERS_KEY, JSON.stringify(usersList), true); }catch(e){}
+          draw();
+          renderPeopleRow();
+          renderTaskList();
+        });
+      });
+    }
+    draw();
+  }
+
+  onAuthStateChanged(auth, async (user)=>{
+    if(user && !booted){
+      booted = true;
+      window.__meId = user.uid;
+      try{
+        const res = await window.storage.get('study-board-profile', false);
+        me = res && res.value ? JSON.parse(res.value) : { id: user.uid, name: 'Student', color: COLORS[0] };
+      }catch(e){ me = { id: user.uid, name: 'Student', color: COLORS[0] }; }
+      showApp();
+      await loadState();
+    } else if(!user){
+      booted = false;
+      me = null;
+      window.__meId = null;
+      showAuth();
+    }
+  });
+  async function loadUsersList(){
+    try{
+      const res = await window.storage.get(USERS_KEY, true);
+      usersList = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){ usersList = []; }
+  }
+  async function registerUser(user, forceUpdate){
+    let list = [];
+    try{
+      const res = await window.storage.get(USERS_KEY, true);
+      list = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){ list = []; }
+    const idx = list.findIndex(u=>u.id===user.id);
+    const entry = {id:user.id, name:user.name, color:user.color, photo:user.photo||null};
+    if(idx===-1){ list.push(entry); try{ await window.storage.set(USERS_KEY, JSON.stringify(list), true); }catch(e){} }
+    else if(forceUpdate){ list[idx] = entry; try{ await window.storage.set(USERS_KEY, JSON.stringify(list), true); }catch(e){} }
+    usersList = list;
+  }
+  function pushSharedBoard(){
+    if(!me) return;
+    const shared = { subjects: state.subjects, weeklyTemplate: state.weeklyTemplate, dailyExtra: state.dailyExtra, completion: state.completion, sessions: state.sessions };
+    window.storage.set('board:'+me.id, JSON.stringify(shared), true).catch(e=>console.error('share failed', e));
+  }
+  async function fetchFriendBoard(id){
+    try{
+      const res = await window.storage.get('board:'+id, true);
+      friendCache[id] = res && res.value ? JSON.parse(res.value) : {subjects:[],weeklyTemplate:[],dailyExtra:{},completion:{},sessions:{}};
+    }catch(e){
+      friendCache[id] = {subjects:[],weeklyTemplate:[],dailyExtra:{},completion:{},sessions:{}};
+    }
+  }
+
+  function renderPeopleRow(){
+    const el = document.getElementById('peopleRow');
+    if(!me){ el.innerHTML=''; return; }
+    const others = usersList.filter(u=>u.id!==me.id);
+    const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
+    el.innerHTML = chips.map(c=>{
+      const st = liveCache[c.id];
+      const studying = !!(st && st.studying);
+      const mins = liveMinutesFor(st);
+      const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
+      return `
+        <div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}">
+          <span class="avatar" style="background:${c.color}">${avatarInner}</span>
+          <span class="p-meta">
+            <span>${escapeHtml(c.name)}</span>
+            <span class="p-today">${fmtHM(mins)} today</span>
+          </span>
+        </div>
+      `;
+    }).join('');
+    el.querySelectorAll('.person-chip').forEach(chip=>{
+      chip.addEventListener('click', async ()=>{
+        const id = chip.dataset.id;
+        if(id === me.id){ viewingId = null; render(); return; }
+        viewingId = id;
+        await fetchFriendBoard(id);
+        render();
+      });
+    });
+  }
+
+  // ---------- helpers ----------
+  function fmtDate(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function fmtHM(totalMinutes){
+    const m = Math.max(0, Math.round(totalMinutes||0));
+    const h = Math.floor(m/60), mm = m%60;
+    return h>0 ? `${h}h ${mm}m` : `${mm}m`;
+  }
+  function formatClock(ts){
+    if(!ts) return '';
+    const d = new Date(ts);
+    let h = d.getHours(); const m = d.getMinutes();
+    const ampm = h>=12 ? 'PM':'AM';
+    h = h%12; if(h===0) h=12;
+    return `${h}:${pad(m)} ${ampm}`;
+  }
+  function timeAgo(ts){
+    const s = Math.floor((Date.now()-ts)/1000);
+    if(s<60) return 'just now';
+    const m = Math.floor(s/60); if(m<60) return m+'m ago';
+    const h = Math.floor(m/60); if(h<24) return h+'h ago';
+    const d = Math.floor(h/24); return d+'d ago';
+  }
+  function subjectColor(id){
+    const s = activeData().subjects.find(x=>x.id===id);
+    return s ? s.color : '#7FB3D5';
+  }
+  function subjectName(id){
+    const s = activeData().subjects.find(x=>x.id===id);
+    return s ? s.name : 'General';
+  }
+  function subjectColorIn(id, data){
+    const s = (data.subjects||[]).find(x=>x.id===id);
+    return s ? s.color : '#7FB3D5';
+  }
+  function subjectNameIn(id, data){
+    const s = (data.subjects||[]).find(x=>x.id===id);
+    return s ? s.name : 'General';
+  }
+
+  function blocksForDate(date){
+    const data = activeData();
+    const key = fmtDate(date);
+    const dow = date.getDay();
+    const templ = data.weeklyTemplate.filter(b=>b.day===dow).map(b=>({...b, source:'template'}));
+    const extra = (data.dailyExtra[key]||[]).map(b=>({...b, source:'extra'}));
+    return [...templ, ...extra].sort((a,b)=> (a.start||'').localeCompare(b.start||''));
+  }
+  function blocksForDateIn(data, date){
+    const key = fmtDate(date);
+    const dow = date.getDay();
+    const templ = (data.weeklyTemplate||[]).filter(b=>b.day===dow).map(b=>({...b, source:'template'}));
+    const extra = ((data.dailyExtra||{})[key]||[]).map(b=>({...b, source:'extra'}));
+    return [...templ, ...extra].sort((a,b)=> (a.start||'').localeCompare(b.start||''));
+  }
+
+  // ---------- shared "together" tasks (visible + tickable by everyone) ----------
+  function sharedTasksKey(dateKey){ return 'shared-tasks:'+dateKey; }
+  async function loadSharedTasks(dateKey){
+    try{
+      const res = await window.storage.get(sharedTasksKey(dateKey), true);
+      return res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){ return []; }
+  }
+  async function saveSharedTasks(dateKey, list){
+    try{ await window.storage.set(sharedTasksKey(dateKey), JSON.stringify(list), true); }
+    catch(e){ console.error('shared task save failed', e); }
+  }
+  function nextStatus(cur){
+    return cur==='done' ? 'missed' : (cur==='missed' ? undefined : 'done');
+  }
+
+  // ---------- tab navigation ----------
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      currentScreen = btn.dataset.screen;
+      document.getElementById('screen-'+currentScreen).classList.add('active');
+      if(currentScreen==='history' && !document.getElementById('historyDate').value){
+        document.getElementById('historyDate').value = fmtDate(new Date());
+      }
+      const titles = {timer:['Study Board','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], history:['History','look back on any day']};
+      document.getElementById('headerTitle').textContent = titles[currentScreen][0];
+      document.getElementById('headerSub').textContent = titles[currentScreen][1];
+      render();
+    });
+  });
+  document.getElementById('fabAdd').style.display = 'none';
+
+  // ---------- TIMER LOGIC ----------
+  let timerMode = 'stopwatch'; // or 'countdown'
+  let timerRunning = false;
+  let elapsedMs = 0;
+  let countdownTotalMs = 25*60*1000;
+  let tickHandle = null;
+  let lastTick = null;
+
+  document.getElementById('modeStopwatch').addEventListener('click', ()=>{
+    if(timerRunning) return;
+    timerMode='stopwatch';
+    document.getElementById('modeStopwatch').classList.add('active');
+    document.getElementById('modeCountdown').classList.remove('active');
+    document.getElementById('countdownLenRow').style.display='none';
+    document.getElementById('ringOuter').style.display='none';
+    document.getElementById('stopwatchFace').style.display='flex';
+    elapsedMs = 0;
+    renderTimerDigits();
+  });
+  document.getElementById('modeCountdown').addEventListener('click', ()=>{
+    if(timerRunning) return;
+    timerMode='countdown';
+    document.getElementById('modeCountdown').classList.add('active');
+    document.getElementById('modeStopwatch').classList.remove('active');
+    document.getElementById('countdownLenRow').style.display='block';
+    document.getElementById('stopwatchFace').style.display='none';
+    document.getElementById('ringOuter').style.display='block';
+    elapsedMs = 0;
+    renderTimerDigits();
+  });
+  document.getElementById('countdownLen').addEventListener('input', (e)=>{
+    countdownTotalMs = Math.max(1, parseInt(e.target.value||'25',10)) * 60000;
+    if(!timerRunning) renderTimerDigits();
+  });
+  document.getElementById('timerSubject').addEventListener('change', renderRing);
+
+  const RING_R = 100;
+  const RING_C = 2 * Math.PI * RING_R;
+  document.getElementById('ringProgress').style.strokeDasharray = RING_C;
+
+  function renderTimerDigits(){
+    let ms;
+    if(timerMode==='countdown'){
+      ms = Math.max(0, countdownTotalMs - elapsedMs);
+    } else {
+      ms = elapsedMs;
+    }
+    const totalSec = Math.floor(ms/1000);
+    const h = Math.floor(totalSec/3600);
+    const m = Math.floor((totalSec%3600)/60);
+    const s = totalSec%60;
+    if(timerMode==='countdown'){
+      document.getElementById('timerDigits').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+      renderRing();
+    } else {
+      document.getElementById('swMain').textContent = `${pad(h)}:${pad(m)}`;
+      document.getElementById('swSec').textContent = `:${pad(s)}`;
+      document.getElementById('stopwatchFace').classList.toggle('running', timerRunning);
+    }
+  }
+  function setStatusText(txt){
+    document.getElementById('timerStatus').textContent = txt;
+    document.getElementById('swStatus').textContent = txt;
+  }
+
+  function renderRing(){
+    let fraction;
+    if(timerMode==='countdown'){
+      fraction = countdownTotalMs>0 ? Math.max(0, Math.min(1, (countdownTotalMs-elapsedMs)/countdownTotalMs)) : 0;
+    } else {
+      fraction = (elapsedMs % 60000) / 60000;
+    }
+    const ring = document.getElementById('ringProgress');
+    ring.style.strokeDashoffset = RING_C * (1 - fraction);
+    if(me){
+      const subjectId = document.getElementById('timerSubject').value;
+      ring.style.stroke = subjectColorIn(subjectId, state);
+    }
+    document.getElementById('ringOuter').classList.toggle('running', timerRunning);
+  }
+
+  let sessionStartClock = null; // real wall-clock time the current (possibly paused/resumed) session first began
+
+  document.getElementById('startBtn').addEventListener('click', ()=>{
+    if(!timerRunning){
+      timerRunning = true;
+      lastTick = Date.now();
+      if(!sessionStartClock) sessionStartClock = Date.now() - elapsedMs;
+      document.getElementById('startBtn').textContent = 'Pause';
+      setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
+      tickHandle = setInterval(tick, 250);
+      const subjectId = document.getElementById('timerSubject').value;
+      const label = document.getElementById('timerLabel').value.trim();
+      setLiveStatus({
+        studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state), label,
+        mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
+      });
+    } else {
+      pauseTimer();
+    }
+  });
+  function pauseTimer(){
+    timerRunning = false;
+    clearInterval(tickHandle);
+    document.getElementById('startBtn').textContent = 'Resume';
+    setStatusText('paused');
+    renderTimerDigits();
+    setLiveStatus({ studying:false, baseElapsedMs:elapsedMs });
+  }
+  function tick(){
+    const now = Date.now();
+    elapsedMs += (now - lastTick);
+    lastTick = now;
+    if(timerMode==='countdown' && elapsedMs >= countdownTotalMs){
+      elapsedMs = countdownTotalMs;
+      renderTimerDigits();
+      finishSession(true);
+      return;
+    }
+    renderTimerDigits();
+  }
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    if(elapsedMs > 3000){ // log if meaningful duration and not already finished
+      finishSession(false);
+    } else {
+      hardReset();
+    }
+  });
+  function todayTotalMinutes(){
+    const key = fmtDate(new Date());
+    return (state.sessions[key]||[]).reduce((sum,s)=> sum + (s.duration||0), 0);
+  }
+  function hardReset(){
+    timerRunning = false;
+    clearInterval(tickHandle);
+    elapsedMs = 0;
+    sessionStartClock = null;
+    document.getElementById('startBtn').textContent = 'Start';
+    setStatusText('ready');
+    renderTimerDigits();
+    setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
+  }
+  function finishSession(completed){
+    timerRunning = false;
+    clearInterval(tickHandle);
+    const key = fmtDate(new Date());
+    if(!state.sessions[key]) state.sessions[key] = [];
+    const subjectId = document.getElementById('timerSubject').value;
+    const label = document.getElementById('timerLabel').value.trim();
+    const durationMin = Math.round(elapsedMs/60000 * 10)/10;
+    const endedAt = Date.now();
+    if(durationMin > 0){
+      state.sessions[key].push({
+        id: 'sess_'+Date.now(),
+        subject: subjectId,
+        label: label || null,
+        duration: durationMin,
+        mode: timerMode,
+        completed: completed,
+        startedAt: sessionStartClock || (endedAt - elapsedMs),
+        endedAt: endedAt
+      });
+      saveState();
+    }
+    setStatusText(completed ? 'session complete 🎉' : 'ready');
+    document.getElementById('startBtn').textContent = 'Start';
+    elapsedMs = 0;
+    sessionStartClock = null;
+    renderTimerDigits();
+    renderSessions();
+    setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
+  }
+
+  // ---------- live "studying now" presence (surfaced on the person chips at the top) ----------
+  let liveCache = {};
+  let livePollHandle = null;
+  let liveTickHandle = null;
+  async function setLiveStatus(patch){
+    if(!me) return;
+    try{
+      await setDoc(doc(db, 'liveStatus', me.id),
+        Object.assign({ name: me.name, color: me.color, updatedAt: Date.now() }, patch),
+        { merge:true });
+    }catch(e){ console.error('live status failed', e); }
+  }
+  async function getLiveStatus(uid){
+    try{
+      const snap = await getDoc(doc(db, 'liveStatus', uid));
+      return snap.exists() ? snap.data() : null;
+    }catch(e){ return null; }
+  }
+  async function refreshLiveStatuses(){
+    if(!me) return;
+    for(const u of usersList){ liveCache[u.id] = await getLiveStatus(u.id); }
+    renderPeopleRow();
+    updateFriendTimerCard();
+    refreshBellBadge();
+  }
+  function liveMinutesFor(st){
+    let mins = (st && st.todayTotalMin) || 0;
+    if(st && st.studying && st.startedAt){
+      mins += ((st.baseElapsedMs||0) + (Date.now()-st.startedAt)) / 60000;
+    }
+    return mins;
+  }
+  function updateFriendTimerCard(){
+    if(currentScreen!=='timer' || isViewingSelf()) return;
+    const friend = usersList.find(u=>u.id===viewingId);
+    const card = document.getElementById('friendTimerBanner');
+    if(!friend || !card) return;
+    const st = liveCache[friend.id];
+    const studying = !!(st && st.studying);
+    const mins = liveMinutesFor(st);
+    card.innerHTML = `
+      <div class="who">${studying?'🔴 ':''}${escapeHtml(friend.name)}</div>
+      <div class="lbl">${studying ? (st.label || st.subjectName || 'studying now') : 'not studying right now'}</div>
+      <div class="stat">${fmtHM(mins)}</div>
+      <div class="lbl">studied today</div>
+    `;
+  }
+  function startLiveTimers(){
+    stopLiveTimers();
+    refreshLiveStatuses();
+    livePollHandle = setInterval(refreshLiveStatuses, 6000);
+    liveTickHandle = setInterval(()=>{ renderPeopleRow(); updateFriendTimerCard(); }, 1000);
+  }
+  function stopLiveTimers(){
+    if(livePollHandle){ clearInterval(livePollHandle); livePollHandle = null; }
+    if(liveTickHandle){ clearInterval(liveTickHandle); liveTickHandle = null; }
+  }
+
+  // ---------- task comments (reminders / motivation) ----------
+  function commentsIdFor(taskId, ownerId){
+    return ownerId ? `p_${ownerId}_${taskId}` : `s_${taskId}`;
+  }
+  async function loadComments(cid){
+    try{
+      const snap = await getDoc(doc(db, 'comments', cid));
+      return snap.exists() ? (snap.data().items || []) : [];
+    }catch(e){ return []; }
+  }
+  async function addComment(cid, text){
+    const items = await loadComments(cid);
+    items.push({ by: me.id, name: me.name, text, ts: Date.now() });
+    try{ await setDoc(doc(db, 'comments', cid), { items }); }
+    catch(e){ console.error('comment failed', e); }
+  }
+  async function checkUnread(btn){
+    const cid = btn.dataset.cid;
+    const items = await loadComments(cid);
+    if(!items.length) return;
+    const lastRead = myReads[cid] || 0;
+    const unread = items.some(c => c.ts > lastRead && c.by !== me.id);
+    if(unread) btn.classList.add('has-unread');
+  }
+  function attachCommentButtons(el){
+    el.querySelectorAll('.cmt-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=> openCommentsModal(btn.dataset.cid, btn.dataset.title, btn));
+      checkUnread(btn);
+    });
+  }
+  async function openCommentsModal(cid, title, btnEl){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal" style="max-height:75vh; display:flex; flex-direction:column;">
+        <button class="close-x">×</button>
+        <h3>${escapeHtml(title)}</h3>
+        <div id="cmt-list" style="flex:1; overflow-y:auto; margin-bottom:14px; max-height:45vh;"></div>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="cmt-input" placeholder="Send a reminder or nudge…" style="flex:1;">
+          <button class="btn btn-primary" id="cmt-send" style="flex:0 0 auto; padding:0 18px;">Send</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    await markRead(cid);
+    if(btnEl) btnEl.classList.remove('has-unread');
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    async function refresh(){
+      const items = await loadComments(cid);
+      const list = backdrop.querySelector('#cmt-list');
+      list.innerHTML = items.length ? items.map(c=>`
+        <div class="cmt-item"><b>${escapeHtml(c.name)}</b>: ${escapeHtml(c.text)}</div>
+      `).join('') : `<div style="color:var(--chalk-faint); font-size:12px;">No messages yet — send the first nudge.</div>`;
+      list.scrollTop = list.scrollHeight;
+    }
+    await refresh();
+    async function send(){
+      const input = backdrop.querySelector('#cmt-input');
+      const text = input.value.trim();
+      if(!text) return;
+      input.value = '';
+      await addComment(cid, text);
+      await refresh();
+      notifyForComment(cid, title, text);
+    }
+    backdrop.querySelector('#cmt-send').addEventListener('click', send);
+    backdrop.querySelector('#cmt-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') send(); });
+  }
+
+  function renderSubjectOptions(selectEl, selectedId){
+    selectEl.innerHTML = '';
+    state.subjects.forEach(s=>{
+      const opt = document.createElement('option');
+      opt.value = s.id; opt.textContent = s.name;
+      if(s.id === selectedId) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function renderSessions(){
+    const key = fmtDate(new Date());
+    const data = activeData();
+    const list = (data.sessions && data.sessions[key]) || [];
+    const el = document.getElementById('sessionList');
+    if(list.length===0){
+      el.innerHTML = isViewingSelf()
+        ? '<div class="empty" style="padding:20px 0;"><div class="big">No sessions yet</div>today\'s first block starts with you</div>'
+        : '<div class="empty" style="padding:20px 0;"><div class="big">No sessions yet</div>nothing logged today</div>';
+      return;
+    }
+    el.innerHTML = list.slice().reverse().map(s=>{
+      const period = (s.startedAt && s.endedAt) ? `${formatClock(s.startedAt)} – ${formatClock(s.endedAt)}` : '';
+      return `
+        <div class="session-item2">
+          <div class="row1">
+            <span class="subj"><span class="dot" style="background:${subjectColorIn(s.subject, data)}"></span>${subjectNameIn(s.subject, data)}</span>
+            <span class="dur-badge">${s.duration} min${s.mode==='countdown' ? (s.completed?' ✓':' ⏸'):''}</span>
+          </div>
+          ${s.label ? `<div class="label">${escapeHtml(s.label)}</div>` : ''}
+          ${period ? `<div class="period">${period}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ---------- TODAY SCREEN ----------
+  function renderDayScroller(){
+    const el = document.getElementById('dayScroller');
+    el.innerHTML='';
+    const today = new Date();
+    for(let i=-3;i<=10;i++){
+      const d = new Date(today);
+      d.setDate(today.getDate()+i);
+      const chip = document.createElement('div');
+      chip.className = 'day-chip' + (fmtDate(d)===fmtDate(selectedDate) ? ' active':'');
+      chip.innerHTML = `<div class="dname">${DAY_NAMES[d.getDay()]}</div><div class="dnum">${d.getDate()}</div>`;
+      chip.addEventListener('click', ()=>{ selectedDate = d; render(); });
+      el.appendChild(chip);
+    }
+  }
+  async function renderTaskList(){
+    const el = document.getElementById('taskList');
+    const dateKey = fmtDate(selectedDate);
+    const myBlocks = blocksForDateIn(state, selectedDate);
+    const sharedTasks = await loadSharedTasks(dateKey);
+
+    let html = '';
+
+    // ---- my tasks ----
+    html += `<h3 class="section-title">My tasks</h3>`;
+    if(myBlocks.length===0 && sharedTasks.length===0){
+      html += `<div class="empty" style="padding:26px 0;"><div class="big">Nothing scheduled</div>tap + to add a task for this day</div>`;
+    } else if(myBlocks.length===0){
+      html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">no tasks of your own yet — tap +</div>`;
+    } else {
+      html += myBlocks.map(b=>{
+        const compKey = dateKey+'|'+b.id;
+        const status = state.completion[compKey]; // undefined | 'done' | 'missed'
+        return `
+          <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
+            <div class="time">${b.start||''}</div>
+            <div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
+            <div class="body">
+              <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, state)}</div>
+              <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, state)}"></span>${subjectNameIn(b.subject, state)} · ${b.duration||30} min</div>
+            </div>
+            <button class="cmt-btn" data-cid="${commentsIdFor(b.id, me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,state))}">💬</button>
+            <button class="task-del" data-id="${b.id}" data-source="${b.source}">×</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ---- shared "together" tasks ----
+    if(sharedTasks.length){
+      html += `<h3 class="section-title">Doing together</h3>`;
+      html += sharedTasks.map(t=>{
+        const people = [me, ...usersList.filter(u=>u.id!==me.id)];
+        const rowHtml = people.map(p=>{
+          const st = (t.completions||{})[p.id];
+          const mine = p.id===me.id;
+          return `<div class="who-chip ${st||''} ${mine?'mine':''}" data-shared-task="${mine? t.id : ''}" title="${p.name}">
+            <span class="avatar" style="background:${p.color||'#7FB3D5'}">${p.name.slice(0,1).toUpperCase()}</span>
+            <span class="who-mark">${st==='done'?'✓':(st==='missed'?'✕':'')}</span>
+          </div>`;
+        }).join('');
+        return `
+          <div class="task-card shared">
+            <div class="time">${t.start||''}</div>
+            <div class="body">
+              <div class="name">${t.label||'Untitled'} <span class="badge">together</span></div>
+              <div class="meta">${t.duration||30} min · added by ${t.createdByName||'someone'}</div>
+              <div class="who-row">${rowHtml}</div>
+            </div>
+            ${t.createdBy===me.id ? `<button class="task-del" data-shared-del="${t.id}">×</button>` : ''}
+            <button class="cmt-btn" data-cid="${commentsIdFor(t.id, null)}" data-title="${escapeHtml(t.label||'Untitled')}">💬</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ---- friends' tasks, read-only ----
+    const friends = usersList.filter(u=>u.id!==me.id);
+    for(const u of friends){
+      await fetchFriendBoard(u.id);
+      const fb = friendCache[u.id] || {};
+      const fBlocks = blocksForDateIn(fb, selectedDate);
+      html += `<h3 class="section-title">${u.name}'s tasks</h3>`;
+      if(fBlocks.length===0){
+        html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">nothing scheduled</div>`;
+      } else {
+        html += fBlocks.map(b=>{
+          const compKey = dateKey+'|'+b.id;
+          const status = (fb.completion||{})[compKey];
+          return `
+            <div class="task-card readonly ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
+              <div class="time">${b.start||''}</div>
+              <div class="check ${status||''}" style="pointer-events:none;">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
+              <div class="body">
+                <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, fb)}</div>
+                <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, fb)}"></span>${subjectNameIn(b.subject, fb)} · ${b.duration||30} min</div>
+              </div>
+              <button class="cmt-btn" data-cid="${commentsIdFor(b.id, u.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,fb))}">💬</button>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    el.innerHTML = html;
+
+    // ---- handlers: my own tasks ----
+    el.querySelectorAll('.check').forEach(c=>{
+      if(c.style.pointerEvents==='none') return;
+      c.addEventListener('click', ()=>{
+        const k = c.dataset.key;
+        state.completion[k] = nextStatus(state.completion[k]);
+        saveState();
+        renderTaskList();
+      });
+    });
+    el.querySelectorAll('.task-del[data-id]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.dataset.id, source = btn.dataset.source;
+        if(source==='template'){
+          state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==id);
+        } else {
+          const key = fmtDate(selectedDate);
+          state.dailyExtra[key] = (state.dailyExtra[key]||[]).filter(b=>b.id!==id);
+        }
+        saveState();
+        renderTaskList();
+        renderWeekList();
+      });
+    });
+
+    // ---- handlers: shared "together" task — tick your own status ----
+    el.querySelectorAll('.who-chip[data-shared-task]').forEach(chip=>{
+      const taskId = chip.dataset.sharedTask;
+      if(!taskId) return; // not your own avatar — read only
+      chip.addEventListener('click', async ()=>{
+        const list = await loadSharedTasks(dateKey);
+        const t = list.find(x=>x.id===taskId);
+        if(!t) return;
+        t.completions = t.completions || {};
+        t.completions[me.id] = nextStatus(t.completions[me.id]);
+        await saveSharedTasks(dateKey, list);
+        renderTaskList();
+      });
+    });
+    el.querySelectorAll('.task-del[data-shared-del]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const list = await loadSharedTasks(dateKey);
+        await saveSharedTasks(dateKey, list.filter(x=>x.id!==btn.dataset.sharedDel));
+        renderTaskList();
+      });
+    });
+
+    attachCommentButtons(el);
+  }
+
+  // ---------- WEEK SCREEN ----------
+  function renderWeekList(){
+    const el = document.getElementById('weekList');
+    const editable = isViewingSelf();
+    const data = activeData();
+    el.innerHTML = DAY_NAMES.map((name, dow)=>{
+      const blocks = data.weeklyTemplate.filter(b=>b.day===dow).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
+      const chips = blocks.length ? blocks.map(b=>`
+        <div class="block-chip" style="border-left-color:${subjectColor(b.subject)}">
+          <div class="left">
+            <span>${b.label || subjectName(b.subject)}</span>
+            <span class="t">${b.start||'--:--'} · ${b.duration||30}min</span>
+          </div>
+          ${editable ? `<button class="task-del" data-id="${b.id}">×</button>` : ''}
+        </div>
+      `).join('') : `<div style="font-size:12px; color:var(--chalk-faint); padding:4px 2px 0;">no recurring blocks</div>`;
+      return `<div class="week-day"><h4>${name} <span class="count">${blocks.length? blocks.length+' block'+(blocks.length>1?'s':'') : ''}</span></h4>${chips}</div>`;
+    }).join('');
+    if(!editable) return;
+    el.querySelectorAll('.task-del').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==btn.dataset.id);
+        saveState();
+        renderWeekList();
+        renderTaskList();
+      });
+    });
+  }
+
+  // ---------- ADD MODAL ----------
+  document.getElementById('fabAdd').addEventListener('click', ()=>{
+    if(currentScreen==='today') openAddModal('extra');
+    else if(currentScreen==='week' && isViewingSelf()) openAddModal('template');
+  });
+
+  function openAddModal(kind){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const isTemplate = kind==='template';
+    backdrop.innerHTML = `
+      <div class="modal" style="position:relative;">
+        <button class="close-x">×</button>
+        <h3>${isTemplate ? 'Add weekly block' : 'Add task for '+DAY_NAMES[selectedDate.getDay()]+' '+selectedDate.getDate()}</h3>
+
+        <div class="field-row">
+          <label>Label</label>
+          <input type="text" id="m-label" placeholder="e.g. Organic Chem — Ch.4">
+        </div>
+
+        <div class="field-row">
+          <label>Subject</label>
+          <select id="m-subject"></select>
+        </div>
+
+        ${isTemplate ? `
+        <div class="field-row">
+          <label>Day(s)</label>
+          <div class="day-toggle-row" id="m-days">
+            ${DAY_NAMES.map((n,i)=>`<div class="day-toggle" data-day="${i}">${n}</div>`).join('')}
+          </div>
+        </div>` : ''}
+
+        <div class="field-row">
+          <label>Start time</label>
+          <input type="text" id="m-start" placeholder="16:00" value="16:00">
+        </div>
+
+        <div class="field-row">
+          <label>Duration (minutes)</label>
+          <input type="number" id="m-duration" value="30" min="5" max="600">
+        </div>
+
+        ${!isTemplate ? `
+        <div class="field-row">
+          <div class="together-toggle" id="m-together">
+            <span class="check" id="m-together-check"></span>
+            <span>We're doing this together</span>
+          </div>
+        </div>` : ''}
+
+        <div class="field-row">
+          <label>New subject color (optional — add a new subject)</label>
+          <input type="text" id="m-new-subject" placeholder="New subject name">
+          <div class="color-row" id="m-colors">
+            ${COLORS.map(c=>`<div class="swatch" data-color="${c}" style="background:${c}"></div>`).join('')}
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="m-cancel">Cancel</button>
+          <button class="btn btn-primary" id="m-save">Save</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    renderSubjectOptions(backdrop.querySelector('#m-subject'), state.subjects[0].id);
+
+    let pickedColor = COLORS[0];
+    let selectedDays = isTemplate ? new Set([selectedDate.getDay()]) : null;
+    if(isTemplate){
+      const dayEls = backdrop.querySelectorAll('.day-toggle');
+      dayEls.forEach(d=>{
+        if(parseInt(d.dataset.day)===selectedDate.getDay()) d.classList.add('sel');
+        d.addEventListener('click', ()=>{
+          const day = parseInt(d.dataset.day);
+          if(selectedDays.has(day)){ selectedDays.delete(day); d.classList.remove('sel'); }
+          else { selectedDays.add(day); d.classList.add('sel'); }
+        });
+      });
+    }
+    backdrop.querySelectorAll('.swatch').forEach(sw=>{
+      sw.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));
+        sw.classList.add('sel');
+        pickedColor = sw.dataset.color;
+      });
+    });
+
+    let together = false;
+    const togetherEl = backdrop.querySelector('#m-together');
+    if(togetherEl){
+      togetherEl.addEventListener('click', ()=>{
+        together = !together;
+        togetherEl.classList.toggle('sel', together);
+        backdrop.querySelector('#m-together-check').textContent = together ? '✓' : '';
+      });
+    }
+
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.querySelector('#m-cancel').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    backdrop.querySelector('#m-save').addEventListener('click', async ()=>{
+      const label = backdrop.querySelector('#m-label').value.trim();
+      const start = backdrop.querySelector('#m-start').value.trim();
+      const duration = parseInt(backdrop.querySelector('#m-duration').value||'30',10);
+      const newSubjectName = backdrop.querySelector('#m-new-subject').value.trim();
+      let subjectId = backdrop.querySelector('#m-subject').value;
+
+      if(newSubjectName){
+        subjectId = 'sub_'+Date.now();
+        state.subjects.push({id:subjectId, name:newSubjectName, color:pickedColor});
+      }
+
+      const taskName = label || subjectName(subjectId);
+      if(isTemplate){
+        if(selectedDays.size===0){ selectedDays.add(selectedDate.getDay()); }
+        selectedDays.forEach(day=>{
+          state.weeklyTemplate.push({
+            id:'blk_'+Date.now()+'_'+day,
+            day, subject:subjectId, start, duration, label
+          });
+        });
+        saveState();
+        notifyOthers(`${me.name} added a weekly study block: ${taskName}`);
+      } else if(together){
+        const dateKey = fmtDate(selectedDate);
+        const list = await loadSharedTasks(dateKey);
+        list.push({
+          id:'shr_'+Date.now(), start, duration, label,
+          createdBy: me.id, createdByName: me.name,
+          completions: {}
+        });
+        await saveSharedTasks(dateKey, list);
+        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`);
+      } else {
+        const key = fmtDate(selectedDate);
+        if(!state.dailyExtra[key]) state.dailyExtra[key] = [];
+        state.dailyExtra[key].push({
+          id:'ext_'+Date.now(), subject:subjectId, start, duration, label
+        });
+        saveState();
+        notifyOthers(`${me.name} added a task: ${taskName}`);
+      }
+      render();
+      close();
+    });
+  }
+
+  // ---------- master render ----------
+  function render(){
+    renderPeopleRow();
+
+    const banner = document.getElementById('viewingBanner');
+    if(currentScreen==='week' && !isViewingSelf()){
+      const friend = usersList.find(u=>u.id===viewingId);
+      banner.style.display = 'block';
+      banner.textContent = `Viewing ${friend ? friend.name : 'their'} weekly schedule — read-only`;
+    } else {
+      banner.style.display = 'none';
+    }
+
+    const fab = document.getElementById('fabAdd');
+    fab.style.display = (currentScreen==='today' || (currentScreen==='week' && isViewingSelf())) ? 'flex' : 'none';
+
+    document.getElementById('timerControlsWrap').style.display = isViewingSelf() ? 'block' : 'none';
+    document.getElementById('friendTimerBanner').style.display = isViewingSelf() ? 'none' : 'block';
+    document.getElementById('sessionListTitle').textContent = isViewingSelf() ? "Today's sessions" :
+      `${(usersList.find(u=>u.id===viewingId)||{}).name || 'Their'}'s sessions today`;
+    updateFriendTimerCard();
+
+    renderSubjectOptions(document.getElementById('timerSubject'), document.getElementById('timerSubject').value);
+    renderSessions();
+    renderDayScroller();
+    renderTaskList();
+    renderWeekList();
+    if(currentScreen==='history') renderHistory();
+  }
+
+  document.getElementById('historyDate').addEventListener('change', renderHistory);
+
+  async function renderHistory(){
+    const el = document.getElementById('historyList');
+    const dateInput = document.getElementById('historyDate').value;
+    if(!dateInput){ el.innerHTML=''; return; }
+    const [y,m,d] = dateInput.split('-').map(Number);
+    const date = new Date(y, m-1, d);
+    const dateKey = dateInput;
+
+    let html = '';
+    const renderReadonlySection = (title, blocks, data, ownerId)=>{
+      html += `<h3 class="section-title">${title}</h3>`;
+      if(blocks.length===0){
+        html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">nothing scheduled</div>`;
+        return;
+      }
+      html += blocks.map(b=>{
+        const compKey = dateKey+'|'+b.id;
+        const status = (data.completion||{})[compKey];
+        return `
+          <div class="task-card readonly ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
+            <div class="time">${b.start||''}</div>
+            <div class="check ${status||''}" style="pointer-events:none;">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
+            <div class="body">
+              <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, data)}</div>
+              <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, data)}"></span>${subjectNameIn(b.subject, data)} · ${b.duration||30} min</div>
+            </div>
+            <button class="cmt-btn" data-cid="${commentsIdFor(b.id, ownerId)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,data))}">💬</button>
+          </div>
+        `;
+      }).join('');
+    };
+
+    renderReadonlySection('My tasks', blocksForDateIn(state, date), state, me.id);
+
+    const sharedTasks = await loadSharedTasks(dateKey);
+    if(sharedTasks.length){
+      html += `<h3 class="section-title">Done together</h3>`;
+      html += sharedTasks.map(t=>{
+        const people = [me, ...usersList.filter(u=>u.id!==me.id)];
+        const rowHtml = people.map(p=>{
+          const st = (t.completions||{})[p.id];
+          return `<div class="who-chip ${st||''}" title="${p.name}">
+            <span class="avatar" style="background:${p.color||'#7FB3D5'}">${p.name.slice(0,1).toUpperCase()}</span>
+            <span class="who-mark">${st==='done'?'✓':(st==='missed'?'✕':'')}</span>
+          </div>`;
+        }).join('');
+        return `
+          <div class="task-card shared">
+            <div class="time">${t.start||''}</div>
+            <div class="body">
+              <div class="name">${t.label||'Untitled'} <span class="badge">together</span></div>
+              <div class="meta">${t.duration||30} min</div>
+              <div class="who-row">${rowHtml}</div>
+            </div>
+            <button class="cmt-btn" data-cid="${commentsIdFor(t.id, null)}" data-title="${escapeHtml(t.label||'Untitled')}">💬</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    const friends = usersList.filter(u=>u.id!==me.id);
+    for(const u of friends){
+      await fetchFriendBoard(u.id);
+      const fb = friendCache[u.id] || {};
+      renderReadonlySection(`${u.name}'s tasks`, blocksForDateIn(fb, date), fb, u.id);
+    }
+
+    el.innerHTML = html;
+    attachCommentButtons(el);
+  }
+})();
+</script>
+</body>
+</html>
