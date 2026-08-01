@@ -152,6 +152,35 @@
   .sw-sec{ font-size:22px; color:var(--chalk-faint); margin-left:2px; font-weight:600; }
   .stopwatch-face.running .sw-main{ color:var(--accent); text-shadow: 0 0 14px rgba(var(--accent-rgb),0.45); }
 
+  .dur-chip-row{ display:flex; gap:8px; }
+  .dur-chip{
+    flex:1; text-align:center; padding:10px 0; border-radius:12px; background:var(--card);
+    border:1px solid var(--card-line); color:var(--chalk-dim); font-size:13px; font-weight:600; cursor:pointer;
+  }
+  .dur-chip.sel{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
+
+  /* ---------- wheel / dial picker (time & duration, no typing) ---------- */
+  .wheel-picker{
+    position:relative; display:flex; justify-content:center; gap:2px; height:120px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:14px; overflow:hidden;
+  }
+  .wheel-col{
+    position:relative; flex:1; max-width:90px; height:120px; overflow-y:scroll;
+    scroll-snap-type:y mandatory; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  }
+  .wheel-col::-webkit-scrollbar{ display:none; }
+  .wheel-col .opt{
+    height:40px; display:flex; align-items:center; justify-content:center; scroll-snap-align:center;
+    font-family:'JetBrains Mono'; font-size:16px; color:var(--chalk-faint); font-weight:600; transition: color .15s;
+  }
+  .wheel-col .opt.center{ color:var(--chalk); font-size:18px; }
+  .wheel-highlight{
+    position:absolute; top:40px; left:6px; right:6px; height:40px; pointer-events:none;
+    border-top:1px solid var(--card-line); border-bottom:1px solid var(--card-line);
+    background:rgba(255,255,255,0.03); border-radius:8px;
+  }
+  .wheel-label{ text-align:center; font-size:10px; color:var(--chalk-faint); text-transform:uppercase; letter-spacing:0.5px; margin-top:6px; }
+
   select, input[type=text], input[type=number], input[type=date]{
     color-scheme: dark;
     background:var(--card); border:1px solid var(--card-line); color:var(--chalk);
@@ -258,6 +287,21 @@
 
   /* ---------- Week screen ---------- */
   .week-day{ margin-bottom:20px; }
+  .history-day{ margin-bottom:22px; }
+  .history-day-heading{
+    font-family:'Kalam'; font-size:16px; color:var(--chalk-dim); margin:0 0 8px; letter-spacing:0.2px;
+    padding-bottom:6px; border-bottom:1px solid var(--card-line);
+  }
+  .week-nav{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    margin:6px 0 18px; background:var(--card); border:1px solid var(--card-line); border-radius:14px; padding:8px 6px;
+  }
+  .week-nav-arrow{
+    width:36px; height:36px; border-radius:10px; background:none; border:none; color:var(--chalk);
+    font-size:18px; cursor:pointer; flex:0 0 auto;
+  }
+  .week-nav-arrow:active{ background:var(--accent-dim); }
+  .week-nav-label{ flex:1; text-align:center; font-family:'Kalam'; font-size:15px; color:var(--chalk); }
   .week-day h4{
     font-family:'Kalam'; font-size:17px; margin:0 0 8px; color:var(--chalk);
     display:flex; align-items:center; gap:8px;
@@ -535,8 +579,13 @@
         </div>
 
         <div class="field-row" id="countdownLenRow" style="display:none;">
-          <label>Length (minutes)</label>
-          <input type="number" id="countdownLen" value="25" min="1" max="240">
+          <label>Length</label>
+          <div class="dur-chip-row" id="countdownLenChips">
+            <div class="dur-chip" data-min="15">15 min</div>
+            <div class="dur-chip" data-min="30">30 min</div>
+            <div class="dur-chip sel" data-min="60">60 min</div>
+            <div class="dur-chip" data-min="120">120 min</div>
+          </div>
         </div>
 
         <div class="timer-ring-wrap">
@@ -578,6 +627,11 @@
 
     <!-- WEEK SCREEN -->
     <section class="screen" id="screen-week">
+      <div class="week-nav" id="weekNav">
+        <button class="week-nav-arrow" id="weekPrev">‹</button>
+        <div class="week-nav-label" id="weekNavLabel">This week</div>
+        <button class="week-nav-arrow" id="weekNext">›</button>
+      </div>
       <div id="weekList"></div>
     </section>
 
@@ -650,7 +704,7 @@ if('serviceWorker' in navigator){
 
 // TODO: paste your Web Push "VAPID key" from
 // Firebase console → Project settings → Cloud Messaging → Web Push certificates
-const VAPID_KEY = 'BHaRFc-faH5vI-yIhWjd0n1BF3CQ0zmkHHJcJOVT9mYLaloj_BB0qaSjfAJ4Utm1BVyNLr1-vq-cNiFToCDgCFs';
+const VAPID_KEY = 'PASTE_YOUR_VAPID_KEY_HERE';
 
 async function pushPermissionState(){
   if(!('Notification' in window)) return 'unsupported';
@@ -1194,6 +1248,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
     h = h%12; if(h===0) h=12;
     return `${h}:${pad(m)} ${ampm}`;
   }
+  function fmt12(hhmm){
+    if(!hhmm || hhmm.indexOf(':')===-1) return hhmm || '';
+    const [hStr,mStr] = hhmm.split(':');
+    let h = parseInt(hStr,10), m = parseInt(mStr,10);
+    if(isNaN(h)||isNaN(m)) return hhmm;
+    const ampm = h>=12 ? 'PM':'AM';
+    h = h%12; if(h===0) h=12;
+    return `${h}:${pad(m)} ${ampm}`;
+  }
   function timeAgo(ts){
     const s = Math.floor((Date.now()-ts)/1000);
     if(s<60) return 'just now';
@@ -1273,7 +1336,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let timerMode = 'stopwatch'; // or 'countdown'
   let timerRunning = false;
   let elapsedMs = 0;
-  let countdownTotalMs = 25*60*1000;
+  let countdownTotalMs = 60*60*1000;
   let tickHandle = null;
   let lastTick = null;
 
@@ -1299,9 +1362,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
     elapsedMs = 0;
     renderTimerDigits();
   });
-  document.getElementById('countdownLen').addEventListener('input', (e)=>{
-    countdownTotalMs = Math.max(1, parseInt(e.target.value||'25',10)) * 60000;
-    if(!timerRunning) renderTimerDigits();
+  document.getElementById('countdownLenChips').querySelectorAll('.dur-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      if(timerRunning) return;
+      document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
+      chip.classList.add('sel');
+      countdownTotalMs = parseInt(chip.dataset.min,10) * 60000;
+      renderTimerDigits();
+    });
   });
   document.getElementById('timerSubject').addEventListener('change', renderRing);
 
@@ -1378,6 +1446,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTimerDigits();
     setLiveStatus({ studying:false, baseElapsedMs:elapsedMs });
   }
+  const MAX_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours — auto-stop safety cap
   function tick(){
     const now = Date.now();
     elapsedMs += (now - lastTick);
@@ -1386,6 +1455,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
       elapsedMs = countdownTotalMs;
       renderTimerDigits();
       finishSession(true);
+      return;
+    }
+    if(elapsedMs >= MAX_SESSION_MS){
+      elapsedMs = MAX_SESSION_MS;
+      renderTimerDigits();
+      finishSession(timerMode==='countdown', 'autostop');
       return;
     }
     renderTimerDigits();
@@ -1411,7 +1486,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTimerDigits();
     setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
   }
-  function finishSession(completed){
+  function finishSession(completed, reason){
     timerRunning = false;
     clearInterval(tickHandle);
     const key = fmtDate(new Date());
@@ -1433,7 +1508,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       });
       saveState();
     }
-    setStatusText(completed ? 'session complete 🎉' : 'ready');
+    setStatusText(reason==='autostop' ? 'auto-stopped at 4h limit 🛑' : (completed ? 'session complete 🎉' : 'ready'));
     document.getElementById('startBtn').textContent = 'Start';
     elapsedMs = 0;
     sessionStartClock = null;
@@ -1448,10 +1523,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let liveTickHandle = null;
   async function setLiveStatus(patch){
     if(!me) return;
+    const merged = Object.assign({ name: me.name, color: me.color }, liveCache[me.id]||{}, patch, { updatedAt: Date.now() });
+    liveCache[me.id] = merged;
+    renderPeopleRow();
+    updateFriendTimerCard();
     try{
-      await setDoc(doc(db, 'liveStatus', me.id),
-        Object.assign({ name: me.name, color: me.color, updatedAt: Date.now() }, patch),
-        { merge:true });
+      await setDoc(doc(db, 'liveStatus', me.id), merged, { merge:true });
     }catch(e){ console.error('live status failed', e); }
   }
   async function getLiveStatus(uid){
@@ -1644,7 +1721,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         const status = state.completion[compKey]; // undefined | 'done' | 'missed'
         return `
           <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
-            <div class="time">${b.start||''}</div>
+            <div class="time">${fmt12(b.start)}</div>
             <div class="check ${status||''}" data-key="${compKey}">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
             <div class="body">
               <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, state)}</div>
@@ -1672,7 +1749,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         }).join('');
         return `
           <div class="task-card shared">
-            <div class="time">${t.start||''}</div>
+            <div class="time">${fmt12(t.start)}</div>
             <div class="body">
               <div class="name">${t.label||'Untitled'} <span class="badge">together</span></div>
               <div class="meta">${t.duration||30} min · added by ${t.createdByName||'someone'}</div>
@@ -1700,7 +1777,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           const status = (fb.completion||{})[compKey];
           return `
             <div class="task-card readonly ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
-              <div class="time">${b.start||''}</div>
+              <div class="time">${fmt12(b.start)}</div>
               <div class="check ${status||''}" style="pointer-events:none;">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
               <div class="body">
                 <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, fb)}</div>
@@ -1766,39 +1843,143 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
 
   // ---------- WEEK SCREEN ----------
+  let weekOffset = 0;
+  function startOfWeek(date, offsetWeeks){
+    const d = new Date(date);
+    d.setHours(0,0,0,0);
+    d.setDate(d.getDate() - d.getDay() + offsetWeeks*7);
+    return d;
+  }
   function renderWeekList(){
     const el = document.getElementById('weekList');
     const editable = isViewingSelf();
     const data = activeData();
+    const weekStart = startOfWeek(new Date(), weekOffset);
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6);
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const labelEl = document.getElementById('weekNavLabel');
+    if(labelEl){
+      labelEl.textContent = weekOffset===0 ? 'This week'
+        : `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()} – ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
+    }
     el.innerHTML = DAY_NAMES.map((name, dow)=>{
-      const blocks = data.weeklyTemplate.filter(b=>b.day===dow).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
+      const date = new Date(weekStart); date.setDate(date.getDate()+dow);
+      const dateKey = fmtDate(date);
+      const blocks = blocksForDateIn(data, date);
       const chips = blocks.length ? blocks.map(b=>`
-        <div class="block-chip" style="border-left-color:${subjectColor(b.subject)}">
+        <div class="block-chip" style="border-left-color:${subjectColorIn(b.subject, data)}">
           <div class="left">
-            <span>${b.label || subjectName(b.subject)}</span>
-            <span class="t">${b.start||'--:--'} · ${b.duration||30}min</span>
+            <span>${b.label || subjectNameIn(b.subject, data)}</span>
+            <span class="t">${fmt12(b.start)} · ${b.duration||30}min</span>
           </div>
-          ${editable ? `<button class="task-del" data-id="${b.id}">×</button>` : ''}
+          ${editable ? `<button class="task-del" data-id="${b.id}" data-source="${b.source}" data-datekey="${dateKey}">×</button>` : ''}
         </div>
-      `).join('') : `<div style="font-size:12px; color:var(--chalk-faint); padding:4px 2px 0;">no recurring blocks</div>`;
-      return `<div class="week-day"><h4>${name} <span class="count">${blocks.length? blocks.length+' block'+(blocks.length>1?'s':'') : ''}</span></h4>${chips}</div>`;
+      `).join('') : `<div style="font-size:12px; color:var(--chalk-faint); padding:4px 2px 0;">nothing scheduled</div>`;
+      return `<div class="week-day"><h4>${name} <span class="count">${date.getDate()}</span></h4>${chips}</div>`;
     }).join('');
     if(!editable) return;
     el.querySelectorAll('.task-del').forEach(btn=>{
       btn.addEventListener('click', ()=>{
-        state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==btn.dataset.id);
+        if(btn.dataset.source==='template'){
+          state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==btn.dataset.id);
+        } else {
+          const dk = btn.dataset.datekey;
+          if(state.dailyExtra[dk]) state.dailyExtra[dk] = state.dailyExtra[dk].filter(b=>b.id!==btn.dataset.id);
+        }
         saveState();
         renderWeekList();
         renderTaskList();
       });
     });
   }
+  document.getElementById('weekPrev').addEventListener('click', ()=>{ weekOffset--; renderWeekList(); });
+  document.getElementById('weekNext').addEventListener('click', ()=>{ weekOffset++; renderWeekList(); });
 
   // ---------- ADD MODAL ----------
   document.getElementById('fabAdd').addEventListener('click', ()=>{
     if(currentScreen==='today') openAddModal('extra');
     else if(currentScreen==='week' && isViewingSelf()) openAddModal('template');
   });
+
+  // ---------- wheel / dial picker (no manual typing) ----------
+  const WHEEL_ITEM_H = 40;
+  function buildWheelColumn(el, items, initialIndex, onSettle){
+    el.innerHTML = `<div class="opt" style="visibility:hidden;"></div>` +
+      items.map(v=>`<div class="opt">${v}</div>`).join('') +
+      `<div class="opt" style="visibility:hidden;"></div>`;
+    let current = Math.max(0, Math.min(items.length-1, initialIndex));
+    function paintCenter(idx){
+      el.querySelectorAll('.opt').forEach((o,i)=> o.classList.toggle('center', i===idx+1));
+    }
+    function scrollToIndex(idx, smooth){
+      el.scrollTo({ top: idx*WHEEL_ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
+    }
+    scrollToIndex(current, false);
+    paintCenter(current);
+    let settleTimer = null;
+    el.addEventListener('scroll', ()=>{
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(()=>{
+        let idx = Math.round(el.scrollTop / WHEEL_ITEM_H);
+        idx = Math.max(0, Math.min(items.length-1, idx));
+        current = idx;
+        scrollToIndex(idx, true);
+        paintCenter(idx);
+        onSettle(items[idx], idx);
+      }, 110);
+    });
+    return {
+      get value(){ return items[current]; },
+      setIndex(idx){ current = Math.max(0, Math.min(items.length-1, idx)); scrollToIndex(current, false); paintCenter(current); }
+    };
+  }
+  // time-of-day wheel: returns {getValue():"HH:MM", setFromHHMM(str)}
+  function createTimeWheel(container, initialHHMM){
+    container.innerHTML = `
+      <div class="wheel-picker">
+        <div class="wheel-col" id="${container.id}-h"></div>
+        <div class="wheel-col" id="${container.id}-m"></div>
+        <div class="wheel-col" id="${container.id}-a"></div>
+        <div class="wheel-highlight"></div>
+      </div>
+      <div class="wheel-label" style="display:flex; gap:2px;"><span style="flex:1;">Hour</span><span style="flex:1;">Min</span><span style="flex:1;">AM/PM</span></div>
+    `;
+    let [ih, im] = (initialHHMM||'16:00').split(':').map(Number);
+    let ampmInit = ih>=12 ? 'PM':'AM';
+    let h12 = ih%12; if(h12===0) h12=12;
+    const mIdx = Math.round(im/5) % 12; // snap to nearest 5-min mark
+    const hours = Array.from({length:12}, (_,i)=> i+1);
+    const mins = Array.from({length:12}, (_,i)=> pad(i*5));
+    const ampms = ['AM','PM'];
+    let hourVal = h12, minVal = mIdx*5, ampmVal = ampmInit;
+    const hourWheel = buildWheelColumn(container.querySelector(`#${container.id}-h`), hours, hours.indexOf(h12), (v)=>{ hourVal = v; });
+    const minWheel = buildWheelColumn(container.querySelector(`#${container.id}-m`), mins, mIdx, (v)=>{ minVal = parseInt(v,10); });
+    const ampmWheel = buildWheelColumn(container.querySelector(`#${container.id}-a`), ampms, ampms.indexOf(ampmInit), (v)=>{ ampmVal = v; });
+    return {
+      getValue(){
+        let h24 = hourVal % 12;
+        if(ampmVal==='PM') h24 += 12;
+        return `${pad(h24)}:${pad(minVal)}`;
+      }
+    };
+  }
+  // duration wheel (minutes, step 5): returns {getValue(): number}
+  function createDurationWheel(container, initialMin){
+    container.innerHTML = `
+      <div class="wheel-picker">
+        <div class="wheel-col" id="${container.id}-d" style="max-width:200px;"></div>
+        <div class="wheel-highlight"></div>
+      </div>
+      <div class="wheel-label">Minutes</div>
+    `;
+    const values = [];
+    for(let m=5; m<=240; m+=5) values.push(m);
+    let idx = values.indexOf(Math.round((initialMin||30)/5)*5);
+    if(idx===-1) idx = values.indexOf(30);
+    let durVal = values[idx];
+    buildWheelColumn(container.querySelector(`#${container.id}-d`), values, idx, (v)=>{ durVal = v; });
+    return { getValue(){ return durVal; } };
+  }
 
   function openAddModal(kind){
     const backdrop = document.createElement('div');
@@ -1829,12 +2010,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
         <div class="field-row">
           <label>Start time</label>
-          <input type="text" id="m-start" placeholder="16:00" value="16:00">
+          <div id="m-start-wheel"></div>
         </div>
 
         <div class="field-row">
-          <label>Duration (minutes)</label>
-          <input type="number" id="m-duration" value="30" min="5" max="600">
+          <label>Duration</label>
+          <div id="m-duration-wheel"></div>
         </div>
 
         ${!isTemplate ? `
@@ -1861,6 +2042,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     `;
     document.body.appendChild(backdrop);
     renderSubjectOptions(backdrop.querySelector('#m-subject'), state.subjects[0].id);
+    const startWheel = createTimeWheel(backdrop.querySelector('#m-start-wheel'), '16:00');
+    const durationWheel = createDurationWheel(backdrop.querySelector('#m-duration-wheel'), 30);
 
     let pickedColor = COLORS[0];
     let selectedDays = isTemplate ? new Set([selectedDate.getDay()]) : null;
@@ -1900,8 +2083,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
     backdrop.querySelector('#m-save').addEventListener('click', async ()=>{
       const label = backdrop.querySelector('#m-label').value.trim();
-      const start = backdrop.querySelector('#m-start').value.trim();
-      const duration = parseInt(backdrop.querySelector('#m-duration').value||'30',10);
+      const start = startWheel.getValue();
+      const duration = durationWheel.getValue();
       const newSubjectName = backdrop.querySelector('#m-new-subject').value.trim();
       let subjectId = backdrop.querySelector('#m-subject').value;
 
@@ -1975,29 +2158,39 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(currentScreen==='history') renderHistory();
   }
 
-  document.getElementById('historyDate').addEventListener('change', renderHistory);
-
-  async function renderHistory(){
-    const el = document.getElementById('historyList');
+  document.getElementById('historyDate').addEventListener('change', async ()=>{
     const dateInput = document.getElementById('historyDate').value;
-    if(!dateInput){ el.innerHTML=''; return; }
+    if(!dateInput) return;
     const [y,m,d] = dateInput.split('-').map(Number);
-    const date = new Date(y, m-1, d);
-    const dateKey = dateInput;
+    await resetHistoryFeed(new Date(y, m-1, d));
+  });
 
-    let html = '';
-    const renderReadonlySection = (title, blocks, data, ownerId)=>{
-      html += `<h3 class="section-title">${title}</h3>`;
-      if(blocks.length===0){
-        html += `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 14px;">nothing scheduled</div>`;
-        return;
-      }
-      html += blocks.map(b=>{
+  const DAY_FULL = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let historyDates = [];
+  let historyAnchor = null;
+  let historyLoading = false;
+  let historyInitialized = false;
+  const HISTORY_BATCH = 10;
+  const HISTORY_MAX_DAYS = 365;
+
+  async function ensureAllFriendBoardsLoaded(){
+    const friends = usersList.filter(u=>u.id!==me.id);
+    for(const u of friends){ if(!friendCache[u.id]) await fetchFriendBoard(u.id); }
+  }
+
+  async function renderHistoryDayBlock(date){
+    const dateKey = fmtDate(date);
+    const heading = `${DAY_FULL[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}`;
+    let body = '';
+    const section = (title, blocks, data, ownerId)=>{
+      if(!blocks.length) return '';
+      return `<h3 class="section-title">${title}</h3>` + blocks.map(b=>{
         const compKey = dateKey+'|'+b.id;
         const status = (data.completion||{})[compKey];
         return `
           <div class="task-card readonly ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
-            <div class="time">${b.start||''}</div>
+            <div class="time">${fmt12(b.start)}</div>
             <div class="check ${status||''}" style="pointer-events:none;">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
             <div class="body">
               <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, data)}</div>
@@ -2009,12 +2202,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
       }).join('');
     };
 
-    renderReadonlySection('My tasks', blocksForDateIn(state, date), state, me.id);
+    body += section('My tasks', blocksForDateIn(state, date), state, me.id);
 
     const sharedTasks = await loadSharedTasks(dateKey);
     if(sharedTasks.length){
-      html += `<h3 class="section-title">Done together</h3>`;
-      html += sharedTasks.map(t=>{
+      body += `<h3 class="section-title">Done together</h3>` + sharedTasks.map(t=>{
         const people = [me, ...usersList.filter(u=>u.id!==me.id)];
         const rowHtml = people.map(p=>{
           const st = (t.completions||{})[p.id];
@@ -2025,7 +2217,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         }).join('');
         return `
           <div class="task-card shared">
-            <div class="time">${t.start||''}</div>
+            <div class="time">${fmt12(t.start)}</div>
             <div class="body">
               <div class="name">${t.label||'Untitled'} <span class="badge">together</span></div>
               <div class="meta">${t.duration||30} min</div>
@@ -2039,14 +2231,54 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
     const friends = usersList.filter(u=>u.id!==me.id);
     for(const u of friends){
-      await fetchFriendBoard(u.id);
       const fb = friendCache[u.id] || {};
-      renderReadonlySection(`${u.name}'s tasks`, blocksForDateIn(fb, date), fb, u.id);
+      body += section(`${u.name}'s tasks`, blocksForDateIn(fb, date), fb, u.id);
     }
 
-    el.innerHTML = html;
-    attachCommentButtons(el);
+    if(!body){ body = `<div style="font-size:12px; color:var(--chalk-faint); padding:2px 2px 4px;">Nothing logged</div>`; }
+    return `<div class="history-day"><div class="history-day-heading">${heading}</div>${body}</div>`;
   }
+
+  async function loadMoreHistoryDays(){
+    if(historyLoading || historyDates.length >= HISTORY_MAX_DAYS) return;
+    historyLoading = true;
+    const el = document.getElementById('historyList');
+    const startOffset = historyDates.length;
+    let html = '';
+    for(let i=0;i<HISTORY_BATCH;i++){
+      const d = new Date(historyAnchor);
+      d.setDate(d.getDate() - (startOffset+i));
+      historyDates.push(d);
+      html += await renderHistoryDayBlock(d);
+    }
+    el.insertAdjacentHTML('beforeend', html);
+    attachCommentButtons(el);
+    historyLoading = false;
+  }
+
+  async function resetHistoryFeed(anchorDate){
+    historyDates = [];
+    historyAnchor = new Date(anchorDate);
+    document.getElementById('historyList').innerHTML = '';
+    await ensureAllFriendBoardsLoaded();
+    await loadMoreHistoryDays();
+  }
+
+  async function renderHistory(){
+    if(historyInitialized) return;
+    historyInitialized = true;
+    const dateInput = document.getElementById('historyDate').value || fmtDate(new Date());
+    const [y,m,d] = dateInput.split('-').map(Number);
+    await resetHistoryFeed(new Date(y, m-1, d));
+  }
+
+  document.querySelector('main').addEventListener('scroll', ()=>{
+    if(currentScreen!=='history') return;
+    const mainEl = document.querySelector('main');
+    if(mainEl.scrollTop + mainEl.clientHeight > mainEl.scrollHeight - 400){
+      loadMoreHistoryDays();
+    }
+  });
 })();
 </script>
 </body>
