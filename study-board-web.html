@@ -290,7 +290,50 @@
   }
 
   /* ---------- Week screen ---------- */
+  .goal-card{
+    background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:14px 16px; margin-bottom:10px;
+  }
+  .goal-card .row1{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .goal-card .streak{ font-family:'Kalam'; font-size:14px; color:var(--chalk); display:flex; align-items:center; gap:6px; }
+  .goal-card .streak b{ font-family:'JetBrains Mono'; color:var(--accent); font-size:15px; }
+  .goal-bar-row{ margin-bottom:8px; }
+  .goal-bar-row:last-child{ margin-bottom:0; }
+  .goal-bar-label{ display:flex; justify-content:space-between; font-size:10.5px; color:var(--chalk-faint); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.4px; }
+  .goal-bar-track{ height:7px; border-radius:4px; background:rgba(255,255,255,0.06); overflow:hidden; }
+  .goal-bar-fill{ height:100%; border-radius:4px; background:var(--accent); transition: width .3s ease; }
+  .goal-bar-fill.week{ background:var(--danger); }
+
   .week-day{ margin-bottom:20px; }
+
+  /* ---------- distraction-free focus mode ---------- */
+  .focus-toggle-btn{
+    display:block; width:100%; margin-top:10px; background:none; border:1px solid var(--card-line);
+    color:var(--chalk-faint); font-size:11px; padding:8px 0; border-radius:10px; cursor:pointer; letter-spacing:0.3px;
+    position:relative; z-index:2;
+  }
+  .focus-exit-btn{
+    display:none; position:fixed; top:16px; right:16px; z-index:500; background:var(--card);
+    border:1px solid var(--card-line); color:var(--chalk-dim); font-size:12px; padding:8px 14px; border-radius:20px; cursor:pointer;
+  }
+  body.focus-active{ background:#0A0C11; }
+  body.focus-active header.top,
+  body.focus-active .people-row,
+  body.focus-active nav.tabs,
+  body.focus-active #goalCard,
+  body.focus-active #friendTimerBanner,
+  body.focus-active .session-log,
+  body.focus-active .focus-toggle-btn,
+  body.focus-active .field-row,
+  body.focus-active .mode-switch{
+    display:none !important;
+  }
+  body.focus-active main{ padding-bottom:0; }
+  body.focus-active #screen-timer{
+    display:flex !important; flex-direction:column; align-items:center; justify-content:center; min-height:88vh;
+  }
+  body.focus-active .focus-exit-btn{ display:block; }
+  body.focus-active .ring-outer, body.focus-active .stopwatch-face{ transform: scale(1.15); }
+  body.focus-active .timer-controls{ margin-top:26px; max-width:280px; }
   .history-day{ margin-bottom:22px; }
   .history-day-heading{
     font-family:'Kalam'; font-size:16px; color:var(--chalk-dim); margin:0 0 8px; letter-spacing:0.2px;
@@ -483,6 +526,7 @@
   .person-chip .p-today{ font-family:'JetBrains Mono'; font-size:9.5px; color:var(--chalk-faint); font-weight:600; }
   .person-chip.studying .p-today{ color:var(--c1); }
   .person-chip.active .p-today{ color:var(--accent); }
+  .person-chip .p-streak{ font-size:10px; font-weight:700; color:var(--chalk-dim); }
 
   /* ---------- viewing-friend timer banner ---------- */
   .friend-timer-card{
@@ -504,6 +548,7 @@
   }
   .session-item2 .label{ font-size:12px; color:var(--chalk-dim); margin-top:4px; }
   .session-item2 .period{ font-family:'JetBrains Mono'; font-size:11px; color:var(--chalk-faint); margin-top:4px; }
+  .session-item2 .session-note{ font-size:11.5px; color:var(--chalk-dim); font-style:italic; margin-top:6px; padding-top:6px; border-top:1px dashed var(--card-line); }
 
   /* ---------- comments ---------- */
   .cmt-btn{
@@ -559,11 +604,14 @@
 
   <div class="people-row" id="peopleRow"></div>
 
+  <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
+
   <main>
     <div class="viewing-banner" id="viewingBanner" style="display:none;"></div>
 
     <!-- TIMER SCREEN -->
     <section class="screen active" id="screen-timer">
+      <div class="goal-card" id="goalCard" style="display:none;"></div>
       <div class="friend-timer-card" id="friendTimerBanner" style="display:none;"></div>
 
       <div id="timerControlsWrap">
@@ -575,11 +623,6 @@
         <div class="field-row">
           <label>Subject</label>
           <select id="timerSubject"></select>
-        </div>
-
-        <div class="field-row">
-          <label>Label (optional)</label>
-          <input type="text" id="timerLabel" placeholder="e.g. Ch.4 practice problems">
         </div>
 
         <div class="field-row" id="countdownLenRow" style="display:none;">
@@ -615,6 +658,7 @@
           <button class="btn btn-ghost" id="resetBtn">Reset</button>
           <button class="btn btn-primary" id="startBtn">Start</button>
         </div>
+        <button type="button" class="focus-toggle-btn" id="focusToggleBtn">⤢ Focus mode</button>
       </div>
 
       <div class="session-log">
@@ -788,7 +832,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     weeklyTemplate: [], // {id, day(0-6), subject, start, duration, label}
     dailyExtra: {},     // { 'YYYY-MM-DD': [ {id, subject, start, duration, label} ] }
     completion: {},     // { 'YYYY-MM-DD|blockId': true }
-    sessions: {}        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt} ] }
+    sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note} ] }
+    goals: { dailyMin: 120, weeklyMin: 600 } // overall study goals used for streak/progress tracking
   };
 
   let selectedDate = new Date();
@@ -819,6 +864,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     startLiveTimers();
     subscribeSelfLiveStatus();
     setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // merge only — never touches studying/startedAt
+    refreshAllFriendBoards();
+    if(friendBoardsPollHandle) clearInterval(friendBoardsPollHandle);
+    friendBoardsPollHandle = setInterval(refreshAllFriendBoards, 60000);
   }
   async function loadMyReads(){
     try{
@@ -915,6 +963,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   async function doLogout(){
     // stop any active timer/session cleanly so it never appears "studying" after logout,
     // and make sure that save actually lands before we sign out (no debounce race)
+    exitFocusMode();
     if(timerRunning){
       if(elapsedMs > 3000){ finishSession(false); } else { hardReset(); }
     }
@@ -922,6 +971,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setLiveStatus({ studying:false, baseElapsedMs:0 });
     if(selfLiveUnsub){ selfLiveUnsub(); selfLiveUnsub = null; }
     stopLiveTimers();
+    if(friendBoardsPollHandle){ clearInterval(friendBoardsPollHandle); friendBoardsPollHandle = null; }
     friendCache = {};
     liveCache = {};
     viewingId = null;
@@ -985,6 +1035,16 @@ window.storage = storage; // keep the rest of the app's code unchanged
           </div>
         </div>
         <div class="section-divider"></div>
+        <h4 style="margin:0 0 10px; font-family:'Kalam'; font-size:14px; color:var(--chalk-dim); font-weight:400;">Study goals</h4>
+        <div class="field-row">
+          <label>Daily goal (hours, 0 = off)</label>
+          <input type="number" id="acct-goal-daily" value="${(state.goals&&state.goals.dailyMin)? (state.goals.dailyMin/60) : 0}" min="0" step="0.5">
+        </div>
+        <div class="field-row">
+          <label>Weekly goal (hours, 0 = off)</label>
+          <input type="number" id="acct-goal-weekly" value="${(state.goals&&state.goals.weeklyMin)? (state.goals.weeklyMin/60) : 0}" min="0" step="0.5">
+        </div>
+        <div class="section-divider"></div>
         <button class="btn btn-ghost" id="acct-manage" style="width:100%; margin-bottom:10px;">Manage members</button>
         <button class="btn btn-danger" id="acct-logout" style="width:100%;">Log out</button>
         <div class="modal-actions">
@@ -1038,6 +1098,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
       me.photo = pickedPhoto;
       try{ await window.storage.set('study-board-profile', JSON.stringify(me), false); }catch(e){}
       await registerUser(me, true);
+
+      const dailyMin = Math.max(0, Math.round(parseFloat(backdrop.querySelector('#acct-goal-daily').value||'0') * 60));
+      const weeklyMin = Math.max(0, Math.round(parseFloat(backdrop.querySelector('#acct-goal-weekly').value||'0') * 60));
+      state.goals = { dailyMin, weeklyMin };
+      await flushStateNow();
+
       renderHeaderAvatar();
       render();
       close();
@@ -1127,8 +1193,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
     if(items.length){
       try{
-        const updated = items.map(n=>({...n, read:true}));
-        await setDoc(doc(db, 'notifications', me.id), { items: updated });
+        await setDoc(doc(db, 'notifications', me.id), { items: [] });
       }catch(e){}
       refreshBellBadge();
     }
@@ -1210,7 +1275,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   function pushSharedBoard(){
     if(!me) return;
-    const shared = { subjects: state.subjects, weeklyTemplate: state.weeklyTemplate, dailyExtra: state.dailyExtra, completion: state.completion, sessions: state.sessions };
+    const shared = { subjects: state.subjects, weeklyTemplate: state.weeklyTemplate, dailyExtra: state.dailyExtra, completion: state.completion, sessions: state.sessions, goals: state.goals };
     window.storage.set('board:'+me.id, JSON.stringify(shared), true).catch(e=>console.error('share failed', e));
   }
   async function fetchFriendBoard(id){
@@ -1231,12 +1296,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const st = liveCache[c.id];
       const studying = !!(st && st.studying);
       const mins = liveMinutesFor(st);
+      const streak = c.id===me.id ? computeStreak() : computeStreakFor(friendCache[c.id] || {});
       const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
       return `
         <div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}">
           <span class="avatar" style="background:${c.color}">${avatarInner}</span>
           <span class="p-meta">
-            <span>${escapeHtml(c.name)}</span>
+            <span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span>
             <span class="p-today">${fmtHM(mins)} today</span>
           </span>
         </div>
@@ -1441,6 +1507,37 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   let sessionStartClock = null; // real wall-clock time the current (possibly paused/resumed) session first began
 
+  // ---------- distraction-free focus mode ----------
+  let wakeLockSentinel = null;
+  async function enterFocusMode(){
+    document.body.classList.add('focus-active');
+    if('wakeLock' in navigator){
+      try{ wakeLockSentinel = await navigator.wakeLock.request('screen'); }catch(e){ /* not critical */ }
+    }
+  }
+  function exitFocusMode(){
+    document.body.classList.remove('focus-active');
+    if(wakeLockSentinel){ wakeLockSentinel.release().catch(()=>{}); wakeLockSentinel = null; }
+  }
+  function toggleFocusMode(){
+    if(document.body.classList.contains('focus-active')) exitFocusMode();
+    else enterFocusMode();
+  }
+  document.getElementById('focusToggleBtn').addEventListener('click', (e)=>{
+    e.preventDefault();
+    toggleFocusMode();
+  });
+  document.getElementById('focusExitBtn').addEventListener('click', (e)=>{
+    e.preventDefault();
+    exitFocusMode();
+  });
+  // tap anywhere to minimize back to the main screen — the timer keeps running in the background
+  document.body.addEventListener('click', (e)=>{
+    if(!document.body.classList.contains('focus-active')) return;
+    if(e.target.closest('.timer-controls')) return; // let Start/Pause/Reset keep working normally
+    exitFocusMode();
+  });
+
   document.getElementById('startBtn').addEventListener('click', ()=>{
     if(!timerRunning){
       timerRunning = true;
@@ -1450,9 +1547,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
       setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
       tickHandle = setInterval(tick, 250);
       const subjectId = document.getElementById('timerSubject').value;
-      const label = document.getElementById('timerLabel').value.trim();
       setLiveStatus({
-        studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state), label,
+        studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
         mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
       });
     } else {
@@ -1497,6 +1593,89 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const key = fmtDate(new Date());
     return (state.sessions[key]||[]).reduce((sum,s)=> sum + (s.duration||0), 0);
   }
+  function todayTotalMinutesIn(data){
+    const key = fmtDate(new Date());
+    return ((data.sessions||{})[key]||[]).reduce((sum,s)=> sum + (s.duration||0), 0);
+  }
+  function minutesOnDate(date){
+    const key = fmtDate(date);
+    return (state.sessions[key]||[]).reduce((sum,s)=> sum + (s.duration||0), 0);
+  }
+  function minutesOnDateIn(data, date){
+    const key = fmtDate(date);
+    return ((data.sessions||{})[key]||[]).reduce((sum,s)=> sum + (s.duration||0), 0);
+  }
+  function weekTotalMinutes(){
+    const start = startOfWeek(new Date(), 0);
+    let total = 0;
+    for(let i=0;i<7;i++){
+      const d = new Date(start); d.setDate(d.getDate()+i);
+      if(d > new Date()) break;
+      total += minutesOnDate(d);
+    }
+    return total;
+  }
+  function weekTotalMinutesIn(data){
+    const start = startOfWeek(new Date(), 0);
+    let total = 0;
+    for(let i=0;i<7;i++){
+      const d = new Date(start); d.setDate(d.getDate()+i);
+      if(d > new Date()) break;
+      total += minutesOnDateIn(data, d);
+    }
+    return total;
+  }
+  function computeStreakFor(data){
+    const goal = (data.goals && data.goals.dailyMin) || 0;
+    if(goal<=0) return 0;
+    const minsOnFor = (d)=>{
+      const key = fmtDate(d);
+      return ((data.sessions||{})[key]||[]).reduce((sum,s)=> sum+(s.duration||0), 0);
+    };
+    let streak = 0;
+    let cursor = new Date();
+    // if today hasn't hit the goal yet, start counting from yesterday instead
+    if(minsOnFor(cursor) < goal) cursor.setDate(cursor.getDate()-1);
+    while(minsOnFor(cursor) >= goal){
+      streak++;
+      cursor.setDate(cursor.getDate()-1);
+    }
+    return streak;
+  }
+  function computeStreak(){ return computeStreakFor(state); }
+  function renderGoalCard(){
+    const card = document.getElementById('goalCard');
+    if(!card) return;
+    const data = activeData();
+    const goals = data.goals || {};
+    if(!goals.dailyMin && !goals.weeklyMin){ card.style.display='none'; return; }
+    const viewerId = isViewingSelf() ? me.id : viewingId;
+    const streak = isViewingSelf() ? computeStreak() : computeStreakFor(data);
+    const finishedToday = todayTotalMinutesIn(data);
+    const liveToday = liveMinutesFor(liveCache[viewerId]);
+    const todayMin = Math.max(finishedToday, liveToday);
+    const weekMin = weekTotalMinutesIn(data) + Math.max(0, todayMin - finishedToday);
+    const dailyPct = goals.dailyMin ? Math.min(100, (todayMin/goals.dailyMin)*100) : 0;
+    const weeklyPct = goals.weeklyMin ? Math.min(100, (weekMin/goals.weeklyMin)*100) : 0;
+    card.style.display = 'block';
+    const whoLabel = isViewingSelf() ? '' : `<div style="font-size:11px; color:var(--chalk-faint); margin-bottom:8px;">${escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name || 'Friend')}'s goals</div>`;
+    card.innerHTML = `
+      ${whoLabel}
+      <div class="row1">
+        <div class="streak">🔥 <b>${streak}</b> day streak</div>
+      </div>
+      ${goals.dailyMin ? `
+      <div class="goal-bar-row">
+        <div class="goal-bar-label"><span>Today</span><span>${fmtHM(todayMin)} / ${fmtHM(goals.dailyMin)}</span></div>
+        <div class="goal-bar-track"><div class="goal-bar-fill" style="width:${dailyPct}%;"></div></div>
+      </div>` : ''}
+      ${goals.weeklyMin ? `
+      <div class="goal-bar-row">
+        <div class="goal-bar-label"><span>This week</span><span>${fmtHM(weekMin)} / ${fmtHM(goals.weeklyMin)}</span></div>
+        <div class="goal-bar-track"><div class="goal-bar-fill week" style="width:${weeklyPct}%;"></div></div>
+      </div>` : ''}
+    `;
+  }
   function hardReset(){
     timerRunning = false;
     clearInterval(tickHandle);
@@ -1513,29 +1692,66 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const key = fmtDate(new Date());
     if(!state.sessions[key]) state.sessions[key] = [];
     const subjectId = document.getElementById('timerSubject').value;
-    const label = document.getElementById('timerLabel').value.trim();
     const durationMin = Math.round(elapsedMs/60000 * 10)/10;
     const endedAt = Date.now();
+    let justLoggedSession = null;
     if(durationMin > 0){
-      state.sessions[key].push({
+      justLoggedSession = {
         id: 'sess_'+Date.now(),
         subject: subjectId,
-        label: label || null,
         duration: durationMin,
         mode: timerMode,
         completed: completed,
         startedAt: sessionStartClock || (endedAt - elapsedMs),
         endedAt: endedAt
-      });
+      };
+      state.sessions[key].push(justLoggedSession);
       saveState();
     }
     setStatusText(reason==='autostop' ? 'auto-stopped at 4h limit 🛑' : (completed ? 'session complete 🎉' : 'ready'));
     document.getElementById('startBtn').textContent = 'Start';
     elapsedMs = 0;
     sessionStartClock = null;
+    exitFocusMode();
     renderTimerDigits();
     renderSessions();
     setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
+    if(justLoggedSession && reason!=='autostop' && durationMin >= 1){
+      promptSessionNote(justLoggedSession, key);
+    }
+  }
+  function promptSessionNote(session, dateKey){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h3>What did you cover?</h3>
+        <div class="field-row">
+          <label>${escapeHtml(subjectName(session.subject))} · ${session.duration} min</label>
+          <textarea id="note-input" rows="3" placeholder="e.g. Finished Ch.4 practice problems, need to review formulas" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;"></textarea>
+          <div id="note-error" style="display:none; color:var(--danger); font-size:11.5px; margin-top:8px;">A quick note is required to log this session — it's how you track real progress.</div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" id="note-save" style="width:100%;">Save & continue</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('#note-save').addEventListener('click', async ()=>{
+      const text = backdrop.querySelector('#note-input').value.trim();
+      if(!text){
+        backdrop.querySelector('#note-error').style.display = 'block';
+        backdrop.querySelector('#note-input').focus();
+        return;
+      }
+      const list = state.sessions[dateKey] || [];
+      const s = list.find(x=>x.id===session.id);
+      if(s) s.note = text;
+      await flushStateNow();
+      renderSessions();
+      close();
+    });
   }
 
   // ---------- live "studying now" presence (surfaced on the person chips at the top) ----------
@@ -1591,7 +1807,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stopLiveTimers();
     refreshLiveStatuses();
     livePollHandle = setInterval(refreshLiveStatuses, 6000);
-    liveTickHandle = setInterval(()=>{ renderPeopleRow(); updateFriendTimerCard(); }, 1000);
+    liveTickHandle = setInterval(()=>{ renderPeopleRow(); updateFriendTimerCard(); renderGoalCard(); }, 1000);
   }
   function stopLiveTimers(){
     if(livePollHandle){ clearInterval(livePollHandle); livePollHandle = null; }
@@ -1627,7 +1843,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
         clearInterval(tickHandle);
         tickHandle = setInterval(tick, 250);
         if(st.subject) document.getElementById('timerSubject').value = st.subject;
-        document.getElementById('timerLabel').value = st.label || '';
         document.getElementById('startBtn').textContent = 'Pause';
         setStatusText(st.mode==='countdown' ? 'focusing… (synced)' : 'running… (synced)');
         renderTimerDigits();
@@ -1733,28 +1948,32 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   function renderSessions(){
     const key = fmtDate(new Date());
-    const data = activeData();
-    const list = (data.sessions && data.sessions[key]) || [];
     const el = document.getElementById('sessionList');
-    if(list.length===0){
-      el.innerHTML = isViewingSelf()
-        ? '<div class="empty" style="padding:20px 0;"><div class="big">No sessions yet</div>today\'s first block starts with you</div>'
-        : '<div class="empty" style="padding:20px 0;"><div class="big">No sessions yet</div>nothing logged today</div>';
-      return;
-    }
-    el.innerHTML = list.slice().reverse().map(s=>{
-      const period = (s.startedAt && s.endedAt) ? `${formatClock(s.startedAt)} – ${formatClock(s.endedAt)}` : '';
-      return `
-        <div class="session-item2">
-          <div class="row1">
-            <span class="subj"><span class="dot" style="background:${subjectColorIn(s.subject, data)}"></span>${subjectNameIn(s.subject, data)}</span>
-            <span class="dur-badge">${s.duration} min${s.mode==='countdown' ? (s.completed?' ✓':' ⏸'):''}</span>
+
+    const renderPersonBlock = (title, data)=>{
+      const list = (data.sessions && data.sessions[key]) || [];
+      if(!list.length) return '';
+      return `<div class="section-title" style="margin-top:14px;">${escapeHtml(title)}</div>` + list.slice().reverse().map(s=>{
+        const period = (s.startedAt && s.endedAt) ? `${formatClock(s.startedAt)} – ${formatClock(s.endedAt)}` : '';
+        return `
+          <div class="session-item2">
+            <div class="row1">
+              <span class="subj"><span class="dot" style="background:${subjectColorIn(s.subject, data)}"></span>${subjectNameIn(s.subject, data)}</span>
+              <span class="dur-badge">${s.duration} min${s.mode==='countdown' ? (s.completed?' ✓':' ⏸'):''}</span>
+            </div>
+            ${s.label ? `<div class="label">${escapeHtml(s.label)}</div>` : ''}
+            ${period ? `<div class="period">${period}</div>` : ''}
+            ${s.note ? `<div class="session-note">📝 ${escapeHtml(s.note)}</div>` : ''}
           </div>
-          ${s.label ? `<div class="label">${escapeHtml(s.label)}</div>` : ''}
-          ${period ? `<div class="period">${period}</div>` : ''}
-        </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
+    };
+
+    let html = renderPersonBlock('You', state);
+    const friends = usersList.filter(u=>u.id!==me.id);
+    friends.forEach(u=>{ html += renderPersonBlock(u.name, friendCache[u.id] || {}); });
+
+    el.innerHTML = html || '<div class="empty" style="padding:20px 0;"><div class="big">No sessions yet</div>today\'s first block starts with you</div>';
   }
 
   // ---------- TODAY SCREEN ----------
@@ -2217,9 +2436,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
     document.getElementById('timerControlsWrap').style.display = isViewingSelf() ? 'block' : 'none';
     document.getElementById('friendTimerBanner').style.display = isViewingSelf() ? 'none' : 'block';
-    document.getElementById('sessionListTitle').textContent = isViewingSelf() ? "Today's sessions" :
-      `${(usersList.find(u=>u.id===viewingId)||{}).name || 'Their'}'s sessions today`;
+    document.getElementById('sessionListTitle').textContent = "Today's sessions";
     updateFriendTimerCard();
+    renderGoalCard();
 
     renderSubjectOptions(document.getElementById('timerSubject'), document.getElementById('timerSubject').value);
     renderSessions();
@@ -2249,6 +2468,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const friends = usersList.filter(u=>u.id!==me.id);
     for(const u of friends){ if(!friendCache[u.id]) await fetchFriendBoard(u.id); }
   }
+  async function refreshAllFriendBoards(){
+    const friends = usersList.filter(u=>u.id!==me.id);
+    for(const u of friends){ await fetchFriendBoard(u.id); }
+    renderPeopleRow();
+    renderSessions();
+    renderGoalCard();
+  }
+  let friendBoardsPollHandle = null;
 
   async function renderHistoryDayBlock(date){
     const dateKey = fmtDate(date);
