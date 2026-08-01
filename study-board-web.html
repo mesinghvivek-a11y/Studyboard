@@ -307,17 +307,20 @@
 
   /* ---------- distraction-free focus mode ---------- */
   .focus-toggle-btn{
-    display:block; width:100%; margin-top:10px; background:none; border:1px solid var(--card-line);
-    color:var(--chalk-faint); font-size:11px; padding:8px 0; border-radius:10px; cursor:pointer; letter-spacing:0.3px;
+    display:none; width:100%; margin-top:12px; background:var(--accent-dim); border:1px solid var(--accent);
+    color:var(--accent); font-size:13px; font-weight:700; padding:11px 0; border-radius:12px; cursor:pointer; letter-spacing:0.3px;
     position:relative; z-index:2;
   }
+  .focus-toggle-btn.visible{ display:block; }
   .focus-exit-btn{
-    display:none; position:fixed; top:16px; right:16px; z-index:500; background:var(--card);
-    border:1px solid var(--card-line); color:var(--chalk-dim); font-size:12px; padding:8px 14px; border-radius:20px; cursor:pointer;
+    display:none; position:fixed; top:16px; right:16px; z-index:500; background:var(--c1);
+    border:none; color:var(--ink); font-weight:700; font-size:12px; padding:9px 16px; border-radius:20px; cursor:pointer;
+    box-shadow: 0 4px 14px rgba(var(--c1-rgb),0.4);
   }
   body.focus-active{ background:#0A0C11; }
   body.focus-active header.top,
   body.focus-active .people-row,
+  body.focus-active .snap-row,
   body.focus-active nav.tabs,
   body.focus-active #goalCard,
   body.focus-active #friendTimerBanner,
@@ -400,8 +403,9 @@
   .person-chip.active{ border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
   .person-chip .avatar{
     width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    font-size:11px; font-weight:700; color:var(--ink);
+    font-size:11px; font-weight:700; color:var(--ink); overflow:hidden;
   }
+  .person-chip .avatar img{ width:100%; height:100%; object-fit:cover; }
   .viewing-banner{
     margin:0 0 14px; padding:9px 12px; background:var(--accent-dim); border:1px solid rgba(var(--accent-rgb),0.35);
     border-radius:12px; font-size:12px; color:var(--accent); text-align:center;
@@ -536,6 +540,91 @@
   .friend-timer-card .stat{ font-family:'JetBrains Mono'; font-size:26px; font-weight:700; color:var(--accent); margin:4px 0; }
   .friend-timer-card .lbl{ font-size:12px; color:var(--chalk-faint); }
 
+  /* ---------- live snapshot: self preview + buddy card ---------- */
+  /* ---------- live snapshot row (below the people row) ---------- */
+  .snap-row{ display:flex; gap:16px; overflow-x:auto; padding:6px 16px 16px; scrollbar-width:none; -ms-overflow-style:none; }
+  .snap-row::-webkit-scrollbar{ display:none; }
+  .snap-tile{ flex:0 0 auto; display:flex; flex-direction:column; align-items:center; width:92px; }
+  .snap-circle-wrap{ position:relative; width:88px; height:88px; }
+  .snap-circle{
+    width:88px; height:88px; border-radius:50%; overflow:hidden; position:relative;
+    background:var(--board-2); border:1px solid var(--card-line);
+    display:flex; align-items:center; justify-content:center;
+    font-size:26px; font-weight:700; color:var(--chalk-faint);
+  }
+  .snap-circle img{ width:100%; height:100%; object-fit:cover; }
+  .snap-circle.pulsing{
+    box-shadow: 0 0 0 2px var(--board), 0 0 0 3px var(--c1), 0 0 12px 2px rgba(var(--c1-rgb),0.55);
+    animation: redPulse 1.6s ease-in-out infinite;
+  }
+  .snap-circle.stale{ opacity:0.45; filter:grayscale(0.6); }
+  .snap-circle.clickable{ cursor:pointer; }
+  .snap-name{ font-size:11px; color:var(--chalk-dim); margin-top:11px; text-align:center; max-width:92px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .snap-sub{ font-size:9.5px; color:var(--chalk-faint); }
+  .snap-mute-badge{
+    position:absolute; left:50%; bottom:-6px; transform:translateX(-50%); width:26px; height:26px; border-radius:50%;
+    background:var(--c1); color:var(--ink); border:2px solid var(--board); z-index:2;
+    display:flex; align-items:center; justify-content:center; font-size:12px; cursor:pointer;
+    box-shadow: 0 2px 8px rgba(var(--c1-rgb),0.4);
+  }
+
+  /* ---------- settings: toggle switch + segmented control ---------- */
+  .switch{ position:relative; display:inline-block; width:42px; height:24px; flex:0 0 auto; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .switch-slider{
+    position:absolute; inset:0; background:var(--card); border:1px solid var(--card-line); border-radius:20px;
+    cursor:pointer; transition:.2s;
+  }
+  .switch-slider::before{
+    content:''; position:absolute; width:18px; height:18px; left:2px; top:2px; border-radius:50%;
+    background:var(--chalk-faint); transition:.2s;
+  }
+  .switch input:checked + .switch-slider{ background:var(--accent-dim); border-color:var(--accent); }
+  .switch input:checked + .switch-slider::before{ transform:translateX(18px); background:var(--accent); }
+  .seg-row{ display:flex; gap:8px; }
+  .seg-btn{
+    flex:1; padding:9px; border-radius:10px; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:13px; font-weight:600; cursor:pointer;
+  }
+  .seg-btn.sel{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+  .modal-subhead{ margin:0 0 10px; font-family:'Kalam'; font-size:14px; color:var(--chalk-dim); font-weight:400; }
+
+  /* ---------- nudge toast ---------- */
+  .nudge-toast{
+    position:fixed; left:50%; top:18px; transform:translateX(-50%) translateY(-20px); z-index:60;
+    background:var(--card); border:1px solid var(--card-line); color:var(--chalk); font-size:13px;
+    padding:10px 16px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.4); opacity:0; transition:all .3s ease;
+  }
+  .nudge-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---------- milestone confetti ---------- */
+  .confetti-piece{
+    position:fixed; top:-12px; width:8px; height:14px; border-radius:2px; z-index:70; pointer-events:none;
+    animation: confettiFall linear forwards;
+  }
+  @keyframes confettiFall{
+    to{ transform: translateY(110vh) rotate(540deg); opacity:0.2; }
+  }
+  .milestone-toast{
+    position:fixed; left:50%; top:70px; transform:translateX(-50%) scale(0.9); z-index:70;
+    background:var(--board-2); border:1px solid rgba(var(--accent-rgb),0.4); color:var(--chalk);
+    padding:12px 20px; border-radius:16px; font-family:'Kalam'; font-size:15px; text-align:center;
+    box-shadow:0 10px 30px rgba(0,0,0,0.45); opacity:0; transition:all .35s ease;
+  }
+  .milestone-toast.show{ opacity:1; transform:translateX(-50%) scale(1); }
+
+  /* ---------- session recap (side-by-side) ---------- */
+  .recap-row{ display:flex; gap:10px; margin:14px 0; }
+  .recap-col{
+    flex:1; background:var(--board-2); border:1px solid var(--card-line); border-radius:14px;
+    padding:14px 10px; text-align:center;
+  }
+  .recap-col .recap-who{ font-size:11px; color:var(--chalk-faint); margin-bottom:6px; }
+  .recap-col .recap-time{ font-family:'JetBrains Mono'; font-size:20px; font-weight:700; color:var(--chalk); }
+  .recap-col.mine .recap-time{ color:var(--accent); }
+  .recap-col.friend .recap-time{ color:var(--c1); }
+  .recap-col .recap-sub{ font-size:11px; color:var(--chalk-faint); margin-top:4px; }
+
   /* ---------- redesigned session items ---------- */
   .session-item2{
     background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:12px 13px; margin-bottom:8px;
@@ -603,6 +692,7 @@
   </header>
 
   <div class="people-row" id="peopleRow"></div>
+  <div class="snap-row" id="snapRow"></div>
 
   <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
 
@@ -658,7 +748,7 @@
           <button class="btn btn-ghost" id="resetBtn">Reset</button>
           <button class="btn btn-primary" id="startBtn">Start</button>
         </div>
-        <button type="button" class="focus-toggle-btn" id="focusToggleBtn">⤢ Focus mode</button>
+        <button type="button" class="focus-toggle-btn" id="focusToggleBtn">🧘 Enter focus mode</button>
       </div>
 
       <div class="session-log">
@@ -863,6 +953,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     render();
     startLiveTimers();
     subscribeSelfLiveStatus();
+    subscribeSelfNudges();
+    renderSnapRow();
     setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // merge only — never touches studying/startedAt
     refreshAllFriendBoards();
     if(friendBoardsPollHandle) clearInterval(friendBoardsPollHandle);
@@ -1045,6 +1137,29 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <input type="number" id="acct-goal-weekly" value="${(state.goals&&state.goals.weeklyMin)? (state.goals.weeklyMin/60) : 0}" min="0" step="0.5">
         </div>
         <div class="section-divider"></div>
+        <h4 class="modal-subhead">Camera & Snapshots</h4>
+        <div class="field-row" style="flex-direction:row; align-items:center; justify-content:space-between;">
+          <label style="margin:0;">Share live snapshots while studying</label>
+          <label class="switch"><input type="checkbox" id="acct-snap-enabled" ${snapSettings.enabled?'checked':''}><span class="switch-slider"></span></label>
+        </div>
+        <div class="field-row">
+          <label>Camera</label>
+          <div class="seg-row" id="acct-snap-facing">
+            <button type="button" class="seg-btn ${snapSettings.facing==='user'?'sel':''}" data-facing="user">Front</button>
+            <button type="button" class="seg-btn ${snapSettings.facing==='environment'?'sel':''}" data-facing="environment">Back</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <label>Snapshot frequency</label>
+          <select id="acct-snap-freq">
+            <option value="30000" ${snapSettings.freqMs===30000?'selected':''}>Every 30 sec</option>
+            <option value="60000" ${snapSettings.freqMs===60000?'selected':''}>Every 1 min</option>
+            <option value="120000" ${snapSettings.freqMs===120000?'selected':''}>Every 2 min</option>
+            <option value="300000" ${snapSettings.freqMs===300000?'selected':''}>Every 5 min</option>
+          </select>
+        </div>
+        <div style="font-size:11px; color:var(--chalk-faint); margin:-4px 0 4px;">Only visible to friends you're studying with. Off by default. The camera turns on only for a moment to take each snapshot, then turns off again — it's never left running.</div>
+        <div class="section-divider"></div>
         <button class="btn btn-ghost" id="acct-manage" style="width:100%; margin-bottom:10px;">Manage members</button>
         <button class="btn btn-danger" id="acct-logout" style="width:100%;">Log out</button>
         <div class="modal-actions">
@@ -1065,6 +1180,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
         backdrop.querySelectorAll('#acct-colors .swatch').forEach(s=>s.classList.remove('sel'));
         sw.classList.add('sel');
         pickedColor = sw.dataset.color;
+      });
+    });
+
+    let pickedFacing = snapSettings.facing;
+    backdrop.querySelectorAll('#acct-snap-facing .seg-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('#acct-snap-facing .seg-btn').forEach(b=>b.classList.remove('sel'));
+        btn.classList.add('sel');
+        pickedFacing = btn.dataset.facing;
       });
     });
 
@@ -1103,6 +1227,23 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const weeklyMin = Math.max(0, Math.round(parseFloat(backdrop.querySelector('#acct-goal-weekly').value||'0') * 60));
       state.goals = { dailyMin, weeklyMin };
       await flushStateNow();
+
+      const wasEnabled = snapSettings.enabled;
+      snapSettings.enabled = backdrop.querySelector('#acct-snap-enabled').checked;
+      snapSettings.facing = pickedFacing;
+      snapSettings.freqMs = parseInt(backdrop.querySelector('#acct-snap-freq').value, 10) || 60000;
+      saveSnapSettings(snapSettings);
+      if(!snapSettings.enabled){
+        stopSnapshotScheduler();
+        if(wasEnabled) setLiveStatus({ snapshot:null, snapshotAt:null });
+      } else if(camCaptureIntervalHandle){
+        // frequency may have changed — reschedule with the new interval
+        stopSnapshotScheduler();
+        startSnapshotScheduler();
+      } else if(timerRunning){
+        startSnapshotScheduler();
+      }
+      renderSnapRow();
 
       renderHeaderAvatar();
       render();
@@ -1230,7 +1371,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           usersList = usersList.filter(x=>x.id!==btn.dataset.remove);
           try{ await window.storage.set(USERS_KEY, JSON.stringify(usersList), true); }catch(e){}
           draw();
-          renderPeopleRow();
+          renderPeopleRow(); renderSnapRow();
           renderTaskList();
         });
       });
@@ -1316,6 +1457,49 @@ window.storage = storage; // keep the rest of the app's code unchanged
         await fetchFriendBoard(id);
         render();
       });
+    });
+  }
+
+  function renderSnapRow(){
+    const el = document.getElementById('snapRow');
+    if(!el || !me) return;
+    const others = usersList.filter(u=>u.id!==me.id);
+    const people = [{id:me.id, name:'You', mine:true}, ...others.map(u=>({id:u.id, name:u.name, mine:false}))];
+    el.innerHTML = people.map(p=>{
+      const st = liveCache[p.id];
+      const studying = !!(st && st.studying);
+      const stale = isSnapshotStale(st);
+      const circleClass = ['snap-circle', p.mine?'clickable':'clickable', studying && !stale ? 'pulsing':'', stale?'stale':''].filter(Boolean).join(' ');
+      const inner = (st && st.snapshot) ? `<img src="${st.snapshot}" alt="">` : p.name.slice(0,1).toUpperCase();
+      let subText;
+      if(p.mine){
+        subText = !snapSettings.enabled ? 'snapshots off' : (camPausedManually ? 'paused' : (studying ? 'live' : 'off · not studying'));
+      } else {
+        subText = studying ? (stale ? 'reconnecting…' : 'live') : (stale ? `seen ${timeAgoShort(st.snapshotAt)}` : 'not studying');
+      }
+      const muteBadge = p.mine ? `<div class="snap-mute-badge" id="snapMuteBadge" title="Pause my snapshots">${(camPausedManually||!snapSettings.enabled)?'🚫':'📷'}</div>` : '';
+      return `
+        <div class="snap-tile">
+          <div class="snap-circle-wrap">
+            <div class="${circleClass}" data-id="${p.id}" data-mine="${p.mine?'1':'0'}">${inner}</div>
+            ${muteBadge}
+          </div>
+          <div class="snap-name">${escapeHtml(p.name)}</div>
+          <div class="snap-sub">${subText}</div>
+        </div>
+      `;
+    }).join('');
+    const muteBadgeEl = document.getElementById('snapMuteBadge');
+    if(muteBadgeEl){
+      muteBadgeEl.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        camPausedManually = !camPausedManually;
+        if(camPausedManually) stopSnapshotScheduler(); else startSnapshotScheduler();
+        renderSnapRow();
+      });
+    }
+    el.querySelectorAll('.snap-circle[data-mine="0"]').forEach(circle=>{
+      circle.addEventListener('click', ()=> sendNudge(circle.dataset.id));
     });
   }
 
@@ -1509,7 +1693,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   // ---------- distraction-free focus mode ----------
   let wakeLockSentinel = null;
+  function updateFocusToggleVisibility(){
+    const btn = document.getElementById('focusToggleBtn');
+    if(btn) btn.classList.toggle('visible', timerRunning);
+    if(!timerRunning) exitFocusMode(); // can't stay in focus mode once the timer isn't running
+  }
   async function enterFocusMode(){
+    if(!timerRunning) return; // only enterable once a session is actually running
     document.body.classList.add('focus-active');
     if('wakeLock' in navigator){
       try{ wakeLockSentinel = await navigator.wakeLock.request('screen'); }catch(e){ /* not critical */ }
@@ -1519,17 +1709,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.body.classList.remove('focus-active');
     if(wakeLockSentinel){ wakeLockSentinel.release().catch(()=>{}); wakeLockSentinel = null; }
   }
-  function toggleFocusMode(){
-    if(document.body.classList.contains('focus-active')) exitFocusMode();
-    else enterFocusMode();
-  }
   document.getElementById('focusToggleBtn').addEventListener('click', (e)=>{
     e.preventDefault();
-    toggleFocusMode();
+    enterFocusMode();
   });
   document.getElementById('focusExitBtn').addEventListener('click', (e)=>{
     e.preventDefault();
-    exitFocusMode();
+    exitFocusMode(); // just brings the screen back — never touches the running timer
   });
   // tap anywhere to minimize back to the main screen — the timer keeps running in the background
   document.body.addEventListener('click', (e)=>{
@@ -1551,6 +1737,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
         studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
         mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
       });
+      startSnapshotScheduler();
+      updateFocusToggleVisibility();
     } else {
       pauseTimer();
     }
@@ -1562,6 +1750,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     setStatusText('paused');
     renderTimerDigits();
     setLiveStatus({ studying:false, baseElapsedMs:elapsedMs });
+    stopSnapshotScheduler();
+    updateFocusToggleVisibility();
   }
   const MAX_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours — auto-stop safety cap
   function tick(){
@@ -1581,6 +1771,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       return;
     }
     renderTimerDigits();
+    checkMilestone();
   }
   document.getElementById('resetBtn').addEventListener('click', ()=>{
     if(elapsedMs > 3000){ // log if meaningful duration and not already finished
@@ -1685,6 +1876,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     setStatusText('ready');
     renderTimerDigits();
     setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
+    stopSnapshotScheduler();
+    lastMilestoneHourLocal = 0;
+    updateFocusToggleVisibility();
   }
   function finishSession(completed, reason){
     timerRunning = false;
@@ -1716,6 +1910,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTimerDigits();
     renderSessions();
     setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
+    stopSnapshotScheduler();
+    lastMilestoneHourLocal = 0;
+    updateFocusToggleVisibility();
     if(justLoggedSession && reason!=='autostop' && durationMin >= 1){
       promptSessionNote(justLoggedSession, key);
     }
@@ -1723,6 +1920,20 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function promptSessionNote(session, dateKey){
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
+    const friend = !isViewingSelf() ? usersList.find(u=>u.id===viewingId) : null;
+    const recapHtml = friend ? `
+        <div class="recap-row">
+          <div class="recap-col mine">
+            <div class="recap-who">You</div>
+            <div class="recap-time">${fmtHM(todayTotalMinutes())}</div>
+            <div class="recap-sub">today</div>
+          </div>
+          <div class="recap-col friend">
+            <div class="recap-who">${escapeHtml(friend.name)}</div>
+            <div class="recap-time">${fmtHM(liveMinutesFor(liveCache[friend.id]))}</div>
+            <div class="recap-sub">today</div>
+          </div>
+        </div>` : '';
     backdrop.innerHTML = `
       <div class="modal">
         <h3>What did you cover?</h3>
@@ -1731,6 +1942,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <textarea id="note-input" rows="3" placeholder="e.g. Finished Ch.4 practice problems, need to review formulas" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;"></textarea>
           <div id="note-error" style="display:none; color:var(--danger); font-size:11.5px; margin-top:8px;">A quick note is required to log this session — it's how you track real progress.</div>
         </div>
+        ${recapHtml}
         <div class="modal-actions">
           <button class="btn btn-primary" id="note-save" style="width:100%;">Save & continue</button>
         </div>
@@ -1754,6 +1966,145 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
   }
 
+  // ---------- live snapshot sharing: settings, camera engine, milestones, nudges ----------
+  const SNAP_SETTINGS_KEY = 'study-board-snap-settings';
+  const SNAPSHOT_STALE_MS = 3*60*1000;
+  function loadSnapSettings(){
+    let s = { enabled:false, facing:'user', freqMs:60000 };
+    try{
+      const raw = localStorage.getItem(SNAP_SETTINGS_KEY);
+      if(raw) s = Object.assign(s, JSON.parse(raw));
+    }catch(e){}
+    return s;
+  }
+  function saveSnapSettings(s){
+    try{ localStorage.setItem(SNAP_SETTINGS_KEY, JSON.stringify(s)); }catch(e){}
+  }
+  let snapSettings = loadSnapSettings();
+
+  let camPausedManually = false;
+  let camCaptureIntervalHandle = null;
+  let camBusy = false; // true only for the brief moment we're actually grabbing a frame
+
+  function captureOneFrame(){
+    if(!snapSettings.enabled || camPausedManually || !timerRunning || !me || camBusy) return;
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    camBusy = true;
+    navigator.mediaDevices.getUserMedia({ video:{ facingMode: snapSettings.facing }, audio:false })
+      .then(stream=>{
+        const video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        const cleanup = ()=>{ stream.getTracks().forEach(t=>t.stop()); camBusy = false; };
+        video.onloadedmetadata = ()=>{
+          video.play().then(()=>{
+            // brief pause lets the sensor auto-expose/focus before we grab the frame
+            setTimeout(()=>{
+              try{
+                const size = 220;
+                const canvas = document.createElement('canvas');
+                canvas.width = size; canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                const vw = video.videoWidth, vh = video.videoHeight;
+                const s = Math.min(vw, vh);
+                ctx.drawImage(video, (vw-s)/2, (vh-s)/2, s, s, 0, 0, size, size);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.55);
+                setLiveStatus({ snapshot: dataUrl, snapshotAt: Date.now() });
+                renderSnapRow();
+              }catch(e){ console.warn('snapshot capture failed', e); }
+              cleanup();
+            }, 300);
+          }).catch(()=> cleanup());
+        };
+      })
+      .catch(err=>{
+        console.warn('camera unavailable', err);
+        camBusy = false;
+      });
+  }
+
+  function startSnapshotScheduler(){
+    if(!snapSettings.enabled || camPausedManually || !timerRunning) return;
+    if(camCaptureIntervalHandle) return; // already scheduled
+    captureOneFrame(); // grab one right away
+    camCaptureIntervalHandle = setInterval(captureOneFrame, snapSettings.freqMs);
+  }
+  function stopSnapshotScheduler(){
+    if(camCaptureIntervalHandle){ clearInterval(camCaptureIntervalHandle); camCaptureIntervalHandle = null; }
+  }
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden){ stopSnapshotScheduler(); }
+    else if(timerRunning){ startSnapshotScheduler(); }
+  });
+
+  function isSnapshotStale(st){
+    return !!(st && st.snapshotAt && (Date.now() - st.snapshotAt > SNAPSHOT_STALE_MS));
+  }
+  function timeAgoShort(ts){
+    const m = Math.max(1, Math.round((Date.now()-ts)/60000));
+    return m + 'm ago';
+  }
+
+  // ---------- lightweight nudge (👋) ----------
+  async function sendNudge(targetId){
+    if(!me || !targetId) return;
+    try{ await setDoc(doc(db, 'nudges', targetId), { from: me.id, fromName: me.name, ts: Date.now() }); }catch(e){}
+  }
+  let lastSeenNudgeTs = 0;
+  let nudgeUnsub = null;
+  function showNudgeToast(text){
+    const t = document.createElement('div');
+    t.className = 'nudge-toast';
+    t.textContent = text;
+    document.body.appendChild(t);
+    requestAnimationFrame(()=> t.classList.add('show'));
+    setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=> t.remove(), 350); }, 3200);
+  }
+  function subscribeSelfNudges(){
+    if(nudgeUnsub) nudgeUnsub();
+    nudgeUnsub = onSnapshot(doc(db, 'nudges', me.id), (snap)=>{
+      if(!snap.exists()) return;
+      const n = snap.data();
+      if(n.ts && n.ts > lastSeenNudgeTs){
+        lastSeenNudgeTs = n.ts;
+        showNudgeToast(`👋 ${n.fromName || 'A friend'} is cheering you on`);
+      }
+    }, ()=>{});
+  }
+
+  // ---------- shared milestone confetti ----------
+  function fireConfetti(together){
+    const colors = together ? ['#22D3EE','#FF5A5F','#FFFFFF'] : ['#22D3EE','#7FB3D5','#8FCB9B'];
+    const count = together ? 36 : 22;
+    for(let i=0;i<count;i++){
+      const p = document.createElement('div');
+      p.className = 'confetti-piece';
+      p.style.left = (Math.random()*100)+'vw';
+      p.style.background = colors[i % colors.length];
+      p.style.animationDuration = (1.6 + Math.random()*1.2)+'s';
+      p.style.opacity = (0.7 + Math.random()*0.3).toString();
+      document.body.appendChild(p);
+      setTimeout(()=> p.remove(), 3200);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'milestone-toast';
+    toast.textContent = together ? '🎉 You and your study buddy just crossed an hour together!' : '🎉 Another hour down — keep going!';
+    document.body.appendChild(toast);
+    requestAnimationFrame(()=> toast.classList.add('show'));
+    setTimeout(()=>{ toast.classList.remove('show'); setTimeout(()=> toast.remove(), 400); }, 2600);
+  }
+  let lastMilestoneHourLocal = 0;
+  function checkMilestone(){
+    const hourBucket = Math.floor(elapsedMs/3600000);
+    if(hourBucket <= lastMilestoneHourLocal || hourBucket < 1) return;
+    lastMilestoneHourLocal = hourBucket;
+    setLiveStatus({ lastMilestoneHour: hourBucket, lastMilestoneAt: Date.now() });
+    const friendSt = !isViewingSelf() ? liveCache[viewingId] : null;
+    const together = !!(friendSt && friendSt.lastMilestoneHour===hourBucket && friendSt.lastMilestoneAt && (Date.now()-friendSt.lastMilestoneAt < 3*60000));
+    fireConfetti(together);
+  }
+
   // ---------- live "studying now" presence (surfaced on the person chips at the top) ----------
   let liveCache = {};
   let livePollHandle = null;
@@ -1762,7 +2113,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!me) return;
     const merged = Object.assign({ name: me.name, color: me.color }, liveCache[me.id]||{}, patch, { updatedAt: Date.now() });
     liveCache[me.id] = merged;
-    renderPeopleRow();
+    renderPeopleRow(); renderSnapRow();
     updateFriendTimerCard();
     try{
       await setDoc(doc(db, 'liveStatus', me.id), merged, { merge:true });
@@ -1777,7 +2128,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   async function refreshLiveStatuses(){
     if(!me) return;
     for(const u of usersList){ liveCache[u.id] = await getLiveStatus(u.id); }
-    renderPeopleRow();
+    renderPeopleRow(); renderSnapRow();
     updateFriendTimerCard();
     refreshBellBadge();
   }
@@ -1807,7 +2158,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stopLiveTimers();
     refreshLiveStatuses();
     livePollHandle = setInterval(refreshLiveStatuses, 6000);
-    liveTickHandle = setInterval(()=>{ renderPeopleRow(); updateFriendTimerCard(); renderGoalCard(); }, 1000);
+    liveTickHandle = setInterval(()=>{ renderPeopleRow(); renderSnapRow(); updateFriendTimerCard(); renderGoalCard(); }, 1000);
   }
   function stopLiveTimers(){
     if(livePollHandle){ clearInterval(livePollHandle); livePollHandle = null; }
@@ -1823,7 +2174,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const st = snap.exists() ? snap.data() : null;
       liveCache[me.id] = st;
       reconcileLocalTimerFromRemote(st);
-      renderPeopleRow();
+      renderPeopleRow(); renderSnapRow();
       updateFriendTimerCard();
     }, (err)=> console.warn('self live status listener failed', err));
   }
@@ -1949,31 +2300,30 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function renderSessions(){
     const key = fmtDate(new Date());
     const el = document.getElementById('sessionList');
+    const titleEl = document.getElementById('sessionListTitle');
+    const data = activeData();
+    const friendName = !isViewingSelf() ? ((usersList.find(u=>u.id===viewingId)||{}).name || 'Friend') : null;
+    if(titleEl) titleEl.textContent = isViewingSelf() ? "Today's sessions" : `${friendName}'s sessions today`;
 
-    const renderPersonBlock = (title, data)=>{
-      const list = (data.sessions && data.sessions[key]) || [];
-      if(!list.length) return '';
-      return `<div class="section-title" style="margin-top:14px;">${escapeHtml(title)}</div>` + list.slice().reverse().map(s=>{
-        const period = (s.startedAt && s.endedAt) ? `${formatClock(s.startedAt)} – ${formatClock(s.endedAt)}` : '';
-        return `
-          <div class="session-item2">
-            <div class="row1">
-              <span class="subj"><span class="dot" style="background:${subjectColorIn(s.subject, data)}"></span>${subjectNameIn(s.subject, data)}</span>
-              <span class="dur-badge">${s.duration} min${s.mode==='countdown' ? (s.completed?' ✓':' ⏸'):''}</span>
-            </div>
-            ${s.label ? `<div class="label">${escapeHtml(s.label)}</div>` : ''}
-            ${period ? `<div class="period">${period}</div>` : ''}
-            ${s.note ? `<div class="session-note">📝 ${escapeHtml(s.note)}</div>` : ''}
+    const list = (data.sessions && data.sessions[key]) || [];
+    if(!list.length){
+      el.innerHTML = `<div class="empty" style="padding:20px 0;"><div class="big">No sessions yet</div>${isViewingSelf() ? "today's first block starts with you" : escapeHtml(friendName)+" hasn't logged anything today"}</div>`;
+      return;
+    }
+    el.innerHTML = list.slice().reverse().map(s=>{
+      const period = (s.startedAt && s.endedAt) ? `${formatClock(s.startedAt)} – ${formatClock(s.endedAt)}` : '';
+      return `
+        <div class="session-item2">
+          <div class="row1">
+            <span class="subj"><span class="dot" style="background:${subjectColorIn(s.subject, data)}"></span>${subjectNameIn(s.subject, data)}</span>
+            <span class="dur-badge">${s.duration} min${s.mode==='countdown' ? (s.completed?' ✓':' ⏸'):''}</span>
           </div>
-        `;
-      }).join('');
-    };
-
-    let html = renderPersonBlock('You', state);
-    const friends = usersList.filter(u=>u.id!==me.id);
-    friends.forEach(u=>{ html += renderPersonBlock(u.name, friendCache[u.id] || {}); });
-
-    el.innerHTML = html || '<div class="empty" style="padding:20px 0;"><div class="big">No sessions yet</div>today\'s first block starts with you</div>';
+          ${s.label ? `<div class="label">${escapeHtml(s.label)}</div>` : ''}
+          ${period ? `<div class="period">${period}</div>` : ''}
+          ${s.note ? `<div class="session-note">📝 ${escapeHtml(s.note)}</div>` : ''}
+        </div>
+      `;
+    }).join('');
   }
 
   // ---------- TODAY SCREEN ----------
@@ -2420,7 +2770,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   // ---------- master render ----------
   function render(){
-    renderPeopleRow();
+    renderPeopleRow(); renderSnapRow();
 
     const banner = document.getElementById('viewingBanner');
     if(currentScreen==='week' && !isViewingSelf()){
@@ -2436,7 +2786,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
     document.getElementById('timerControlsWrap').style.display = isViewingSelf() ? 'block' : 'none';
     document.getElementById('friendTimerBanner').style.display = isViewingSelf() ? 'none' : 'block';
-    document.getElementById('sessionListTitle').textContent = "Today's sessions";
     updateFriendTimerCard();
     renderGoalCard();
 
@@ -2471,7 +2820,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   async function refreshAllFriendBoards(){
     const friends = usersList.filter(u=>u.id!==me.id);
     for(const u of friends){ await fetchFriendBoard(u.id); }
-    renderPeopleRow();
+    renderPeopleRow(); renderSnapRow();
     renderSessions();
     renderGoalCard();
   }
