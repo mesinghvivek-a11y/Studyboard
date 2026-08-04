@@ -341,6 +341,88 @@
   .goal-bar-fill{ height:100%; border-radius:4px; background:var(--accent); transition: width .3s ease; }
   .goal-bar-fill.week{ background:var(--danger); }
 
+  /* ---------- Weekly Targets (goal cards) ---------- */
+  .wk-section-head{ display:flex; align-items:center; justify-content:space-between; margin:4px 0 10px; gap:8px; }
+  .wk-section-head h2{ font-family:'Kalam'; font-size:18px; margin:0; color:var(--chalk); font-weight:400; }
+  .wk-head-actions{ display:flex; gap:8px; }
+  .add-goal-btn{
+    background:var(--accent-dim); color:var(--accent); border:1px solid rgba(var(--accent-rgb),0.35);
+    font-size:11.5px; font-weight:700; padding:7px 12px; border-radius:20px; cursor:pointer; white-space:nowrap;
+  }
+  .add-goal-btn.ghost{ background:var(--card); color:var(--chalk-dim); border-color:var(--card-line); }
+
+  .wgoal-card{ background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:14px; margin-bottom:10px; }
+  .wgoal-top{ display:flex; align-items:center; gap:12px; cursor:pointer; }
+  .donut-wrap{ position:relative; width:50px; height:50px; flex:0 0 auto; }
+  .donut-wrap svg{ width:100%; height:100%; transform:rotate(-90deg); }
+  .donut-track{ fill:none; stroke:rgba(255,255,255,0.08); stroke-width:5; }
+  .donut-fill{ fill:none; stroke-width:5; stroke-linecap:round; transition: stroke-dashoffset .5s ease; }
+  .donut-pct{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono'; font-size:11px; font-weight:700; color:var(--chalk);
+  }
+  .wgoal-info{ flex:1; min-width:0; }
+  .wgoal-title-row{ display:flex; align-items:center; gap:7px; margin-bottom:3px; }
+  .wgoal-title{ font-size:14.5px; font-weight:600; color:var(--chalk); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .type-chip{
+    flex:0 0 auto; font-size:9px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase;
+    padding:2px 7px; border-radius:20px; border:1px solid var(--card-line); color:var(--chalk-faint);
+  }
+  .type-chip.recurring{ color:var(--c4); border-color:rgba(184,160,217,0.4); background:rgba(184,160,217,0.1); }
+  .type-chip.flexible{ color:var(--c3); border-color:rgba(143,203,155,0.4); background:rgba(143,203,155,0.1); }
+  .type-chip.milestone{ color:var(--c6); border-color:rgba(232,196,104,0.4); background:rgba(232,196,104,0.1); }
+  .wgoal-frac{ font-family:'JetBrains Mono'; font-size:12px; color:var(--chalk-faint); }
+  .wgoal-frac b{ color:var(--chalk); font-weight:700; }
+  .wgoal-note{ font-size:11px; color:var(--chalk-faint); font-style:italic; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chevron{ flex:0 0 auto; color:var(--chalk-faint); font-size:12px; transition: transform .2s ease; }
+  .wgoal-card.open .chevron{ transform:rotate(180deg); }
+
+  .day-dots{ display:flex; gap:6px; margin:10px 0 0 62px; }
+  .day-dot{
+    width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:8.5px; font-weight:700; color:var(--chalk-faint); background:rgba(255,255,255,0.05);
+    border:1px solid var(--card-line);
+  }
+  .day-dot.due{ border-color:rgba(255,255,255,0.25); }
+  .day-dot.done{ background:var(--accent); border-color:var(--accent); color:var(--ink); }
+
+  .wgoal-expand{ max-height:0; overflow:hidden; transition:max-height .25s ease; margin-left:62px; }
+  .wgoal-card.open .wgoal-expand{ max-height:500px; margin-top:12px; }
+  .linked-item{
+    display:flex; align-items:center; justify-content:space-between; font-size:12px;
+    padding:7px 0; border-bottom:1px solid var(--card-line); color:var(--chalk-dim); gap:10px;
+  }
+  .linked-item:last-of-type{ border-bottom:none; }
+  .linked-item .lday{ color:var(--chalk-faint); font-family:'JetBrains Mono'; font-size:10.5px; margin-right:4px; flex:0 0 auto; }
+  .linked-item .lname{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .linked-item .lamt{ flex:0 0 auto; font-family:'JetBrains Mono'; font-size:11px; color:var(--chalk-faint); }
+  .linked-item button{ background:none; border:none; color:var(--chalk-faint); font-size:12px; cursor:pointer; padding:0 2px; flex:0 0 auto; }
+  .linked-empty{ font-size:12px; color:var(--chalk-faint); padding:6px 0; font-style:italic; }
+
+  .wgoal-note-full{ font-size:12px; color:var(--chalk-dim); margin-bottom:8px; font-style:italic; }
+
+  .adjust-row{ display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
+  .adjust-label{ font-size:11px; color:var(--chalk-faint); text-transform:uppercase; letter-spacing:0.4px; }
+  .stepper{ display:flex; align-items:center; gap:10px; }
+  .step-btn{
+    width:28px; height:28px; border-radius:8px; border:none; background:var(--accent-dim); color:var(--accent);
+    font-size:16px; font-weight:700; cursor:pointer;
+  }
+  .step-btn:active{ background:var(--accent); color:var(--ink); }
+  .step-val{ font-family:'JetBrains Mono'; font-size:13px; min-width:26px; text-align:center; color:var(--chalk); }
+
+  .wgoal-actions{ display:flex; gap:14px; margin-top:12px; }
+  .wgoal-actions button{ background:none; border:none; font-size:12px; font-weight:600; cursor:pointer; padding:0; }
+  .wgoal-actions .edit{ color:var(--accent); }
+  .wgoal-actions .del{ color:var(--c1); }
+
+  .wgoal-empty{ text-align:center; padding:30px 10px; color:var(--chalk-faint); font-size:13px; }
+
+  .link-pill{
+    margin-top:8px; display:inline-flex; align-items:center; gap:5px; font-size:10.5px; color:var(--c4);
+    background:rgba(184,160,217,0.12); border:1px solid rgba(184,160,217,0.3); padding:3px 9px; border-radius:20px;
+  }
+
   .week-day{ margin-bottom:20px; }
 
   /* ---------- distraction-free focus mode ---------- */
@@ -821,7 +903,14 @@
         <div class="week-nav-label" id="weekNavLabel">This week</div>
         <button class="week-nav-arrow" id="weekNext">›</button>
       </div>
-      <div id="weekList"></div>
+      <div class="wk-section-head">
+        <h2>Weekly Targets</h2>
+        <div class="wk-head-actions">
+          <button class="add-goal-btn ghost" id="openAddRecurring">+ Recurring</button>
+          <button class="add-goal-btn" id="openAddGoal">+ New goal</button>
+        </div>
+      </div>
+      <div id="weeklyGoalsList"></div>
     </section>
 
     <!-- HISTORY SCREEN -->
@@ -981,7 +1070,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     dailyExtra: {},     // { 'YYYY-MM-DD': [ {id, subject, start, duration, label} ] }
     completion: {},     // { 'YYYY-MM-DD|blockId': true }
     sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note} ] }
-    goals: { dailyMin: 120, weeklyMin: 600 } // overall study goals used for streak/progress tracking
+    goals: { dailyMin: 120, weeklyMin: 600 }, // overall study goals used for streak/progress tracking
+    weeklyGoals: [] // {id, title, subject, type:'flexible'|'milestone', unit:'hours'|'sessions'|'count', target, weekStart, note, manualAdjust, createdAt}
   };
 
   let selectedDate = new Date();
@@ -994,7 +1084,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let myReads = {};           // cid -> last-read timestamp (for comment badges)
 
   function isViewingSelf(){ return !viewingId || (me && viewingId === me.id); }
-  function activeData(){ return isViewingSelf() ? state : (friendCache[viewingId] || {subjects:[],weeklyTemplate:[],dailyExtra:{},completion:{},sessions:{}}); }
+  function activeData(){ return isViewingSelf() ? state : (friendCache[viewingId] || {subjects:[],weeklyTemplate:[],weeklyGoals:[],dailyExtra:{},completion:{},sessions:{}}); }
 
   // ---------- multi-device sync: never let one device's save erase another's ----------
   // The board doc can be written from several devices/tabs. Instead of blind
@@ -1021,6 +1111,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!remote) return;
     state.subjects = mergeArraysById(state.subjects, remote.subjects);
     state.weeklyTemplate = mergeArraysById(state.weeklyTemplate, remote.weeklyTemplate);
+    state.weeklyGoals = mergeArraysById(state.weeklyGoals, remote.weeklyGoals);
     state.dailyExtra = mergeKeyedArrayMaps(state.dailyExtra, remote.dailyExtra);
     state.sessions = mergeKeyedArrayMaps(state.sessions, remote.sessions);
     // completion is a flat {key: 'done'|'missed'} map with no per-key timestamp;
@@ -1571,15 +1662,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   function pushSharedBoard(){
     if(!me) return;
-    const shared = { subjects: state.subjects, weeklyTemplate: state.weeklyTemplate, dailyExtra: state.dailyExtra, completion: state.completion, sessions: state.sessions, goals: state.goals };
+    const shared = { subjects: state.subjects, weeklyTemplate: state.weeklyTemplate, weeklyGoals: state.weeklyGoals, dailyExtra: state.dailyExtra, completion: state.completion, sessions: state.sessions, goals: state.goals };
     window.storage.set('board:'+me.id, JSON.stringify(shared), true).catch(e=>console.error('share failed', e));
   }
   async function fetchFriendBoard(id){
     try{
       const res = await window.storage.get('board:'+id, true);
-      friendCache[id] = res && res.value ? JSON.parse(res.value) : {subjects:[],weeklyTemplate:[],dailyExtra:{},completion:{},sessions:{}};
+      friendCache[id] = res && res.value ? JSON.parse(res.value) : {subjects:[],weeklyTemplate:[],weeklyGoals:[],dailyExtra:{},completion:{},sessions:{}};
     }catch(e){
-      friendCache[id] = {subjects:[],weeklyTemplate:[],dailyExtra:{},completion:{},sessions:{}};
+      friendCache[id] = {subjects:[],weeklyTemplate:[],weeklyGoals:[],dailyExtra:{},completion:{},sessions:{}};
     }
   }
 
@@ -1618,6 +1709,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function renderSnapRow(){
     const el = document.getElementById('snapRow');
     if(!el || !me) return;
+    if(currentScreen!=='timer' && currentScreen!=='today'){ el.style.display = 'none'; return; }
+    el.style.display = '';
     const others = usersList.filter(u=>u.id!==me.id);
     const people = [{id:me.id, name:'You', mine:true}, ...others.map(u=>({id:u.id, name:u.name, mine:false}))];
     el.innerHTML = people.map(p=>{
@@ -2582,6 +2675,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             <div class="body">
               <div class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, state)}</div>
               <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, state)}"></span>${subjectNameIn(b.subject, state)} · ${b.duration||30} min</div>
+              ${b.linkedGoalId ? `<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId, state))}</div>` : ''}
             </div>
             <button class="cmt-btn" data-cid="${commentsIdFor(b.id, me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,state))}">💬</button>
             <button class="task-edit" data-id="${b.id}" data-source="${b.source}" title="Edit">✏️</button>
@@ -2657,6 +2751,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         state.completion[k] = nextStatus(state.completion[k]);
         saveState();
         renderTaskList();
+        renderWeeklyGoalsList();
       });
     });
     el.querySelectorAll('.task-edit[data-id]').forEach(btn=>{
@@ -2680,7 +2775,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         }
         saveState();
         renderTaskList();
-        renderWeekList();
+        renderWeeklyGoalsList();
       });
     });
 
@@ -2717,8 +2812,66 @@ window.storage = storage; // keep the rest of the app's code unchanged
     d.setDate(d.getDate() - d.getDay() + offsetWeeks*7);
     return d;
   }
-  function renderWeekList(){
-    const el = document.getElementById('weekList');
+
+  // ---------- weekly goal progress ----------
+  function linkedDoneItemsForGoal(data, goalId, weekStart){
+    const items = [];
+    for(let i=0;i<7;i++){
+      const d = new Date(weekStart); d.setDate(d.getDate()+i);
+      const dateKey = fmtDate(d);
+      blocksForDateIn(data, d).forEach(b=>{
+        if(b.linkedGoalId === goalId){
+          const status = (data.completion||{})[dateKey+'|'+b.id];
+          if(status==='done') items.push({ date:d, dateKey, block:b });
+        }
+      });
+    }
+    return items;
+  }
+  function weeklyGoalProgress(data, goal, weekStart){
+    const items = linkedDoneItemsForGoal(data, goal.id, weekStart);
+    const logged = goal.unit==='hours' ? items.reduce((s,it)=> s+(it.block.duration||0)/60, 0) : items.length;
+    return { progress: Math.max(0, logged + (goal.manualAdjust||0)), items };
+  }
+  function recurringGroupsFor(data, weekStart){
+    const wk = weekStartKey(weekStart);
+    const map = {};
+    (data.weeklyTemplate||[]).filter(b=>b.weekStart===wk).forEach(b=>{
+      const key = b.subject + '|' + (b.label||'');
+      if(!map[key]) map[key] = { key, subject:b.subject, label:b.label, blocks:[] };
+      map[key].blocks.push(b);
+    });
+    return Object.values(map);
+  }
+  function recurringGroupStatus(data, group, weekStart){
+    const dueDays = [...new Set(group.blocks.map(b=>b.day))].sort((a,b)=>a-b);
+    const doneDays = [];
+    dueDays.forEach(dow=>{
+      const d = new Date(weekStart); d.setDate(d.getDate()+dow);
+      const dateKey = fmtDate(d);
+      const blocksThatDay = group.blocks.filter(b=>b.day===dow);
+      if(blocksThatDay.some(b => (data.completion||{})[dateKey+'|'+b.id] === 'done')) doneDays.push(dow);
+    });
+    return { dueDays, doneDays };
+  }
+  function donutSvg(pct, colorCss){
+    const r = 20, c = 2*Math.PI*r;
+    const off = c * (1 - Math.min(100,pct)/100);
+    return `<svg viewBox="0 0 50 50">
+      <circle class="donut-track" cx="25" cy="25" r="${r}"></circle>
+      <circle class="donut-fill" cx="25" cy="25" r="${r}" stroke="${colorCss}" stroke-dasharray="${c}" stroke-dashoffset="${off}"></circle>
+    </svg>`;
+  }
+  function fmtGoalAmt(n){ return Math.round(n*10)/10; }
+  function goalTitleFor(goalId, data){
+    const g = (data.weeklyGoals||[]).find(x=>x.id===goalId);
+    return g ? g.title : 'goal';
+  }
+
+  let openGoalCardId = null;
+  function renderWeeklyGoalsList(){
+    const el = document.getElementById('weeklyGoalsList');
+    if(!el) return;
     const editable = isViewingSelf();
     const data = activeData();
     const weekStart = startOfWeek(new Date(), weekOffset);
@@ -2729,52 +2882,238 @@ window.storage = storage; // keep the rest of the app's code unchanged
       labelEl.textContent = weekOffset===0 ? 'This week'
         : `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()} – ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
     }
-    el.innerHTML = DAY_NAMES.map((name, dow)=>{
-      const date = new Date(weekStart); date.setDate(date.getDate()+dow);
-      const dateKey = fmtDate(date);
-      const blocks = blocksForDateIn(data, date);
-      const chips = blocks.length ? blocks.map(b=>`
-        <div class="block-chip" style="border-left-color:${subjectColorIn(b.subject, data)}">
-          <div class="left">
-            <span>${b.label || subjectNameIn(b.subject, data)}</span>
-            <span class="t">${timeRangeLabel(b.start, b.duration||30)} · ${b.duration||30}min</span>
+    const addRecBtn = document.getElementById('openAddRecurring');
+    const addGoalBtn = document.getElementById('openAddGoal');
+    if(addRecBtn) addRecBtn.style.display = editable ? 'inline-block' : 'none';
+    if(addGoalBtn) addGoalBtn.style.display = editable ? 'inline-block' : 'none';
+
+    const wk = weekStartKey(weekStart);
+    const flexGoals = (data.weeklyGoals||[]).filter(g=>g.weekStart===wk);
+    const groups = recurringGroupsFor(data, weekStart);
+
+    if(groups.length===0 && flexGoals.length===0){
+      el.innerHTML = `<div class="wgoal-empty">No weekly targets yet${editable ? ' — tap “+ New goal” or “+ Recurring” to add one' : ''}.</div>`;
+      return;
+    }
+
+    let html = '';
+
+    groups.forEach(g=>{
+      const { dueDays, doneDays } = recurringGroupStatus(data, g, weekStart);
+      const pct = dueDays.length ? Math.round((doneDays.length/dueDays.length)*100) : 0;
+      const cardId = 'rec_'+g.key.replace(/[^a-z0-9]/gi,'_');
+      const isOpen = openGoalCardId === cardId;
+      const title = g.label || subjectNameIn(g.subject, data);
+      const dayDots = `<div class="day-dots">${[0,1,2,3,4,5,6].map(d=>{
+        const due = dueDays.includes(d);
+        const done = doneDays.includes(d);
+        return `<div class="day-dot ${due?'due':''} ${done?'done':''}">${DAY_NAMES[d][0]}</div>`;
+      }).join('')}</div>`;
+      const linkedRows = dueDays.length ? dueDays.map(dow=>{
+        const done = doneDays.includes(dow);
+        return `<div class="linked-item"><span><span class="lday">${DAY_NAMES[dow]}</span><span class="lname">${escapeHtml(title)}</span></span><span class="lamt">${done?'✓ done':'—'}</span></div>`;
+      }).join('') : `<div class="linked-empty">No due days this week.</div>`;
+      html += `
+        <div class="wgoal-card ${isOpen?'open':''}" data-card="${cardId}">
+          <div class="wgoal-top" data-toggle="${cardId}">
+            <div class="donut-wrap">${donutSvg(pct, subjectColorIn(g.subject, data))}<div class="donut-pct">${pct}%</div></div>
+            <div class="wgoal-info">
+              <div class="wgoal-title-row">
+                <span class="wgoal-title">${escapeHtml(title)}</span>
+                <span class="type-chip recurring">recurring</span>
+              </div>
+              <div class="wgoal-frac"><b>${doneDays.length}</b> / ${dueDays.length} days this week</div>
+            </div>
+            <div class="chevron">▾</div>
           </div>
-          ${editable ? `<button class="task-edit" data-id="${b.id}" data-source="${b.source}" data-datekey="${dateKey}" title="Edit">✏️</button><button class="task-del" data-id="${b.id}" data-source="${b.source}" data-datekey="${dateKey}">×</button>` : ''}
+          ${dayDots}
+          <div class="wgoal-expand">${linkedRows}</div>
         </div>
-      `).join('') : `<div style="font-size:12px; color:var(--chalk-faint); padding:4px 2px 0;">nothing scheduled</div>`;
-      return `<div class="week-day"><h4>${name} <span class="count">${date.getDate()}</span></h4>${chips}</div>`;
-    }).join('');
-    if(!editable) return;
-    el.querySelectorAll('.task-edit').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const id = btn.dataset.id, source = btn.dataset.source, dk = btn.dataset.datekey;
-        const block = source==='template'
-          ? state.weeklyTemplate.find(b=>b.id===id)
-          : (state.dailyExtra[dk]||[]).find(b=>b.id===id);
-        if(block) openAddModal(source==='template' ? 'template' : 'extra', block, dk);
+      `;
+    });
+
+    flexGoals.forEach(g=>{
+      const { progress, items } = weeklyGoalProgress(data, g, weekStart);
+      const pct = g.target ? Math.round(Math.min(100, (progress/g.target)*100)) : 0;
+      const isOpen = openGoalCardId === g.id;
+      const noun = g.unit==='hours' ? 'h' : (g.unit==='count' ? '' : (g.target===1?' session':' sessions'));
+      const fracLabel = g.unit==='hours' ? `<b>${fmtGoalAmt(progress)}</b> / ${g.target}h` : `<b>${Math.round(progress)}</b> / ${g.target}${noun}`;
+      const linkedRows = items.length ? items.map(it=>`
+        <div class="linked-item">
+          <span><span class="lday">${DAY_NAMES[it.date.getDay()]}</span><span class="lname">${escapeHtml(it.block.label || subjectNameIn(it.block.subject, data))}</span></span>
+          <span class="lamt">${g.unit==='hours' ? fmtGoalAmt((it.block.duration||0)/60)+'h' : '1'}</span>
+        </div>
+      `).join('') : `<div class="linked-empty">No daily tasks linked yet this week.</div>`;
+      html += `
+        <div class="wgoal-card ${isOpen?'open':''}" data-card="${g.id}">
+          <div class="wgoal-top" data-toggle="${g.id}">
+            <div class="donut-wrap">${donutSvg(pct, subjectColorIn(g.subject, data))}<div class="donut-pct">${pct}%</div></div>
+            <div class="wgoal-info">
+              <div class="wgoal-title-row">
+                <span class="wgoal-title">${escapeHtml(g.title)}</span>
+                <span class="type-chip ${g.type}">${g.type}</span>
+              </div>
+              <div class="wgoal-frac">${fracLabel}</div>
+              ${g.note ? `<div class="wgoal-note">${escapeHtml(g.note)}</div>` : ''}
+            </div>
+            <div class="chevron">▾</div>
+          </div>
+          <div class="wgoal-expand">
+            ${g.note ? `<div class="wgoal-note-full">📝 ${escapeHtml(g.note)}</div>` : ''}
+            ${linkedRows}
+            ${editable ? `
+            <div class="adjust-row">
+              <span class="adjust-label">Manual adjust</span>
+              <div class="stepper">
+                <button type="button" class="step-btn" data-adjust="-1" data-id="${g.id}">−</button>
+                <span class="step-val">${(g.manualAdjust||0) >= 0 ? '+' : ''}${g.manualAdjust||0}</span>
+                <button type="button" class="step-btn" data-adjust="1" data-id="${g.id}">+</button>
+              </div>
+            </div>
+            <div class="wgoal-actions">
+              <button type="button" class="edit" data-edit="${g.id}">Edit goal</button>
+              <button type="button" class="del" data-del="${g.id}">Delete</button>
+            </div>` : ''}
+          </div>
+        </div>
+      `;
+    });
+
+    el.innerHTML = html;
+
+    el.querySelectorAll('[data-toggle]').forEach(node=>{
+      node.addEventListener('click', ()=>{
+        const id = node.dataset.toggle;
+        openGoalCardId = openGoalCardId === id ? null : id;
+        renderWeeklyGoalsList();
       });
     });
-    el.querySelectorAll('.task-del').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        if(btn.dataset.source==='template'){
-          state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==btn.dataset.id);
-        } else {
-          const dk = btn.dataset.datekey;
-          if(state.dailyExtra[dk]) state.dailyExtra[dk] = state.dailyExtra[dk].filter(b=>b.id!==btn.dataset.id);
-        }
+    if(!editable) return;
+    el.querySelectorAll('[data-adjust]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const g = state.weeklyGoals.find(x=>x.id===btn.dataset.id);
+        if(g){ g.manualAdjust = (g.manualAdjust||0) + Number(btn.dataset.adjust); saveState(); renderWeeklyGoalsList(); }
+      });
+    });
+    el.querySelectorAll('[data-edit]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const g = state.weeklyGoals.find(x=>x.id===btn.dataset.edit);
+        if(g) openGoalModal(g);
+      });
+    });
+    el.querySelectorAll('[data-del]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        state.weeklyGoals = state.weeklyGoals.filter(g=>g.id!==btn.dataset.del);
+        openGoalCardId = null;
         saveState();
-        renderWeekList();
-        renderTaskList();
+        renderWeeklyGoalsList();
       });
     });
   }
-  document.getElementById('weekPrev').addEventListener('click', ()=>{ weekOffset--; renderWeekList(); });
-  document.getElementById('weekNext').addEventListener('click', ()=>{ weekOffset++; renderWeekList(); });
+  document.getElementById('weekPrev').addEventListener('click', ()=>{ weekOffset--; openGoalCardId=null; renderWeeklyGoalsList(); });
+  document.getElementById('weekNext').addEventListener('click', ()=>{ weekOffset++; openGoalCardId=null; renderWeeklyGoalsList(); });
+  document.getElementById('openAddRecurring').addEventListener('click', ()=>{ openAddModal('template'); });
+  document.getElementById('openAddGoal').addEventListener('click', ()=>{ openGoalModal(); });
+
+  function openGoalModal(existingGoal){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const isEdit = !!existingGoal;
+    const weekStart = startOfWeek(new Date(), weekOffset);
+    const wk = weekStartKey(weekStart);
+    backdrop.innerHTML = `
+      <div class="modal">
+        <button class="close-x">×</button>
+        <h3>${isEdit ? 'Edit weekly goal' : 'Add weekly goal'}</h3>
+        <div class="field-row">
+          <label>Title</label>
+          <input type="text" id="g-title" placeholder="e.g. Modern History" value="${escapeHtml(existingGoal?.title||'')}">
+        </div>
+        <div class="field-row">
+          <label>Subject</label>
+          <select id="g-subject"></select>
+        </div>
+        <div class="field-row">
+          <label>Type</label>
+          <div class="mode-switch">
+            <button type="button" class="${(!existingGoal||existingGoal.type==='flexible')?'active':''}" id="g-type-flex">Flexible</button>
+            <button type="button" class="${existingGoal?.type==='milestone'?'active':''}" id="g-type-mile">Milestone</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <label>Progress counted in</label>
+          <select id="g-unit">
+            <option value="hours">Hours</option>
+            <option value="sessions">Sessions</option>
+            <option value="count">Custom count</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label>Weekly target</label>
+          <input type="number" id="g-target" min="0.5" step="0.5" value="${existingGoal?.target ?? (existingGoal?.type==='milestone'?2:5)}">
+        </div>
+        <div class="field-row">
+          <label>Note <span style="opacity:.6; text-transform:none;">(optional — what to focus on)</span></label>
+          <textarea id="g-note" rows="2" placeholder="e.g. Focus on map-based questions" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;">${escapeHtml(existingGoal?.note||'')}</textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="g-cancel">Cancel</button>
+          <button class="btn btn-primary" id="g-save">${isEdit?'Save changes':'Save goal'}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    renderSubjectOptions(backdrop.querySelector('#g-subject'), existingGoal?.subject || state.subjects[0].id);
+    const unitSel = backdrop.querySelector('#g-unit');
+    unitSel.value = existingGoal?.unit || 'hours';
+
+    let currentType = existingGoal?.type || 'flexible';
+    const typeFlex = backdrop.querySelector('#g-type-flex');
+    const typeMile = backdrop.querySelector('#g-type-mile');
+    typeFlex.addEventListener('click', ()=>{
+      currentType='flexible'; typeFlex.classList.add('active'); typeMile.classList.remove('active');
+      if(!isEdit) unitSel.value = 'hours';
+    });
+    typeMile.addEventListener('click', ()=>{
+      currentType='milestone'; typeMile.classList.add('active'); typeFlex.classList.remove('active');
+      if(!isEdit) unitSel.value = 'count';
+    });
+
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.querySelector('#g-cancel').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    backdrop.querySelector('#g-save').addEventListener('click', ()=>{
+      const title = backdrop.querySelector('#g-title').value.trim() || 'Untitled goal';
+      const subject = backdrop.querySelector('#g-subject').value;
+      const unit = unitSel.value;
+      const target = Math.max(0.5, parseFloat(backdrop.querySelector('#g-target').value)||1);
+      const note = backdrop.querySelector('#g-note').value.trim();
+      if(isEdit){
+        const g = state.weeklyGoals.find(x=>x.id===existingGoal.id);
+        if(g){ g.title=title; g.subject=subject; g.type=currentType; g.unit=unit; g.target=target; g.note=note||null; }
+      } else {
+        state.weeklyGoals.push({
+          id:'wg_'+Date.now(), title, subject, type:currentType, unit, target,
+          weekStart: wk, note: note||null, manualAdjust:0, createdAt: Date.now()
+        });
+        notifyOthers(`${me.name} set a new weekly goal: ${title}`);
+      }
+      saveState();
+      openGoalCardId = isEdit ? existingGoal.id : null;
+      renderWeeklyGoalsList();
+      close();
+    });
+  }
 
   // ---------- ADD MODAL ----------
   document.getElementById('fabAdd').addEventListener('click', ()=>{
     if(currentScreen==='today') openAddModal('extra');
-    else if(currentScreen==='week' && isViewingSelf()) openAddModal('template');
+    else if(currentScreen==='week' && isViewingSelf()) openGoalModal();
   });
 
   // ---------- wheel / dial picker (no manual typing) ----------
@@ -2883,6 +3222,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <select id="m-subject"></select>
         </div>
 
+        ${(!isTemplate && !isEdit) ? `
+        <div class="field-row" id="m-link-goal-row">
+          <label>Link to weekly goal <span style="opacity:.6; text-transform:none;">(optional, one click)</span></label>
+          <select id="m-link-goal"><option value="">— none —</option></select>
+        </div>` : ''}
+
         ${isTemplate && !isEdit ? `
         <div class="field-row">
           <label>Day(s)</label>
@@ -2927,6 +3272,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderSubjectOptions(backdrop.querySelector('#m-subject'), existingBlock?.subject || state.subjects[0].id);
     const startWheel = createTimeWheel(backdrop.querySelector('#m-start-wheel'), existingBlock?.start || '16:00');
     const durationWheel = createDurationStepper(backdrop.querySelector('#m-duration-wheel'), existingBlock?.duration || 30);
+    const linkGoalSel = backdrop.querySelector('#m-link-goal');
+    if(linkGoalSel){
+      const wk = weekStartKey(selectedDate);
+      const weekGoals = (state.weeklyGoals||[]).filter(g=>g.weekStart===wk);
+      linkGoalSel.innerHTML = '<option value="">— none —</option>' +
+        weekGoals.map(g=>`<option value="${g.id}">${escapeHtml(g.title)}</option>`).join('');
+    }
 
     let pickedColor = COLORS[0];
     let selectedDays = (isTemplate && !isEdit) ? new Set([selectedDate.getDay()]) : null;
@@ -2989,7 +3341,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         }
         saveState();
         render();
-        renderWeekList();
+        renderWeeklyGoalsList();
         close();
         return;
       }
@@ -3032,8 +3384,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
       } else {
         const key = fmtDate(selectedDate);
         if(!state.dailyExtra[key]) state.dailyExtra[key] = [];
+        const linkGoalId = linkGoalSel ? (linkGoalSel.value || null) : null;
         state.dailyExtra[key].push({
-          id:'ext_'+Date.now(), subject:subjectId, start, duration, label
+          id:'ext_'+Date.now(), subject:subjectId, start, duration, label,
+          linkedGoalId: linkGoalId
         });
         saveState();
         notifyOthers(`${me.name} added a task: ${taskName}`);
@@ -3068,7 +3422,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderSessions();
     renderDayScroller();
     renderTaskList();
-    renderWeekList();
+    renderWeeklyGoalsList();
     if(currentScreen==='history'){ renderHistoryCalendar(); renderHistory(); }
   }
 
