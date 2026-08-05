@@ -4,9 +4,9 @@
 // plain Web Push event, so we do NOT need the separate firebase-messaging-sw
 // script — this one file handles both).
 
-const CACHE_NAME = 'study-board-v1';
+const CACHE_NAME = 'study-board-v2'; // bumped so old installs drop their stale cache
 const APP_SHELL = [
-  './study-board-web.html',
+  './index.html',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -35,7 +35,7 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
-  const isAppPage = req.mode === 'navigate' || req.url.includes('study-board-web.html');
+  const isAppPage = req.mode === 'navigate' || req.url.includes('index.html');
 
   if (isAppPage) {
     event.respondWith(
@@ -45,7 +45,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
           return res;
         })
-        .catch(() => caches.match('./study-board-web.html'))
+        .catch(() => caches.match('./index.html'))
     );
     return;
   }
@@ -65,7 +65,7 @@ self.addEventListener('push', (event) => {
     body: data.body || '',
     icon: './icons/icon-192.png',
     badge: './icons/icon-192.png',
-    data: { url: data.url || './study-board-web.html' },
+    data: { url: data.url || './index.html' },
     vibrate: [100, 50, 100]
   };
   event.waitUntil(self.registration.showNotification(title, options));
@@ -73,11 +73,11 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || './study-board-web.html';
+  const targetUrl = (event.notification.data && event.notification.data.url) || './index.html';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
-        if (client.url.includes('study-board-web.html') && 'focus' in client) return client.focus();
+        if (client.url.includes('index.html') && 'focus' in client) return client.focus();
       }
       if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
     })
