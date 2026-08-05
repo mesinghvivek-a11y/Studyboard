@@ -791,10 +791,6 @@
     <div class="sub" style="margin-bottom:22px;">stay on the clock, together</div>
     <h2 id="authTitle">Welcome back</h2>
 
-    <div class="field-row" id="nameRow" style="display:none;">
-      <label>Your name</label>
-      <input type="text" id="authName" placeholder="e.g. Sam">
-    </div>
     <div class="field-row">
       <label>Email</label>
       <input type="text" id="authEmail" placeholder="you@example.com" autocapitalize="off" autocorrect="off">
@@ -805,7 +801,6 @@
     </div>
     <div class="auth-error" id="authError"></div>
     <button class="btn btn-primary" id="authSubmit" style="width:100%; padding:14px 0; margin-top:4px;">Log in</button>
-    <div class="auth-toggle" id="authToggle">New here? Create an account</div>
   </div>
 </div>
 
@@ -954,7 +949,7 @@ import {
   getFirestore, doc, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
-  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  getAuth, signInWithEmailAndPassword,
   onAuthStateChanged, signOut, updateProfile
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import {
@@ -1242,8 +1237,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
   const authScreen = document.getElementById('authScreen');
   const appRoot = document.getElementById('app');
   const authError = document.getElementById('authError');
-  let authMode = 'login'; // or 'signup'
-
   function showAuth(){
     authScreen.style.display = 'flex';
     appRoot.style.display = 'none';
@@ -1254,43 +1247,21 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   function setAuthError(msg){ authError.textContent = msg || ''; }
 
-  document.getElementById('authToggle').addEventListener('click', ()=>{
-    authMode = authMode==='login' ? 'signup' : 'login';
-    document.getElementById('nameRow').style.display = authMode==='signup' ? 'block' : 'none';
-    document.getElementById('authSubmit').textContent = authMode==='signup' ? 'Create account' : 'Log in';
-    document.getElementById('authTitle').textContent = authMode==='signup' ? 'Join the board' : 'Welcome back';
-    document.getElementById('authToggle').textContent = authMode==='signup' ? 'Already have an account? Log in' : "New here? Create an account";
-    setAuthError('');
-  });
-
   document.getElementById('authSubmit').addEventListener('click', async ()=>{
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
-    const name = document.getElementById('authName').value.trim();
     setAuthError('');
     if(!email || !password){ setAuthError('Enter an email and password.'); return; }
-    if(authMode==='signup' && !name){ setAuthError('Enter your name.'); return; }
 
     document.getElementById('authSubmit').disabled = true;
     try{
-      if(authMode==='signup'){
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        booted = true;
-        window.__meId = cred.user.uid;
-        me = { id: cred.user.uid, name, color: COLORS[Math.floor(Math.random()*COLORS.length)] };
-        await window.storage.set('study-board-profile', JSON.stringify(me), false);
-        await registerUser(me);
-        showApp();
-        await loadState();
-      } else {
-        const cred = await signInWithEmailAndPassword(auth, email, password);
-        booted = true;
-        window.__meId = cred.user.uid;
-        const res = await window.storage.get('study-board-profile', false);
-        me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
-        showApp();
-        await loadState();
-      }
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      booted = true;
+      window.__meId = cred.user.uid;
+      const res = await window.storage.get('study-board-profile', false);
+      me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
+      showApp();
+      await loadState();
     }catch(e){
       setAuthError(e.message.replace('Firebase: ','').replace(/\(auth\/.*\)\.?/,'').trim() || 'Something went wrong.');
     }
@@ -2911,7 +2882,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
       }).join('')}</div>`;
       const linkedRows = dueDays.length ? dueDays.map(dow=>{
         const done = doneDays.includes(dow);
-        return `<div class="linked-item"><span><span class="lday">${DAY_NAMES[dow]}</span><span class="lname">${escapeHtml(title)}</span></span><span class="lamt">${done?'✓ done':'—'}</span></div>`;
+        const blocksThatDay = g.blocks.filter(b=>b.day===dow);
+        if(blocksThatDay.length===0) return '';
+        return blocksThatDay.map(b=>`
+          <div class="linked-item">
+            <span><span class="lday">${DAY_NAMES[dow]}</span><span class="lname">${escapeHtml(title)}</span></span>
+            <span class="lamt">${done?'✓ done':'—'}</span>
+            ${editable ? `<button type="button" class="rec-edit" data-rec-id="${b.id}" title="Edit">✏️</button><button type="button" class="rec-del" data-rec-id="${b.id}" title="Delete">×</button>` : ''}
+          </div>
+        `).join('');
       }).join('') : `<div class="linked-empty">No due days this week.</div>`;
       html += `
         <div class="wgoal-card ${isOpen?'open':''}" data-card="${cardId}">
@@ -3008,6 +2987,21 @@ window.storage = storage; // keep the rest of the app's code unchanged
         e.stopPropagation();
         state.weeklyGoals = state.weeklyGoals.filter(g=>g.id!==btn.dataset.del);
         openGoalCardId = null;
+        saveState();
+        renderWeeklyGoalsList();
+      });
+    });
+    el.querySelectorAll('.rec-edit').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const block = state.weeklyTemplate.find(b=>b.id===btn.dataset.recId);
+        if(block) openAddModal('template', block);
+      });
+    });
+    el.querySelectorAll('.rec-del').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==btn.dataset.recId);
         saveState();
         renderWeeklyGoalsList();
       });
