@@ -590,6 +590,23 @@
   }
   .auth-logo{ font-family:'Kalam'; font-size:26px; margin:0 0 2px; }
   .auth-card h2{ font-family:'Kalam'; font-size:19px; margin:0 0 16px; color:var(--chalk); }
+
+  #loadBlocker{
+    position:fixed; inset:0; z-index:999; background:var(--board);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .load-blocker-card{ text-align:center; color:var(--chalk-dim); font-size:13px; max-width:280px; }
+  .load-spinner{
+    width:34px; height:34px; border-radius:50%; margin:0 auto 16px;
+    border:3px solid var(--card-line); border-top-color:var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  #offlineBanner{
+    position:fixed; top:0; left:0; right:0; z-index:998; text-align:center;
+    background:var(--danger); color:var(--ink); font-size:12px; font-weight:700; padding:8px 12px;
+  }
   .auth-error{ color:var(--c1); font-size:12px; min-height:16px; margin:2px 0 10px; }
   .auth-toggle{ text-align:center; font-size:12px; color:var(--chalk-faint); margin-top:16px; cursor:pointer; text-decoration:underline; }
 
@@ -817,6 +834,15 @@
   </div>
 </div>
 
+<div id="loadBlocker" style="display:none;">
+  <div class="load-blocker-card">
+    <div class="load-spinner"></div>
+    <div id="loadBlockerMsg">Loading your data…</div>
+  </div>
+</div>
+
+<div id="offlineBanner" style="display:none;">You're offline — changes won't save until you're back online</div>
+
 <div id="app" style="display:none;">
 <div class="app-content">
 
@@ -975,7 +1001,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence
+  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword,
@@ -996,11 +1022,14 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
 const auth = getAuth(fbApp);
-enableIndexedDbPersistence(db).catch((err)=>{
-  console.warn('Offline persistence unavailable:', err.code);
-  // 'failed-precondition' = another tab already has it open; 'unimplemented' = browser doesn't support it.
-  // App still works online in either case, just without the offline cache/queue.
-});
+// NOTE: intentionally NOT calling enableIndexedDbPersistence() here. Safari/WebKit's
+// IndexedDB (which is what every iPhone, iPad, and home-screen PWA on this project
+// runs on) has a long history of serious, still-open bugs: queued writes that are
+// silently dropped and never sent after the tab is backgrounded, the DB refusing to
+// open at all citing "potential corruption" (iOS 18, reported May 2025), and Safari's
+// 7-day-inactivity storage wipe (ITP) clearing any not-yet-synced local queue outright.
+// Relying on that cache as a safety net was a bigger data-loss risk on this platform
+// mix than just failing visibly when offline — see below.
 
 // ---------- PWA: service worker + push notifications ----------
 let swRegistration = null;
@@ -1148,11 +1177,17 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // saved before this fix is missing weekStart — drop those legacy infinite
   // blocks so they stop reappearing; anything added going forward is scoped
   // to the single week it was created for (see openAddModal).
-  function migrateLegacyWeeklyTemplate(){
+  // IMPORTANT: only persists the cleanup when the caller confirms `state` was just
+  // loaded from the live server (not a possibly-stale offline cache) — saving a
+  // filtered array built from stale data would permanently erase anything a
+  // different device added since this device's cache was last refreshed.
+  function migrateLegacyWeeklyTemplate(fromFreshServerData){
     if(!state.weeklyTemplate || !state.weeklyTemplate.length) return;
     const before = state.weeklyTemplate.length;
-    state.weeklyTemplate = state.weeklyTemplate.filter(b=> !!b.weekStart);
-    if(state.weeklyTemplate.length !== before) saveState();
+    const cleaned = state.weeklyTemplate.filter(b=> !!b.weekStart);
+    if(cleaned.length === before) return;
+    state.weeklyTemplate = cleaned;
+    if(fromFreshServerData) saveState();
   }
   function setSyncStatus(status){
     syncStatus = status;
@@ -1189,8 +1224,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!me) return;
     setSyncStatus('syncing');
     try{
-      const res = await window.storage.get(STORAGE_KEY, false);
-      if(res && res.value) mergeRemoteIntoState(JSON.parse(res.value));
+      // manual "sync now" always means the actual server truth, never a cached guess
+      const snap = await getDocFromServer(doc(db, 'boards', me.id));
+      if(snap.exists() && snap.data().value) mergeRemoteIntoState(snap.data().value);
       await flushStateNow();
       setSyncStatus('ok');
       render();
@@ -1202,15 +1238,56 @@ window.storage = storage; // keep the rest of the app's code unchanged
   document.getElementById('syncBtn').addEventListener('click', manualSync);
 
   // ---------- persistence: my own private working copy ----------
+  function showLoadBlocker(msg){
+    document.getElementById('loadBlockerMsg').textContent = msg;
+    document.getElementById('loadBlocker').style.display = 'flex';
+  }
+  function hideLoadBlocker(){
+    document.getElementById('loadBlocker').style.display = 'none';
+  }
+  function waitForOnline(){
+    return new Promise((resolve)=>{
+      if(navigator.onLine){ setTimeout(resolve, 1500); return; } // brief pause, then retry even if reported online (flaky network)
+      const handler = ()=>{ window.removeEventListener('online', handler); resolve(); };
+      window.addEventListener('online', handler);
+    });
+  }
+  window.addEventListener('online', ()=>{
+    document.getElementById('offlineBanner').style.display = 'none';
+    if(me && stateReadyToPersist) manualSync();
+  });
+  window.addEventListener('offline', ()=>{
+    document.getElementById('offlineBanner').style.display = 'block';
+  });
+
   async function loadState(){
-    try{
-      const res = await window.storage.get(STORAGE_KEY, false);
-      if(res && res.value){
-        const parsed = JSON.parse(res.value);
-        state = Object.assign(state, parsed);
+    stateReadyToPersist = false;
+    showLoadBlocker('Loading your data…');
+    let snap = null;
+    let attempts = 0;
+    while(!snap){
+      try{
+        snap = await getDocFromServer(doc(db, 'boards', me.id));
+      }catch(e){
+        // Genuinely offline or unreachable. We deliberately do NOT fall back to a
+        // local cache here (see the note by enableIndexedDbPersistence above) —
+        // proceeding with possibly-stale or empty data and then letting the app
+        // save over it is exactly how data got lost before. Wait for connectivity
+        // and retry instead of guessing.
+        attempts++;
+        showLoadBlocker(attempts===1
+          ? "You're offline — waiting to reconnect…"
+          : "Still waiting for a connection… your data is safe on the server, we just can't reach it yet.");
+        await waitForOnline();
       }
-    }catch(e){ /* no saved data yet */ }
-    migrateLegacyWeeklyTemplate();
+    }
+    hideLoadBlocker();
+    if(snap.exists() && snap.data().value){
+      state = Object.assign(state, snap.data().value);
+    }
+    stateReadyToPersist = true;
+    migrateLegacyWeeklyTemplate(true);
+    maybeWriteDailyBackup();
     await loadUsersList();
     await loadMyReads();
     renderHeaderAvatar();
@@ -1226,6 +1303,23 @@ window.storage = storage; // keep the rest of the app's code unchanged
     friendBoardsPollHandle = setInterval(refreshAllFriendBoards, 60000);
     setSyncStatus('ok');
   }
+  // ---------- daily backup snapshot (safety net, independent of the live save path) ----------
+  // Once per calendar day, on a confirmed-fresh load from the server, mirror the
+  // whole board to a separate collection keyed by date. This never overwrites
+  // itself and is never read by the app's normal code path, so a bug in normal
+  // save/merge logic can't also corrupt or skip a backup — there's always a
+  // same-day-or-recent snapshot to manually restore from in the Firebase console.
+  async function maybeWriteDailyBackup(){
+    if(!me) return;
+    const todayKey = fmtDate(new Date());
+    const backupRef = doc(db, 'boardBackups', me.id + '_' + todayKey);
+    try{
+      const existing = await getDoc(backupRef);
+      if(existing.exists()) return; // already backed up today
+      await setDoc(backupRef, { uid: me.id, date: todayKey, savedAt: Date.now(), value: state });
+    }catch(e){ console.warn('daily backup failed', e); }
+  }
+
   async function loadMyReads(){
     try{
       const snap = await getDoc(doc(db, 'commentReads', me.id));
@@ -1237,7 +1331,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     try{ await setDoc(doc(db, 'commentReads', me.id), myReads); }catch(e){}
   }
   let saveTimeout = null;
+  let stateReadyToPersist = false; // becomes true only after loadState() has reconciled with the server —
+                                    // guards against any accidental early save overwriting real data with a
+                                    // still-empty/still-stale in-memory `state`
   function saveState(){
+    if(!stateReadyToPersist){ console.warn('saveState() blocked — state not yet reconciled with server'); return; }
     clearTimeout(saveTimeout);
     setSyncStatus('syncing');
     saveTimeout = setTimeout(async ()=>{
@@ -1250,6 +1348,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }, 250);
   }
   async function flushStateNow(){
+    if(!stateReadyToPersist){ console.warn('flushStateNow() blocked — state not yet reconciled with server'); return; }
     clearTimeout(saveTimeout);
     try{
       await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
