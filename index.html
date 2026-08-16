@@ -525,6 +525,55 @@
   .day-toggle.sel{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
   .close-x{ position:absolute; top:20px; right:20px; background:none; border:none; color:var(--chalk-faint); font-size:20px; cursor:pointer; }
 
+  /* ---------- Group switcher bar ---------- */
+  .group-bar{
+    display:flex; align-items:center; gap:8px; width:calc(100% - 32px); margin:0 16px 12px;
+  }
+  .group-bar-main{
+    flex:1; display:flex; align-items:center; justify-content:space-between; min-width:0;
+    background:var(--card); border:1px solid var(--card-line); border-radius:14px; padding:10px 14px;
+    color:var(--chalk); font-size:13px; font-weight:600; cursor:pointer;
+  }
+  .group-bar-main span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .group-bar-info{
+    flex:0 0 auto; width:38px; height:38px; border-radius:12px; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:16px; cursor:pointer; line-height:1;
+  }
+  .group-bar-arrow{ color:var(--chalk-faint); font-size:11px; flex:0 0 auto; margin-left:6px; }
+  .group-bar .deadline-tag, .group-bar-main .deadline-tag{ font-size:10px; font-weight:600; color:var(--c1); margin-left:8px; }
+
+  .grp-list-item{
+    display:flex; align-items:center; justify-content:space-between; background:var(--card);
+    border:1px solid var(--card-line); border-radius:14px; padding:12px 14px; margin-bottom:8px; cursor:pointer;
+  }
+  .grp-list-item.active{ border-color:var(--accent); background:var(--accent-dim); }
+  .grp-list-item .name{ font-weight:700; font-size:14px; }
+  .grp-list-item .meta{ font-size:11px; color:var(--chalk-faint); margin-top:2px; }
+  .grp-actions-row{ display:flex; gap:8px; margin:12px 0; }
+  .grp-actions-row button{ flex:1; }
+
+  .grp-detail-code{
+    text-align:center; background:var(--board); border:1px dashed var(--card-line); border-radius:14px;
+    padding:16px; margin:12px 0;
+  }
+  .grp-detail-code .code{ font-family:'JetBrains Mono'; font-size:24px; letter-spacing:4px; color:var(--accent); font-weight:700; }
+  .grp-detail-code img{ width:160px; height:160px; margin:10px auto 6px; display:block; border-radius:10px; background:#fff; padding:6px; }
+  .grp-member-row{
+    display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--card-line); font-size:13px;
+  }
+  .grp-member-row:last-child{ border-bottom:none; }
+  .grp-toggle-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; font-size:13px; }
+  .switch{ position:relative; width:40px; height:22px; flex:0 0 auto; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .switch .slider{
+    position:absolute; inset:0; background:var(--card-line); border-radius:22px; cursor:pointer; transition:.2s;
+  }
+  .switch .slider:before{
+    content:""; position:absolute; width:16px; height:16px; left:3px; top:3px; background:var(--chalk); border-radius:50%; transition:.2s;
+  }
+  .switch input:checked + .slider{ background:var(--accent); }
+  .switch input:checked + .slider:before{ transform:translateX(18px); }
+
   /* ---------- People switcher ---------- */
   .people-row{
     display:flex; gap:8px; overflow-x:auto; padding:0 16px 14px; scrollbar-width:none;
@@ -702,6 +751,29 @@
   .friend-timer-card .stat{ font-family:'JetBrains Mono'; font-size:26px; font-weight:700; color:var(--accent); margin:4px 0; }
   .friend-timer-card .lbl{ font-size:12px; color:var(--chalk-faint); }
 
+  /* ---------- Live screen: mini timer + member list ---------- */
+  .live-mini-timer{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:14px 16px; margin-bottom:16px;
+  }
+  .lmt-digits{ font-family:'JetBrains Mono'; font-size:20px; font-weight:700; color:var(--chalk); flex:0 0 auto; }
+  .lmt-controls{ display:flex; gap:8px; }
+  .lmt-controls button{ padding:8px 14px; font-size:12px; width:auto; margin-top:0; }
+  .live-member-row{
+    display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--card-line);
+    border-radius:16px; padding:12px 14px; margin-bottom:10px;
+  }
+  .live-member-row .lm-avatar{
+    width:46px; height:46px; border-radius:50%; flex:0 0 auto; overflow:hidden; display:flex; align-items:center; justify-content:center;
+    font-weight:700; color:var(--ink); position:relative;
+  }
+  .live-member-row .lm-avatar img{ width:100%; height:100%; object-fit:cover; }
+  .live-member-row.studying .lm-avatar{ box-shadow: 0 0 0 3px var(--c1); }
+  .lm-info{ flex:1; min-width:0; }
+  .lm-name{ font-weight:700; font-size:14px; color:var(--chalk); }
+  .lm-sub{ font-size:11px; color:var(--chalk-faint); margin-top:2px; }
+  .lm-streak{ flex:0 0 auto; font-family:'Kalam'; font-size:13px; color:var(--chalk-dim); text-align:right; }
+
   /* ---------- live snapshot: self preview + buddy card ---------- */
   /* ---------- live snapshot row (below the people row) ---------- */
   .snap-row{ display:flex; gap:16px; overflow-x:auto; padding:6px 16px 16px; scrollbar-width:none; -ms-overflow-style:none; }
@@ -722,6 +794,7 @@
   .snap-circle.stale{ opacity:0.45; filter:grayscale(0.6); }
   .snap-circle.clickable{ cursor:pointer; }
   .snap-name{ font-size:11px; color:var(--chalk-dim); margin-top:11px; text-align:center; max-width:92px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .snap-streak{ font-size:10px; color:var(--c1); font-weight:700; margin-top:1px; }
   .snap-sub{ font-size:9.5px; color:var(--chalk-faint); }
   .snap-mute-badge{
     position:absolute; left:50%; bottom:-6px; transform:translateX(-50%); width:26px; height:26px; border-radius:50%;
@@ -858,8 +931,15 @@
     </div>
   </header>
 
+  <div class="group-bar">
+    <button class="group-bar-main" id="groupBar">
+      <span id="groupBarLabel">Loading…</span>
+      <span class="group-bar-arrow">▾</span>
+    </button>
+    <button class="group-bar-info" id="groupBarInfo" title="Group details, QR & invite">⋯</button>
+  </div>
+
   <div class="people-row" id="peopleRow"></div>
-  <div class="snap-row" id="snapRow"></div>
 
   <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
 
@@ -868,7 +948,6 @@
 
     <!-- TIMER SCREEN -->
     <section class="screen active" id="screen-timer">
-      <div class="goal-card" id="goalCard" style="display:none;"></div>
       <div class="friend-timer-card" id="friendTimerBanner" style="display:none;"></div>
 
       <div id="timerControlsWrap">
@@ -883,12 +962,12 @@
         </div>
 
         <div class="field-row" id="countdownLenRow" style="display:none;">
-          <label>Length</label>
+          <label>Length <button type="button" id="renamePresetsBtn" style="background:none; border:none; color:var(--accent); font-size:10px; cursor:pointer; text-transform:none; letter-spacing:0;">✏️ rename</button></label>
           <div class="dur-chip-row" id="countdownLenChips">
-            <div class="dur-chip" data-min="10"><span class="dur-min">10 min</span><span class="dur-tag">10 markers</span></div>
-            <div class="dur-chip" data-min="15"><span class="dur-min">15 min</span><span class="dur-tag">15 marker</span></div>
-            <div class="dur-chip" data-min="30"><span class="dur-min">30 min</span><span class="dur-tag">recall</span></div>
-            <div class="dur-chip sel" data-min="60"><span class="dur-min">60 min</span><span class="dur-tag">study</span></div>
+            <div class="dur-chip" data-min="10"><span class="dur-min">10 min</span><span class="dur-tag" data-tag-idx="0">10 markers</span></div>
+            <div class="dur-chip" data-min="15"><span class="dur-min">15 min</span><span class="dur-tag" data-tag-idx="1">15 marker</span></div>
+            <div class="dur-chip" data-min="30"><span class="dur-min">30 min</span><span class="dur-tag" data-tag-idx="2">recall</span></div>
+            <div class="dur-chip sel" data-min="60"><span class="dur-min">60 min</span><span class="dur-tag" data-tag-idx="3">study</span></div>
           </div>
         </div>
 
@@ -918,6 +997,8 @@
         <button type="button" class="focus-toggle-btn" id="focusToggleBtn">🧘 Enter focus mode</button>
       </div>
 
+      <div class="goal-card" id="goalCard" style="display:none;"></div>
+
       <div class="session-log">
         <h3 id="sessionListTitle">Today's sessions</h3>
         <div id="sessionList"></div>
@@ -939,12 +1020,20 @@
       </div>
       <div class="wk-section-head">
         <h2>Weekly Targets</h2>
-        <div class="wk-head-actions">
-          <button class="add-goal-btn ghost" id="openAddRecurring">+ Recurring</button>
-          <button class="add-goal-btn" id="openAddGoal">+ New goal</button>
-        </div>
       </div>
       <div id="weeklyGoalsList"></div>
+    </section>
+
+    <!-- LIVE SCREEN -->
+    <section class="screen" id="screen-live">
+      <div class="live-mini-timer" id="liveMiniTimer">
+        <div class="lmt-digits" id="liveMiniDigits">00:00:00</div>
+        <div class="lmt-controls">
+          <button type="button" class="btn btn-ghost" id="liveMiniReset">Reset</button>
+          <button type="button" class="btn btn-primary" id="liveMiniStart">Start</button>
+        </div>
+      </div>
+      <div id="snapRow" class="snap-row"></div>
     </section>
 
     <!-- HISTORY / ANALYSE SCREEN -->
@@ -991,6 +1080,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7 13h3M7 17h3M14 13h3M14 17h3"/></svg>
       WEEK
     </button>
+    <button class="tab-btn" data-screen="live">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2"/></svg>
+      LIVE
+    </button>
     <button class="tab-btn" data-screen="history">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
       ANALYSE
@@ -1001,7 +1094,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot
+  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword,
@@ -1124,20 +1217,34 @@ window.storage = storage; // keep the rest of the app's code unchanged
     completion: {},     // { 'YYYY-MM-DD|blockId': true }
     sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note} ] }
     goals: { dailyMin: 120, weeklyMin: 600 }, // overall study goals used for streak/progress tracking
-    weeklyGoals: [] // {id, title, subject, type:'flexible'|'milestone', unit:'hours'|'sessions'|'count', target, weekStart, note, manualAdjust, createdAt}
+    weeklyGoals: [], // {id, title, subject, type:'flexible', unit:'hours'|'sessions'|'count', target, weekStart, note, manualAdjust, createdAt}
+    focusPresetNames: ['10 markers','15 marker','recall','study'] // editable labels for the 10/15/30/60min focus chips
   };
 
   let selectedDate = new Date();
   let currentScreen = 'timer';
 
   let me = null;              // {id, name, color}
-  let usersList = [];         // everyone who has joined (shared)
+  let allProfiles = [];       // global directory: everyone who has ever registered (for name/color/photo lookup)
+  let usersList = [];         // people visible to me RIGHT NOW — derived from the active group's membership
   let viewingId = null;       // null/undefined = viewing "me"; else a friend's id
   let friendCache = {};       // id -> board data (read-only snapshots)
   let myReads = {};           // cid -> last-read timestamp (for comment badges)
 
+  // ---------- groups ----------
+  const LEGACY_GROUP_ID = 'legacy-everyone'; // auto-created once, on migration, so existing users keep seeing each other
+  let myGroupIds = [];        // group ids I belong to
+  let activeGroupId = null;   // which group's roster is currently driving usersList/people-row/snap-row
+  let activeGroupData = null; // full doc of the active group
+  let groupUnsub = null;
+
   function isViewingSelf(){ return !viewingId || (me && viewingId === me.id); }
   function activeData(){ return isViewingSelf() ? state : (friendCache[viewingId] || {subjects:[],weeklyTemplate:[],weeklyGoals:[],dailyExtra:{},completion:{},sessions:{}}); }
+  function isScheduleHiddenFor(uid){
+    if(!activeGroupData || !activeGroupData.members) return false;
+    const m = activeGroupData.members[uid];
+    return !!(m && m.hideSchedule);
+  }
 
   // ---------- multi-device sync: never let one device's save erase another's ----------
   // The board doc can be written from several devices/tabs. Instead of blind
@@ -1289,8 +1396,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     migrateLegacyWeeklyTemplate(true);
     maybeWriteDailyBackup();
     await loadUsersList();
+    const alreadyInGroups = await loadMyGroupIds();
+    if(!alreadyInGroups) await migrateIntoLegacyGroup();
+    await subscribeActiveGroup();
     await loadMyReads();
     renderHeaderAvatar();
+    renderFocusPresetNames();
     render();
     startLiveTimers();
     subscribeSelfLiveStatus();
@@ -1302,6 +1413,49 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(friendBoardsPollHandle) clearInterval(friendBoardsPollHandle);
     friendBoardsPollHandle = setInterval(refreshAllFriendBoards, 60000);
     setSyncStatus('ok');
+    checkJoinLinkParam();
+  }
+  function checkJoinLinkParam(){
+    const params = new URLSearchParams(location.search);
+    const code = params.get('join');
+    if(!code) return;
+    history.replaceState(null, '', location.pathname); // strip it so a refresh doesn't re-prompt
+    if(myGroupIds.length && activeGroupData && activeGroupData.inviteCode===code.toUpperCase()) return; // already in it & active
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h3>Join this group?</h3>
+        <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:12px;">Invite code: <b style="color:var(--chalk);">${escapeHtml(code.toUpperCase())}</b></div>
+        <div class="field-row">
+          <label>Password <span style="opacity:.6; text-transform:none;">(only if this group has one)</span></label>
+          <input type="text" id="ql-password" placeholder="Leave blank if none">
+        </div>
+        <div class="status" id="ql-status" style="font-size:12px; color:var(--danger); min-height:16px;"></div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="ql-cancel">Not now</button>
+          <button class="btn btn-primary" id="ql-join">Join</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('#ql-cancel').addEventListener('click', close);
+    backdrop.querySelector('#ql-join').addEventListener('click', async ()=>{
+      const password = backdrop.querySelector('#ql-password').value;
+      const statusEl = backdrop.querySelector('#ql-status');
+      backdrop.querySelector('#ql-join').disabled = true;
+      try{
+        const g = await joinGroupByCode(code, password);
+        statusEl.style.color = 'var(--ok)';
+        statusEl.textContent = `Joined ${g.name}!`;
+        setTimeout(close, 700);
+      }catch(e){
+        statusEl.style.color = 'var(--danger)';
+        statusEl.textContent = e.message;
+        backdrop.querySelector('#ql-join').disabled = false;
+      }
+    });
   }
   // ---------- daily backup snapshot (safety net, independent of the live save path) ----------
   // Once per calendar day, on a confirmed-fresh load from the server, mirror the
@@ -1505,7 +1659,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         </div>
         <div style="font-size:11px; color:var(--chalk-faint); margin:-4px 0 4px;">Only visible to friends you're studying with. Off by default. The camera turns on only for a moment to take each snapshot, then turns off again — it's never left running.</div>
         <div class="section-divider"></div>
-        <button class="btn btn-ghost" id="acct-manage" style="width:100%; margin-bottom:10px;">Manage members</button>
+        <button class="btn btn-ghost" id="acct-manage" style="width:100%; margin-bottom:10px;">👥 My Groups</button>
         <button class="btn btn-danger" id="acct-logout" style="width:100%;">Log out</button>
         <div class="modal-actions">
           <button class="btn btn-ghost" id="acct-cancel">Cancel</button>
@@ -1557,7 +1711,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       });
     }
 
-    backdrop.querySelector('#acct-manage').addEventListener('click', ()=>{ close(); openManageModal(); });
+    backdrop.querySelector('#acct-manage').addEventListener('click', ()=>{ close(); openGroupsModal(); });
     backdrop.querySelector('#acct-logout').addEventListener('click', async ()=>{ close(); await doLogout(); });
 
     backdrop.querySelector('#acct-save').addEventListener('click', async ()=>{
@@ -1685,43 +1839,273 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
 
-  function openManageModal(){
+  function renderGroupBar(){
+    const label = document.getElementById('groupBarLabel');
+    if(!label) return;
+    if(!activeGroupData){
+      label.textContent = 'No group — tap to create or join one';
+      return;
+    }
+    let deadlineTag = '';
+    if(activeGroupData.deadlineAt){
+      const ended = Date.now() > activeGroupData.deadlineAt;
+      const d = new Date(activeGroupData.deadlineAt);
+      deadlineTag = `<span class="deadline-tag">${ended ? 'ENDED' : 'ends '+MONTHS[d.getMonth()]+' '+d.getDate()}</span>`;
+    }
+    label.innerHTML = `📍 ${escapeHtml(activeGroupData.name)}${deadlineTag}`;
+  }
+  document.getElementById('groupBar').addEventListener('click', ()=> openGroupsModal());
+  document.getElementById('groupBarInfo').addEventListener('click', ()=>{
+    if(activeGroupId) openGroupsModal(activeGroupId);
+    else openGroupsModal();
+  });
+
+  function openGroupsModal(jumpToGroupId){
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
-    backdrop.innerHTML = `
-      <div class="modal">
-        <button class="close-x">×</button>
-        <h3>Manage members</h3>
-        <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:12px;">
-          Remove old test accounts here. This only removes them from the shared list — it won't affect anyone's login.
-        </div>
-        <div id="manage-list"></div>
-      </div>
-    `;
+    backdrop.innerHTML = `<div class="modal" id="grpModalBody"></div>`;
     document.body.appendChild(backdrop);
     function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
 
-    function draw(){
-      const list = backdrop.querySelector('#manage-list');
-      list.innerHTML = usersList.map(u=>`
-        <div class="session-item">
-          <span><span class="dot" style="background:${u.color||'#7FB3D5'}"></span>${escapeHtml(u.name)}${u.id===me.id?' (you)':''}</span>
-          ${u.id!==me.id ? `<button class="task-del" data-remove="${u.id}">×</button>` : ''}
+    async function drawList(){
+      const body = backdrop.querySelector('#grpModalBody');
+      body.innerHTML = `
+        <button class="close-x">×</button>
+        <h3>My Groups</h3>
+        <div id="grp-list-wrap"><div style="font-size:12px; color:var(--chalk-faint);">Loading…</div></div>
+        <div class="grp-actions-row">
+          <button class="btn btn-ghost" id="grp-join-btn">Join with code</button>
+          <button class="btn btn-primary" id="grp-create-btn">+ Create group</button>
         </div>
-      `).join('');
-      list.querySelectorAll('[data-remove]').forEach(btn=>{
-        btn.addEventListener('click', async ()=>{
-          usersList = usersList.filter(x=>x.id!==btn.dataset.remove);
-          try{ await window.storage.set(USERS_KEY, JSON.stringify(usersList), true); }catch(e){}
-          draw();
-          renderPeopleRow(); renderSnapRow();
-          renderTaskList();
+      `;
+      body.querySelector('.close-x').addEventListener('click', close);
+      const listWrap = body.querySelector('#grp-list-wrap');
+      const groups = [];
+      for(const gid of myGroupIds){
+        try{ const snap = await getDoc(doc(db,'groups',gid)); if(snap.exists()) groups.push(snap.data()); }catch(e){}
+      }
+      if(!groups.length){
+        listWrap.innerHTML = `<div style="font-size:12px; color:var(--chalk-faint); padding:10px 0;">You're not in any groups yet.</div>`;
+      } else {
+        listWrap.innerHTML = groups.map(g=>{
+          const count = Object.keys(g.members||{}).length;
+          const ended = g.deadlineAt && Date.now() > g.deadlineAt;
+          return `
+            <div class="grp-list-item ${g.id===activeGroupId?'active':''}" data-gid="${g.id}">
+              <div>
+                <div class="name">${escapeHtml(g.name)}</div>
+                <div class="meta">${count} member${count===1?'':'s'}${ended?' · ended':''}${g.visibility==='private'?' · 🔒 private':''}</div>
+              </div>
+              <div style="color:var(--chalk-faint);">›</div>
+            </div>
+          `;
+        }).join('');
+        listWrap.querySelectorAll('[data-gid]').forEach(el=>{
+          el.addEventListener('click', ()=> drawDetail(el.dataset.gid));
         });
+      }
+      body.querySelector('#grp-join-btn').addEventListener('click', drawJoin);
+      body.querySelector('#grp-create-btn').addEventListener('click', drawCreate);
+    }
+
+    function drawCreate(){
+      const body = backdrop.querySelector('#grpModalBody');
+      body.innerHTML = `
+        <button class="close-x">×</button>
+        <h3>Create a group</h3>
+        <div class="field-row">
+          <label>Group name</label>
+          <input type="text" id="gc-name" placeholder="e.g. CSAT batch">
+        </div>
+        <div class="field-row">
+          <label>Privacy</label>
+          <div class="mode-switch">
+            <button type="button" class="active" id="gc-public">Public (code only)</button>
+            <button type="button" id="gc-private">Private (+password)</button>
+          </div>
+        </div>
+        <div class="field-row hidden" id="gc-pass-row">
+          <label>Password (required for private groups)</label>
+          <input type="text" id="gc-password" placeholder="Set a password">
+        </div>
+        <div class="field-row">
+          <label>Deadline <span style="opacity:.6; text-transform:none;">(optional — a week, a month, exam date…)</span></label>
+          <input type="date" id="gc-deadline">
+        </div>
+        <div class="field-row">
+          <label>Suggested daily goal (hours, 0 = off)</label>
+          <input type="number" id="gc-daily" min="0" step="0.5" value="2">
+        </div>
+        <div class="field-row">
+          <label>Suggested weekly goal (hours, 0 = off)</label>
+          <input type="number" id="gc-weekly" min="0" step="0.5" value="10">
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="gc-back">Back</button>
+          <button class="btn btn-primary" id="gc-save">Create</button>
+        </div>
+      `;
+      body.querySelector('.close-x').addEventListener('click', close);
+      body.querySelector('#gc-back').addEventListener('click', drawList);
+      let isPrivate = false;
+      body.querySelector('#gc-public').addEventListener('click', ()=>{
+        isPrivate=false;
+        body.querySelector('#gc-public').classList.add('active');
+        body.querySelector('#gc-private').classList.remove('active');
+        body.querySelector('#gc-pass-row').classList.add('hidden');
+      });
+      body.querySelector('#gc-private').addEventListener('click', ()=>{
+        isPrivate=true;
+        body.querySelector('#gc-private').classList.add('active');
+        body.querySelector('#gc-public').classList.remove('active');
+        body.querySelector('#gc-pass-row').classList.remove('hidden');
+      });
+      body.querySelector('#gc-save').addEventListener('click', async ()=>{
+        const name = body.querySelector('#gc-name').value.trim();
+        if(!name){ alert('Give your group a name.'); return; }
+        const password = body.querySelector('#gc-password').value.trim();
+        if(isPrivate && !password){ alert('Private groups need a password.'); return; }
+        const deadlineStr = body.querySelector('#gc-deadline').value;
+        const deadlineMs = deadlineStr ? new Date(deadlineStr+'T23:59:59').getTime() : null;
+        const dailyGoalHours = parseFloat(body.querySelector('#gc-daily').value)||0;
+        const weeklyGoalHours = parseFloat(body.querySelector('#gc-weekly').value)||0;
+        body.querySelector('#gc-save').disabled = true;
+        try{
+          await createGroup({ name, isPrivate, password, deadlineMs, dailyGoalHours, weeklyGoalHours });
+          close();
+        }catch(e){ alert('Could not create group: '+e.message); body.querySelector('#gc-save').disabled = false; }
       });
     }
-    draw();
+
+    function drawJoin(){
+      const body = backdrop.querySelector('#grpModalBody');
+      body.innerHTML = `
+        <button class="close-x">×</button>
+        <h3>Join a group</h3>
+        <div class="field-row">
+          <label>Invite code</label>
+          <input type="text" id="gj-code" placeholder="e.g. AB12CD" style="text-transform:uppercase;">
+        </div>
+        <div class="field-row">
+          <label>Password <span style="opacity:.6; text-transform:none;">(only if the group has one)</span></label>
+          <input type="text" id="gj-password" placeholder="Leave blank if none">
+        </div>
+        <div class="status" id="gj-status" style="font-size:12px; color:var(--danger); min-height:16px; margin-bottom:8px;"></div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="gj-back">Back</button>
+          <button class="btn btn-primary" id="gj-save">Join</button>
+        </div>
+      `;
+      body.querySelector('.close-x').addEventListener('click', close);
+      body.querySelector('#gj-back').addEventListener('click', drawList);
+      body.querySelector('#gj-save').addEventListener('click', async ()=>{
+        const code = body.querySelector('#gj-code').value;
+        const password = body.querySelector('#gj-password').value;
+        const statusEl = body.querySelector('#gj-status');
+        statusEl.textContent = '';
+        body.querySelector('#gj-save').disabled = true;
+        try{
+          const g = await joinGroupByCode(code, password);
+          statusEl.style.color = 'var(--ok)';
+          statusEl.textContent = `Joined ${g.name}!`;
+          setTimeout(close, 700);
+        }catch(e){
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = e.message;
+          body.querySelector('#gj-save').disabled = false;
+        }
+      });
+    }
+
+    async function drawDetail(groupId){
+      const body = backdrop.querySelector('#grpModalBody');
+      body.innerHTML = `<button class="close-x">×</button><div style="font-size:12px; color:var(--chalk-faint);">Loading…</div>`;
+      body.querySelector('.close-x').addEventListener('click', close);
+      let g;
+      try{ const snap = await getDoc(doc(db,'groups',groupId)); g = snap.exists() ? snap.data() : null; }catch(e){}
+      if(!g){ body.innerHTML = `<button class="close-x">×</button><h3>Group not found</h3>`; body.querySelector('.close-x').addEventListener('click', close); return; }
+      const isOwner = g.ownerId===me.id;
+      const isActive = g.id===activeGroupId;
+      const memberIds = Object.keys(g.members||{});
+      const inviteUrl = location.origin + location.pathname + '?join=' + g.inviteCode;
+      const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(inviteUrl);
+      const ended = g.deadlineAt && Date.now() > g.deadlineAt;
+      const myHide = (g.members[me.id]||{}).hideSchedule || false;
+
+      body.innerHTML = `
+        <button class="close-x">×</button>
+        <h3>${escapeHtml(g.name)}</h3>
+        <div style="font-size:11px; color:var(--chalk-faint); margin-bottom:10px;">
+          ${g.visibility==='private' ? '🔒 Private' : '🌐 Public'} · ${memberIds.length} member${memberIds.length===1?'':'s'}
+          ${g.deadlineAt ? ` · ${ended?'ended':'ends'} ${new Date(g.deadlineAt).toLocaleDateString()}` : ''}
+        </div>
+
+        ${!isActive ? `<button class="btn btn-primary" id="gd-switch" style="width:100%; margin-bottom:10px;">Switch to this group</button>` : `<div style="text-align:center; color:var(--accent); font-size:12px; margin-bottom:10px;">✓ Currently active</div>`}
+
+        <div class="grp-detail-code">
+          <div style="font-size:10px; color:var(--chalk-faint); text-transform:uppercase; margin-bottom:4px;">Invite code</div>
+          <div class="code">${g.inviteCode}</div>
+          <img src="${qrUrl}" alt="QR code">
+          <button class="btn btn-ghost" id="gd-copy" style="width:100%; margin-top:6px;">Copy invite link</button>
+        </div>
+
+        <div class="grp-toggle-row">
+          <span>Hide my schedule from this group</span>
+          <label class="switch"><input type="checkbox" id="gd-hide" ${myHide?'checked':''}><span class="slider"></span></label>
+        </div>
+
+        ${isOwner && g.deadlineAt ? `<button class="btn btn-ghost" id="gd-extend" style="width:100%; margin:6px 0;">Extend deadline</button>` : ''}
+
+        <h4 style="margin:16px 0 6px; font-family:'Kalam'; font-size:14px; color:var(--chalk-dim); font-weight:400;">Members</h4>
+        <div id="gd-members"></div>
+
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="gd-back">Back</button>
+          ${g.id!==LEGACY_GROUP_ID ? `<button class="btn btn-danger" id="gd-leave">Leave group</button>` : ''}
+        </div>
+      `;
+      body.querySelector('#gd-members').innerHTML = memberIds.map(uid=>{
+        const p = profileFor(uid);
+        return `
+          <div class="grp-member-row">
+            <span><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}${uid===me.id?' (you)':''}${uid===g.ownerId?' 👑':''}</span>
+            ${isOwner && uid!==me.id ? `<button class="task-del" data-remove="${uid}">×</button>` : ''}
+          </div>
+        `;
+      }).join('');
+      body.querySelector('#gd-members').querySelectorAll('[data-remove]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          await removeMemberFromGroup(groupId, btn.dataset.remove);
+          drawDetail(groupId);
+        });
+      });
+      const switchBtn = body.querySelector('#gd-switch');
+      if(switchBtn) switchBtn.addEventListener('click', async ()=>{ await setActiveGroup(groupId); close(); });
+      body.querySelector('#gd-copy').addEventListener('click', ()=>{
+        navigator.clipboard?.writeText(inviteUrl).catch(()=>{});
+        const btn = body.querySelector('#gd-copy'); const old = btn.textContent;
+        btn.textContent = 'Copied!'; setTimeout(()=> btn.textContent = old, 1200);
+      });
+      body.querySelector('#gd-hide').addEventListener('change', (e)=>{ setMyHideSchedule(groupId, e.target.checked); });
+      const extendBtn = body.querySelector('#gd-extend');
+      if(extendBtn) extendBtn.addEventListener('click', async ()=>{
+        const newDate = prompt('New deadline (YYYY-MM-DD):', new Date(g.deadlineAt).toISOString().slice(0,10));
+        if(!newDate) return;
+        const ms = new Date(newDate+'T23:59:59').getTime();
+        if(isNaN(ms)) return;
+        await extendGroupDeadline(groupId, ms);
+        drawDetail(groupId);
+      });
+      body.querySelector('#gd-back').addEventListener('click', drawList);
+      const leaveBtn = body.querySelector('#gd-leave');
+      if(leaveBtn) leaveBtn.addEventListener('click', async ()=>{
+        await leaveGroup(groupId);
+        drawList();
+      });
+    }
+
+    if(jumpToGroupId){ drawDetail(jumpToGroupId); } else { drawList(); }
   }
 
   onAuthStateChanged(auth, async (user)=>{
@@ -1744,8 +2128,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
   async function loadUsersList(){
     try{
       const res = await window.storage.get(USERS_KEY, true);
-      usersList = res && res.value ? JSON.parse(res.value) : [];
-    }catch(e){ usersList = []; }
+      allProfiles = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){ allProfiles = []; }
   }
   async function registerUser(user, forceUpdate){
     let list = [];
@@ -1757,8 +2141,137 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const entry = {id:user.id, name:user.name, color:user.color, photo:user.photo||null};
     if(idx===-1){ list.push(entry); try{ await window.storage.set(USERS_KEY, JSON.stringify(list), true); }catch(e){} }
     else if(forceUpdate){ list[idx] = entry; try{ await window.storage.set(USERS_KEY, JSON.stringify(list), true); }catch(e){} }
-    usersList = list;
+    allProfiles = list;
+    deriveUsersList();
   }
+
+  // ---------- groups engine ----------
+  function genCode(len){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+    let s=''; for(let i=0;i<len;i++) s += chars[Math.floor(Math.random()*chars.length)];
+    return s;
+  }
+  function profileFor(id){
+    const p = allProfiles.find(u=>u.id===id);
+    if(p) return p;
+    if(me && id===me.id) return { id, name: me.name, color: me.color, photo: me.photo };
+    return { id, name: 'Member', color: '#7FB3D5', photo: null };
+  }
+  function deriveUsersList(){
+    if(!me){ usersList = []; return; }
+    const memberIds = (activeGroupData && activeGroupData.members) ? Object.keys(activeGroupData.members) : [me.id];
+    usersList = memberIds.map(profileFor);
+    if(!usersList.find(u=>u.id===me.id)) usersList.unshift(profileFor(me.id));
+  }
+  async function loadMyGroupIds(){
+    try{
+      const snap = await getDoc(doc(db, 'groupMemberships', me.id));
+      if(snap.exists()){
+        myGroupIds = snap.data().groupIds || [];
+        activeGroupId = snap.data().activeGroupId || myGroupIds[0] || null;
+        return true; // already set up — no migration needed
+      }
+    }catch(e){ /* fall through to migration */ }
+    return false;
+  }
+  // one-time migration: the app used to show everyone the moment they logged in.
+  // The first time a given account loads under the new groups system, fold everyone
+  // it already knew about into a default "Everyone (legacy)" group so existing
+  // connections don't just vanish — going forward people can also make their own.
+  async function migrateIntoLegacyGroup(){
+    const legacyRef = doc(db, 'groups', LEGACY_GROUP_ID);
+    let legacySnap = null;
+    try{ legacySnap = await getDoc(legacyRef); }catch(e){}
+    const exists = legacySnap && legacySnap.exists();
+    const members = exists ? Object.assign({}, legacySnap.data().members) : {};
+    if(!exists){ allProfiles.forEach(u => { members[u.id] = { joinedAt: Date.now(), hideSchedule:false }; }); }
+    if(!members[me.id]) members[me.id] = { joinedAt: Date.now(), hideSchedule:false };
+    await setDoc(legacyRef, {
+      id: LEGACY_GROUP_ID, name: 'Everyone (legacy)',
+      ownerId: exists ? legacySnap.data().ownerId : me.id,
+      members,
+      visibility: 'public', password: null,
+      inviteCode: exists ? legacySnap.data().inviteCode : 'LEGACY',
+      deadlineAt: null, dailyGoalHours: 0, weeklyGoalHours: 0,
+      createdAt: exists ? legacySnap.data().createdAt : Date.now()
+    }, { merge:true });
+    if(!exists){ try{ await setDoc(doc(db,'groupInvites','LEGACY'), { groupId: LEGACY_GROUP_ID }); }catch(e){} }
+    myGroupIds = [LEGACY_GROUP_ID];
+    activeGroupId = LEGACY_GROUP_ID;
+    await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId }, { merge:true });
+  }
+  async function subscribeActiveGroup(){
+    if(groupUnsub){ groupUnsub(); groupUnsub = null; }
+    if(!activeGroupId){ activeGroupData = null; deriveUsersList(); renderGroupBar(); renderPeopleRow(); renderSnapRow(); return; }
+    groupUnsub = onSnapshot(doc(db, 'groups', activeGroupId), (snap)=>{
+      activeGroupData = snap.exists() ? snap.data() : null;
+      deriveUsersList();
+      renderGroupBar();
+      renderPeopleRow();
+      renderSnapRow();
+    }, (err)=> console.warn('group sync error', err));
+  }
+  async function setActiveGroup(groupId){
+    activeGroupId = groupId;
+    try{ await setDoc(doc(db,'groupMemberships', me.id), { activeGroupId: groupId }, { merge:true }); }catch(e){}
+    viewingId = null;
+    await subscribeActiveGroup();
+  }
+  async function createGroup({ name, isPrivate, password, deadlineMs, dailyGoalHours, weeklyGoalHours }){
+    const groupId = 'grp_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+    const inviteCode = genCode(6);
+    const groupDoc = {
+      id: groupId, name: name || 'Untitled group', ownerId: me.id,
+      members: { [me.id]: { joinedAt: Date.now(), hideSchedule:false } },
+      visibility: isPrivate ? 'private' : 'public',
+      password: isPrivate && password ? password : null,
+      inviteCode,
+      deadlineAt: deadlineMs || null,
+      dailyGoalHours: dailyGoalHours || 0,
+      weeklyGoalHours: weeklyGoalHours || 0,
+      createdAt: Date.now()
+    };
+    await setDoc(doc(db,'groups',groupId), groupDoc);
+    await setDoc(doc(db,'groupInvites',inviteCode), { groupId });
+    if(!myGroupIds.includes(groupId)) myGroupIds.push(groupId);
+    await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
+    await setActiveGroup(groupId);
+    return groupDoc;
+  }
+  async function joinGroupByCode(codeRaw, passwordAttempt){
+    const code = (codeRaw||'').trim().toUpperCase();
+    if(!code) throw new Error('Enter an invite code.');
+    const invSnap = await getDoc(doc(db,'groupInvites', code));
+    if(!invSnap.exists()) throw new Error('That invite code doesn\'t match any group.');
+    const groupId = invSnap.data().groupId;
+    const gSnap = await getDoc(doc(db,'groups',groupId));
+    if(!gSnap.exists()) throw new Error('This group no longer exists.');
+    const g = gSnap.data();
+    if(g.password && g.password !== (passwordAttempt||'')) throw new Error('Wrong password for this group.');
+    await setDoc(doc(db,'groups',groupId), { members: { [me.id]: { joinedAt: Date.now(), hideSchedule:false } } }, { merge:true });
+    if(!myGroupIds.includes(groupId)) myGroupIds.push(groupId);
+    await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
+    await setActiveGroup(groupId);
+    return g;
+  }
+  async function leaveGroup(groupId){
+    if(groupId===LEGACY_GROUP_ID) return;
+    try{ await setDoc(doc(db,'groups',groupId), { members: { [me.id]: deleteField() } }, { merge:true }); }catch(e){}
+    myGroupIds = myGroupIds.filter(id=>id!==groupId);
+    const nextActive = activeGroupId===groupId ? (myGroupIds[0] || null) : activeGroupId;
+    await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: nextActive }, { merge:true });
+    await setActiveGroup(nextActive);
+  }
+  async function removeMemberFromGroup(groupId, uid){
+    try{ await setDoc(doc(db,'groups',groupId), { members: { [uid]: deleteField() } }, { merge:true }); }catch(e){}
+  }
+  async function extendGroupDeadline(groupId, newDeadlineMs){
+    await setDoc(doc(db,'groups',groupId), { deadlineAt: newDeadlineMs }, { merge:true });
+  }
+  async function setMyHideSchedule(groupId, hide){
+    try{ await setDoc(doc(db,'groups',groupId), { members: { [me.id]: { hideSchedule: hide } } }, { merge:true }); }catch(e){}
+  }
+
   function pushSharedBoard(){
     if(!me) return;
     const shared = { subjects: state.subjects, weeklyTemplate: state.weeklyTemplate, weeklyGoals: state.weeklyGoals, dailyExtra: state.dailyExtra, completion: state.completion, sessions: state.sessions, goals: state.goals };
@@ -1808,7 +2321,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function renderSnapRow(){
     const el = document.getElementById('snapRow');
     if(!el || !me) return;
-    if(currentScreen!=='timer' && currentScreen!=='today'){ el.style.display = 'none'; return; }
+    if(currentScreen!=='live'){ el.style.display = 'none'; return; }
     el.style.display = '';
     const others = usersList.filter(u=>u.id!==me.id);
     const people = [{id:me.id, name:'You', mine:true}, ...others.map(u=>({id:u.id, name:u.name, mine:false}))];
@@ -1816,6 +2329,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const st = liveCache[p.id];
       const studying = !!(st && st.studying);
       const stale = isSnapshotStale(st);
+      const streak = p.mine ? computeStreak() : computeStreakFor(friendCache[p.id] || {});
       const circleClass = ['snap-circle', p.mine?'clickable':'clickable', studying && !stale ? 'pulsing':'', stale?'stale':''].filter(Boolean).join(' ');
       const inner = (st && st.snapshot) ? `<img src="${st.snapshot}" alt="">` : p.name.slice(0,1).toUpperCase();
       let subText;
@@ -1832,6 +2346,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             ${muteBadge}
           </div>
           <div class="snap-name">${escapeHtml(p.name)}</div>
+          ${streak>0 ? `<div class="snap-streak">🔥${streak}</div>` : ''}
           <div class="snap-sub">${subText}</div>
         </div>
       `;
@@ -1975,7 +2490,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       if(currentScreen==='history' && !document.getElementById('historyDate').value){
         document.getElementById('historyDate').value = fmtDate(new Date());
       }
-      const titles = {timer:['Study Board','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], history:['Analyse','look back and track your hours']};
+      const titles = {timer:['Study Board','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
       document.getElementById('headerTitle').textContent = titles[currentScreen][0];
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
       render();
@@ -2022,6 +2537,30 @@ window.storage = storage; // keep the rest of the app's code unchanged
   });
   document.getElementById('timerSubject').addEventListener('change', renderRing);
 
+  function renderFocusPresetNames(){
+    const names = state.focusPresetNames || ['10 markers','15 marker','recall','study'];
+    document.querySelectorAll('#countdownLenChips .dur-tag').forEach(el=>{
+      const i = parseInt(el.dataset.tagIdx, 10);
+      if(names[i]) el.textContent = names[i];
+    });
+  }
+  document.getElementById('renamePresetsBtn').addEventListener('click', (e)=>{
+    e.preventDefault();
+    const names = (state.focusPresetNames || ['10 markers','15 marker','recall','study']).slice();
+    const mins = [10,15,30,60];
+    for(let i=0;i<4;i++){
+      const val = prompt(`Label for the ${mins[i]} min preset:`, names[i]);
+      if(val===null) break; // cancel stops the whole rename walk
+      if(val.trim()) names[i] = val.trim();
+    }
+    state.focusPresetNames = names;
+    saveState();
+    renderFocusPresetNames();
+  });
+
+  document.getElementById('liveMiniStart').addEventListener('click', ()=> document.getElementById('startBtn').click());
+  document.getElementById('liveMiniReset').addEventListener('click', ()=> document.getElementById('resetBtn').click());
+
   const RING_R = 100;
   const RING_C = 2 * Math.PI * RING_R;
   document.getElementById('ringProgress').style.strokeDasharray = RING_C;
@@ -2037,14 +2576,19 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const h = Math.floor(totalSec/3600);
     const m = Math.floor((totalSec%3600)/60);
     const s = totalSec%60;
+    const mini = document.getElementById('liveMiniDigits');
     if(timerMode==='countdown'){
       document.getElementById('timerDigits').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
       renderRing();
+      if(mini) mini.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
     } else {
       document.getElementById('swMain').textContent = `${pad(h)}:${pad(m)}`;
       document.getElementById('swSec').textContent = `:${pad(s)}`;
       document.getElementById('stopwatchFace').classList.toggle('running', timerRunning);
+      if(mini) mini.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
     }
+    const miniStart = document.getElementById('liveMiniStart');
+    if(miniStart) miniStart.textContent = document.getElementById('startBtn').textContent;
   }
   function setStatusText(txt){
     document.getElementById('timerStatus').textContent = txt;
@@ -2228,7 +2772,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const dailyPct = goals.dailyMin ? Math.min(100, (todayMin/goals.dailyMin)*100) : 0;
     const weeklyPct = goals.weeklyMin ? Math.min(100, (weekMin/goals.weeklyMin)*100) : 0;
     card.style.display = 'block';
-    const whoLabel = isViewingSelf() ? '' : `<div style="font-size:11px; color:var(--chalk-faint); margin-bottom:8px;">${escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name || 'Friend')}'s goals</div>`;
+    const self = isViewingSelf();
+    const whoLabel = self ? '' : `<div style="font-size:11px; color:var(--chalk-faint); margin-bottom:8px;">${escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name || 'Friend')}'s goals</div>`;
+    // Privacy rule: others can see hours done and streak, never the exact target —
+    // showing done+target together would let them work out the pending gap by
+    // subtraction. Only the person themselves sees their own target/pending.
     card.innerHTML = `
       ${whoLabel}
       <div class="row1">
@@ -2236,12 +2784,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
       </div>
       ${goals.dailyMin ? `
       <div class="goal-bar-row">
-        <div class="goal-bar-label"><span>Today</span><span>${fmtHM(todayMin)} / ${fmtHM(goals.dailyMin)}</span></div>
+        <div class="goal-bar-label"><span>Today</span><span>${self ? `${fmtHM(todayMin)} / ${fmtHM(goals.dailyMin)}` : `${fmtHM(todayMin)} done`}</span></div>
         <div class="goal-bar-track"><div class="goal-bar-fill" style="width:${dailyPct}%;"></div></div>
       </div>` : ''}
       ${goals.weeklyMin ? `
       <div class="goal-bar-row">
-        <div class="goal-bar-label"><span>This week</span><span>${fmtHM(weekMin)} / ${fmtHM(goals.weeklyMin)}</span></div>
+        <div class="goal-bar-label"><span>This week</span><span>${self ? `${fmtHM(weekMin)} / ${fmtHM(goals.weeklyMin)}` : `${fmtHM(weekMin)} done`}</span></div>
         <div class="goal-bar-track"><div class="goal-bar-fill week" style="width:${weeklyPct}%;"></div></div>
       </div>` : ''}
     `;
@@ -3037,6 +3585,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const el = document.getElementById('weeklyGoalsList');
     if(!el) return;
     const editable = isViewingSelf();
+    if(!editable && isScheduleHiddenFor(viewingId)){
+      const label = document.getElementById('weekNavLabel');
+      if(label) label.textContent = 'This week';
+      el.innerHTML = `<div class="wgoal-empty">🙈 ${escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name || 'This person')} has chosen to keep their schedule private.</div>`;
+      return;
+    }
     const data = activeData();
     const weekStart = startOfWeek(new Date(), weekOffset);
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6);
@@ -3046,10 +3600,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       labelEl.textContent = weekOffset===0 ? 'This week'
         : `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()} – ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getDate()}`;
     }
-    const addRecBtn = document.getElementById('openAddRecurring');
-    const addGoalBtn = document.getElementById('openAddGoal');
-    if(addRecBtn) addRecBtn.style.display = editable ? 'inline-block' : 'none';
-    if(addGoalBtn) addGoalBtn.style.display = editable ? 'inline-block' : 'none';
+
 
     const wk = weekStartKey(weekStart);
     const flexGoals = (data.weeklyGoals||[]).filter(g=>g.weekStart===wk);
@@ -3123,7 +3674,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             <div class="wgoal-info">
               <div class="wgoal-title-row">
                 <span class="wgoal-title">${escapeHtml(g.title)}</span>
-                <span class="type-chip ${g.type}">${g.type}</span>
+                <span class="type-chip flexible">goal</span>
               </div>
               <div class="wgoal-frac">${fracLabel}</div>
               ${g.note ? `<div class="wgoal-note">${escapeHtml(g.note)}</div>` : ''}
@@ -3202,8 +3753,29 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   document.getElementById('weekPrev').addEventListener('click', ()=>{ weekOffset--; openGoalCardId=null; renderWeeklyGoalsList(); });
   document.getElementById('weekNext').addEventListener('click', ()=>{ weekOffset++; openGoalCardId=null; renderWeeklyGoalsList(); });
-  document.getElementById('openAddRecurring').addEventListener('click', ()=>{ openAddModal('template'); });
-  document.getElementById('openAddGoal').addEventListener('click', ()=>{ openGoalModal(); });
+
+  function openWeekGoalTypeChooser(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal" style="text-align:center;">
+        <button class="close-x">×</button>
+        <h3>What kind of target?</h3>
+        <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:16px;">
+          Recurring is a fixed day+time block that repeats this week (e.g. "CSAT every evening").<br>
+          Flexible is an hours/sessions/count goal you chip away at from Today, any day you like.
+        </div>
+        <button class="btn btn-primary" id="chooser-recurring" style="width:100%; margin-bottom:10px;">📅 Recurring</button>
+        <button class="btn btn-ghost" id="chooser-flexible" style="width:100%;">🎯 Flexible</button>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    backdrop.querySelector('#chooser-recurring').addEventListener('click', ()=>{ close(); openAddModal('template'); });
+    backdrop.querySelector('#chooser-flexible').addEventListener('click', ()=>{ close(); openGoalModal(); });
+  }
 
   function openGoalModal(existingGoal){
     const backdrop = document.createElement('div');
@@ -3224,13 +3796,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <select id="g-subject"></select>
         </div>
         <div class="field-row">
-          <label>Type</label>
-          <div class="mode-switch">
-            <button type="button" class="${(!existingGoal||existingGoal.type==='flexible')?'active':''}" id="g-type-flex">Flexible</button>
-            <button type="button" class="${existingGoal?.type==='milestone'?'active':''}" id="g-type-mile">Milestone</button>
-          </div>
-        </div>
-        <div class="field-row">
           <label>Progress counted in</label>
           <select id="g-unit">
             <option value="hours">Hours</option>
@@ -3240,7 +3805,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         </div>
         <div class="field-row">
           <label>Weekly target</label>
-          <input type="number" id="g-target" min="0.5" step="0.5" value="${existingGoal?.target ?? (existingGoal?.type==='milestone'?2:5)}">
+          <input type="number" id="g-target" min="0.5" step="0.5" value="${existingGoal?.target ?? 5}">
         </div>
         <div class="field-row">
           <label>Note <span style="opacity:.6; text-transform:none;">(optional — what to focus on)</span></label>
@@ -3257,18 +3822,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const unitSel = backdrop.querySelector('#g-unit');
     unitSel.value = existingGoal?.unit || 'hours';
 
-    let currentType = existingGoal?.type || 'flexible';
-    const typeFlex = backdrop.querySelector('#g-type-flex');
-    const typeMile = backdrop.querySelector('#g-type-mile');
-    typeFlex.addEventListener('click', ()=>{
-      currentType='flexible'; typeFlex.classList.add('active'); typeMile.classList.remove('active');
-      if(!isEdit) unitSel.value = 'hours';
-    });
-    typeMile.addEventListener('click', ()=>{
-      currentType='milestone'; typeMile.classList.add('active'); typeFlex.classList.remove('active');
-      if(!isEdit) unitSel.value = 'count';
-    });
-
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.querySelector('#g-cancel').addEventListener('click', close);
@@ -3282,10 +3835,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const note = backdrop.querySelector('#g-note').value.trim();
       if(isEdit){
         const g = state.weeklyGoals.find(x=>x.id===existingGoal.id);
-        if(g){ g.title=title; g.subject=subject; g.type=currentType; g.unit=unit; g.target=target; g.note=note||null; }
+        if(g){ g.title=title; g.subject=subject; g.type='flexible'; g.unit=unit; g.target=target; g.note=note||null; }
       } else {
         state.weeklyGoals.push({
-          id:'wg_'+Date.now(), title, subject, type:currentType, unit, target,
+          id:'wg_'+Date.now(), title, subject, type:'flexible', unit, target,
           weekStart: wk, note: note||null, manualAdjust:0, createdAt: Date.now()
         });
         notifyOthers(`${me.name} set a new weekly goal: ${title}`);
@@ -3300,7 +3853,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // ---------- ADD MODAL ----------
   document.getElementById('fabAdd').addEventListener('click', ()=>{
     if(currentScreen==='today') openAddModal('extra');
-    else if(currentScreen==='week' && isViewingSelf()) openGoalModal();
+    else if(currentScreen==='week' && isViewingSelf()) openWeekGoalTypeChooser();
   });
 
   // ---------- wheel / dial picker (no manual typing) ----------
@@ -3834,7 +4387,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const data = activeData();
     const ownerId = isViewingSelf() ? me.id : viewingId;
     const ownerLabel = isViewingSelf() ? 'My tasks' : `${((usersList.find(u=>u.id===viewingId)||{}).name) || 'Their'}'s tasks`;
-    body += section(ownerLabel, blocksForDateIn(data, date), data, ownerId);
+    if(isViewingSelf() || !isScheduleHiddenFor(viewingId)){
+      body += section(ownerLabel, blocksForDateIn(data, date), data, ownerId);
+    }
 
     const sharedTasks = await loadSharedTasks(dateKey);
     if(sharedTasks.length){
