@@ -21,7 +21,7 @@ const myVapidKey = "BHaRFc-faH5vI-yIhWjd0n1BF3CQ0zmkHHJcJOVT9mYLaloj_BB0qaSjfAJ4
 
 // 4. Register YOUR specific sw.js file and get the token
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js')
+  navigator.serviceWorker.register('./sw.js')
     .then((registration) => {
       console.log('Service Worker registered with scope:', registration.scope);
       
