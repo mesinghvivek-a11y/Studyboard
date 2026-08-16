@@ -19,31 +19,34 @@ const messaging = getMessaging(app);
 // 3. Paste your VAPID Key
 const myVapidKey = "BHaRFc-faH5vI-yIhWjd0n1BF3CQ0zmkHHJcJOVT9mYLaloj_BB0qaSjfAJ4Utm1BVyNLr1-vq-cNiFToCDgCFs"; 
 
-// 4. Register YOUR specific sw.js file and get the token
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js')
-    .then((registration) => {
-      // FIX: Force the browser to wait until the service worker is 100% active
-      return navigator.serviceWorker.ready;
-    })
-    .then((readyRegistration) => {
-      // Pass the fully ready registration and VAPID key to Firebase
-      return getToken(messaging, { 
-        vapidKey: myVapidKey, 
-        serviceWorkerRegistration: readyRegistration 
-      });
-    })
-    .then((currentToken) => {
-      if (currentToken) {
-        console.log("Success! Here is the device token:", currentToken);
-        alert("Success! Firebase token generated."); // Pops up so you know it worked
-      } else {
-        console.log("No registration token available. User denied permission.");
-      }
-    })
-    .catch((err) => {
-      console.error("An error occurred while retrieving token. ", err);
-      // CRITICAL FIX: This will pop up the exact hidden error on your iPad screen!
-      alert("Firebase Error: " + err.message); 
+// 4. Wrapped inside a function so it only runs on a user click
+window.requestFirebaseToken = async function() {
+  try {
+    // 1. Explicitly ask for iOS permission on button tap
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      alert("Permission was not granted: " + permission);
+      return;
+    }
+
+    // 2. Wait for service worker
+    const registration = await navigator.serviceWorker.register('./sw.js');
+    const readyRegistration = await navigator.serviceWorker.ready;
+
+    // 3. Request the token from Firebase
+    const currentToken = await getToken(messaging, {
+      vapidKey: myVapidKey,
+      serviceWorkerRegistration: readyRegistration
     });
-}
+
+    if (currentToken) {
+      console.log("Token:", currentToken);
+      alert("Success! Firebase token generated.");
+    } else {
+      alert("No token available.");
+    }
+  } catch (err) {
+    console.error("Token error:", err);
+    alert("Firebase Error: " + err.message);
+  }
+};
