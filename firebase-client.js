@@ -23,23 +23,27 @@ const myVapidKey = "BHaRFc-faH5vI-yIhWjd0n1BF3CQ0zmkHHJcJOVT9mYLaloj_BB0qaSjfAJ4
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js')
     .then((registration) => {
-      console.log('Service Worker registered with scope:', registration.scope);
-      
-      // Pass your sw.js registration and VAPID key to Firebase
+      // FIX: Force the browser to wait until the service worker is 100% active
+      return navigator.serviceWorker.ready;
+    })
+    .then((readyRegistration) => {
+      // Pass the fully ready registration and VAPID key to Firebase
       return getToken(messaging, { 
         vapidKey: myVapidKey, 
-        serviceWorkerRegistration: registration 
+        serviceWorkerRegistration: readyRegistration 
       });
     })
     .then((currentToken) => {
       if (currentToken) {
         console.log("Success! Here is the device token:", currentToken);
+        alert("Success! Firebase token generated."); // Pops up so you know it worked
       } else {
         console.log("No registration token available. User denied permission.");
       }
     })
     .catch((err) => {
       console.error("An error occurred while retrieving token. ", err);
+      // CRITICAL FIX: This will pop up the exact hidden error on your iPad screen!
+      alert("Firebase Error: " + err.message); 
     });
 }
-
