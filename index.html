@@ -116,7 +116,10 @@
   .mode-switch button{
     flex:1; padding:9px 0; border:none; background:none; color:var(--chalk-dim);
     font-family:'Inter'; font-weight:600; font-size:13px; border-radius:11px; cursor:pointer;
+    transition: flex .28s ease, opacity .22s ease, padding .28s ease, margin .28s ease;
+    overflow:hidden; white-space:nowrap;
   }
+  .mode-switch button.mode-collapsed{ flex:0 0 0; width:0; padding:0; margin:0; opacity:0; pointer-events:none; }
   .mode-switch button.active{ background:var(--accent-dim); color:var(--accent); }
 
   .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; }
@@ -157,9 +160,12 @@
     flex:1; text-align:center; padding:8px 0; border-radius:12px; background:var(--card);
     border:1px solid var(--card-line); color:var(--chalk-dim); cursor:pointer;
     display:flex; flex-direction:column; align-items:center; gap:2px;
+    transition: flex .28s ease, opacity .22s ease, padding .28s ease, margin .28s ease, width .28s ease;
+    overflow:hidden;
   }
+  .dur-chip.mode-collapsed{ flex:0 0 0; width:0; padding:0; margin:0; border-width:0; opacity:0; pointer-events:none; }
   .dur-chip .dur-min{ font-size:13px; font-weight:600; }
-  .dur-chip .dur-tag{ font-size:9px; text-transform:uppercase; letter-spacing:0.4px; color:var(--chalk-faint); }
+  .dur-chip .dur-tag{ font-size:9px; text-transform:uppercase; letter-spacing:0.4px; color:var(--chalk-faint); white-space:nowrap; }
   .dur-chip.sel{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
   .dur-chip.sel .dur-tag{ color:var(--accent); opacity:0.8; }
 
@@ -450,8 +456,13 @@
     border:none; color:var(--ink); font-weight:700; font-size:12px; padding:9px 16px; border-radius:20px; cursor:pointer;
     box-shadow: 0 4px 14px rgba(var(--c1-rgb),0.4);
   }
+  .hidden{ display:none !important; }
+  .mode-fade{ transition: opacity .28s ease, max-height .28s ease, margin .28s ease, transform .28s ease; overflow:hidden; }
+  .mode-fade.mode-collapsed{ opacity:0; max-height:0 !important; margin:0 !important; pointer-events:none; transform:translateY(-4px); }
+
   body.focus-active{ background:#0A0C11; }
   body.focus-active header.top,
+  body.focus-active .group-bar,
   body.focus-active .people-row,
   body.focus-active .snap-row,
   body.focus-active nav.tabs,
@@ -991,7 +1002,7 @@
         </div>
 
         <div class="timer-controls">
-          <button class="btn btn-ghost" id="resetBtn">Reset</button>
+          <button class="btn btn-ghost" id="resetBtn">Reset/Stop</button>
           <button class="btn btn-primary" id="startBtn">Start</button>
         </div>
         <button type="button" class="focus-toggle-btn" id="focusToggleBtn">🧘 Enter focus mode</button>
@@ -1029,7 +1040,7 @@
       <div class="live-mini-timer" id="liveMiniTimer">
         <div class="lmt-digits" id="liveMiniDigits">00:00:00</div>
         <div class="lmt-controls">
-          <button type="button" class="btn btn-ghost" id="liveMiniReset">Reset</button>
+          <button type="button" class="btn btn-ghost" id="liveMiniReset">Reset/Stop</button>
           <button type="button" class="btn btn-primary" id="liveMiniStart">Start</button>
         </div>
       </div>
@@ -1135,7 +1146,7 @@ if('serviceWorker' in navigator){
 
 // TODO: paste your Web Push "VAPID key" from
 // Firebase console → Project settings → Cloud Messaging → Web Push certificates
-const VAPID_KEY = 'BHaRFc-faH5vI-yIhWjd0n1BF3CQ0zmkHHJcJOVT9mYLaloj_BB0qaSjfAJ4Utm1BVyNLr1-vq-cNiFToCDgCFs';
+const VAPID_KEY = 'PASTE_YOUR_VAPID_KEY_HERE';
 
 async function pushPermissionState(){
   if(!('Notification' in window)) return 'unsupported';
@@ -1144,6 +1155,10 @@ async function pushPermissionState(){
 
 async function enablePushNotifications(){
   if(!('Notification' in window)) return { ok:false, reason:'unsupported' };
+  if(!VAPID_KEY || VAPID_KEY==='PASTE_YOUR_VAPID_KEY_HERE'){
+    console.warn('Push notifications are not configured yet: VAPID_KEY is still the placeholder. Get the real key from Firebase Console → Project settings → Cloud Messaging → Web Push certificates, and paste it in.');
+    return { ok:false, reason:'not_configured' };
+  }
   try{
     const supported = await messagingIsSupported();
     if(!supported) return { ok:false, reason:'unsupported' };
@@ -1152,7 +1167,8 @@ async function enablePushNotifications(){
     if(!swRegistration) swRegistration = await navigator.serviceWorker.ready;
     const messaging = getMessaging(fbApp);
     const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
-    if(token && me){
+    if(!token) return { ok:false, reason:'error', detail:'getToken returned empty (no error thrown, but no token issued)' };
+    if(me){
       await setDoc(doc(db, 'pushTokens', me.id), { token, updatedAt: Date.now() }, { merge:true });
     }
     // Foreground messages (app open) show as a normal system notification too
@@ -1164,7 +1180,7 @@ async function enablePushNotifications(){
     return { ok:true };
   }catch(e){
     console.warn('Push setup failed', e);
-    return { ok:false, reason:'error' };
+    return { ok:false, reason:'error', detail: (e && (e.code || e.message)) || String(e) };
   }
 }
 
@@ -1232,7 +1248,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let myReads = {};           // cid -> last-read timestamp (for comment badges)
 
   // ---------- groups ----------
-  const LEGACY_GROUP_ID = 'legacy-everyone'; // auto-created once, on migration, so existing users keep seeing each other
   let myGroupIds = [];        // group ids I belong to
   let activeGroupId = null;   // which group's roster is currently driving usersList/people-row/snap-row
   let activeGroupData = null; // full doc of the active group
@@ -1396,8 +1411,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     migrateLegacyWeeklyTemplate(true);
     maybeWriteDailyBackup();
     await loadUsersList();
-    const alreadyInGroups = await loadMyGroupIds();
-    if(!alreadyInGroups) await migrateIntoLegacyGroup();
+    await loadMyGroupIds();
     await subscribeActiveGroup();
     await loadMyReads();
     renderHeaderAvatar();
@@ -1804,6 +1818,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
             <span style="color:var(--chalk-dim);">Get alerts even when the app's closed</span>
             <button class="btn btn-primary" id="enablePushBtn" style="flex:none; padding:8px 14px;">Enable</button>
           </div>` : ''}
+        ${permState==='granted' ? `
+          <div class="live-row" style="justify-content:space-between; margin-bottom:6px;">
+            <span style="color:var(--chalk-dim);">Push notifications</span>
+            <button class="btn btn-ghost" id="enablePushBtn" style="flex:none; padding:8px 14px;">Re-check / fix</button>
+          </div>
+          <div id="pushDetailMsg" style="font-size:10.5px; color:var(--chalk-faint); margin-bottom:12px; word-break:break-word;"></div>` : ''}
         ${permState==='denied' ? `
           <div style="font-size:11px; color:var(--chalk-faint); margin-bottom:12px;">
             Notifications are blocked for this app in your browser/phone settings.
@@ -1827,7 +1847,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
       pushBtn.addEventListener('click', async ()=>{
         pushBtn.textContent = '…';
         const res = await enablePushNotifications();
-        pushBtn.textContent = res.ok ? 'Enabled ✓' : 'Try again';
+        const detailEl = backdrop.querySelector('#pushDetailMsg');
+        if(res.ok){ pushBtn.textContent = 'Enabled ✓'; pushBtn.disabled = true; if(detailEl) detailEl.textContent = ''; }
+        else if(res.reason==='not_configured'){ pushBtn.textContent = 'Not set up yet'; pushBtn.disabled = true; }
+        else if(res.reason==='denied'){ pushBtn.textContent = 'Blocked in browser settings'; }
+        else {
+          pushBtn.textContent = 'Try again';
+          if(detailEl) detailEl.textContent = res.detail ? `Error: ${res.detail}` : 'Unknown error — check the browser console for details.';
+        }
       });
     }
 
@@ -2062,7 +2089,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
         <div class="modal-actions">
           <button class="btn btn-ghost" id="gd-back">Back</button>
-          ${g.id!==LEGACY_GROUP_ID ? `<button class="btn btn-danger" id="gd-leave">Leave group</button>` : ''}
+          <button class="btn btn-danger" id="gd-leave">Leave group</button>
         </div>
       `;
       body.querySelector('#gd-members').innerHTML = memberIds.map(uid=>{
@@ -2174,32 +2201,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }catch(e){ /* fall through to migration */ }
     return false;
   }
-  // one-time migration: the app used to show everyone the moment they logged in.
-  // The first time a given account loads under the new groups system, fold everyone
-  // it already knew about into a default "Everyone (legacy)" group so existing
-  // connections don't just vanish — going forward people can also make their own.
-  async function migrateIntoLegacyGroup(){
-    const legacyRef = doc(db, 'groups', LEGACY_GROUP_ID);
-    let legacySnap = null;
-    try{ legacySnap = await getDoc(legacyRef); }catch(e){}
-    const exists = legacySnap && legacySnap.exists();
-    const members = exists ? Object.assign({}, legacySnap.data().members) : {};
-    if(!exists){ allProfiles.forEach(u => { members[u.id] = { joinedAt: Date.now(), hideSchedule:false }; }); }
-    if(!members[me.id]) members[me.id] = { joinedAt: Date.now(), hideSchedule:false };
-    await setDoc(legacyRef, {
-      id: LEGACY_GROUP_ID, name: 'Everyone (legacy)',
-      ownerId: exists ? legacySnap.data().ownerId : me.id,
-      members,
-      visibility: 'public', password: null,
-      inviteCode: exists ? legacySnap.data().inviteCode : 'LEGACY',
-      deadlineAt: null, dailyGoalHours: 0, weeklyGoalHours: 0,
-      createdAt: exists ? legacySnap.data().createdAt : Date.now()
-    }, { merge:true });
-    if(!exists){ try{ await setDoc(doc(db,'groupInvites','LEGACY'), { groupId: LEGACY_GROUP_ID }); }catch(e){} }
-    myGroupIds = [LEGACY_GROUP_ID];
-    activeGroupId = LEGACY_GROUP_ID;
-    await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId }, { merge:true });
-  }
   async function subscribeActiveGroup(){
     if(groupUnsub){ groupUnsub(); groupUnsub = null; }
     if(!activeGroupId){ activeGroupData = null; deriveUsersList(); renderGroupBar(); renderPeopleRow(); renderSnapRow(); return; }
@@ -2255,7 +2256,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return g;
   }
   async function leaveGroup(groupId){
-    if(groupId===LEGACY_GROUP_ID) return;
     try{ await setDoc(doc(db,'groups',groupId), { members: { [me.id]: deleteField() } }, { merge:true }); }catch(e){}
     myGroupIds = myGroupIds.filter(id=>id!==groupId);
     const nextActive = activeGroupId===groupId ? (myGroupIds[0] || null) : activeGroupId;
@@ -2510,9 +2510,22 @@ window.storage = storage; // keep the rest of the app's code unchanged
     timerMode = mode;
     document.getElementById('modeStopwatch').classList.toggle('active', mode==='stopwatch');
     document.getElementById('modeCountdown').classList.toggle('active', mode==='countdown');
+    document.getElementById('modeStopwatch').classList.toggle('mode-collapsed', mode==='countdown');
+    document.getElementById('modeCountdown').classList.toggle('mode-collapsed', mode==='stopwatch');
     document.getElementById('countdownLenRow').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('ringOuter').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('stopwatchFace').style.display = mode==='countdown' ? 'none' : 'flex';
+    if(mode==='countdown') updateLengthChipVisibility();
+  }
+  function updateLengthChipVisibility(){
+    const chips = document.querySelectorAll('#countdownLenChips .dur-chip');
+    const anySelected = [...chips].some(c=>c.classList.contains('sel'));
+    chips.forEach(c=>{
+      c.classList.toggle('mode-collapsed', anySelected && !c.classList.contains('sel'));
+    });
+  }
+  function resetModeVisibility(){
+    document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('mode-collapsed'));
   }
   document.getElementById('modeStopwatch').addEventListener('click', ()=>{
     if(timerRunning) return;
@@ -2529,10 +2542,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
   document.getElementById('countdownLenChips').querySelectorAll('.dur-chip').forEach(chip=>{
     chip.addEventListener('click', ()=>{
       if(timerRunning) return;
+      if(chip.classList.contains('sel')){ resetModeVisibility(); return; } // tap again to see all options
       document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
       chip.classList.add('sel');
       countdownTotalMs = parseInt(chip.dataset.min,10) * 60000;
       renderTimerDigits();
+      updateLengthChipVisibility();
     });
   });
   document.getElementById('timerSubject').addEventListener('change', renderRing);
@@ -2806,6 +2821,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stopSnapshotScheduler();
     lastMilestoneHourLocal = 0;
     updateFocusToggleVisibility();
+    resetModeVisibility();
   }
   function finishSession(completed, reason){
     timerRunning = false;
@@ -3632,7 +3648,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <div class="linked-item">
             <span><span class="lday">${DAY_NAMES[dow]}</span><span class="lname">${escapeHtml(title)}</span></span>
             <span class="lamt">${done?'✓ done':'—'}</span>
-            ${editable ? `<button type="button" class="rec-edit" data-rec-id="${b.id}" title="Edit">✏️</button><button type="button" class="rec-del" data-rec-id="${b.id}" title="Delete">×</button>` : ''}
           </div>
         `).join('');
       }).join('') : `<div class="linked-empty">No due days this week.</div>`;
@@ -3650,7 +3665,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
             <div class="chevron">▾</div>
           </div>
           ${dayDots}
-          <div class="wgoal-expand">${linkedRows}</div>
+          <div class="wgoal-expand">
+            ${linkedRows}
+            ${editable ? `<button type="button" class="edit rec-edit-group" data-rec-key="${g.key}" style="margin-top:10px;">✏️ Edit this recurring block</button>` : ''}
+          </div>
         </div>
       `;
     });
@@ -3735,24 +3753,110 @@ window.storage = storage; // keep the rest of the app's code unchanged
         renderWeeklyGoalsList();
       });
     });
-    el.querySelectorAll('.rec-edit').forEach(btn=>{
+    el.querySelectorAll('.rec-edit-group').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const block = state.weeklyTemplate.find(b=>b.id===btn.dataset.recId);
-        if(block) openAddModal('template', block);
-      });
-    });
-    el.querySelectorAll('.rec-del').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==btn.dataset.recId);
-        saveState();
-        renderWeeklyGoalsList();
+        const group = recurringGroupsFor(data, weekStart).find(g=>g.key===btn.dataset.recKey);
+        if(group) openEditRecurringGroupModal(group, weekStart);
       });
     });
   }
   document.getElementById('weekPrev').addEventListener('click', ()=>{ weekOffset--; openGoalCardId=null; renderWeeklyGoalsList(); });
   document.getElementById('weekNext').addEventListener('click', ()=>{ weekOffset++; openGoalCardId=null; renderWeeklyGoalsList(); });
+
+  function openEditRecurringGroupModal(group, weekStart){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const wk = weekStartKey(weekStart);
+    const firstBlock = group.blocks[0];
+    const dueDaysSet = new Set(group.blocks.map(b=>b.day));
+    backdrop.innerHTML = `
+      <div class="modal">
+        <button class="close-x">×</button>
+        <h3>Edit recurring block</h3>
+        <div class="field-row">
+          <label>Label</label>
+          <input type="text" id="rg-label" value="${escapeHtml(group.label||'')}" placeholder="e.g. CSAT">
+        </div>
+        <div class="field-row">
+          <label>Subject</label>
+          <select id="rg-subject"></select>
+        </div>
+        <div class="field-row">
+          <label>Start time</label>
+          <div id="rg-start-wheel"></div>
+        </div>
+        <div class="field-row">
+          <label>Duration</label>
+          <div id="rg-duration-wheel"></div>
+        </div>
+        <div class="field-row">
+          <label>Days this repeats</label>
+          <div class="day-toggle-row" id="rg-days">
+            ${DAY_NAMES.map((n,i)=>`<div class="day-toggle ${dueDaysSet.has(i)?'sel':''}" data-day="${i}">${n}</div>`).join('')}
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="rg-cancel">Cancel</button>
+          <button class="btn btn-primary" id="rg-save">Save changes</button>
+        </div>
+        <button class="btn btn-danger" id="rg-delete-all" style="width:100%; margin-top:10px;">Delete entire recurring block</button>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    renderSubjectOptions(backdrop.querySelector('#rg-subject'), firstBlock.subject);
+    const startWheel = createTimeWheel(backdrop.querySelector('#rg-start-wheel'), firstBlock.start || '16:00');
+    const durationWheel = createDurationStepper(backdrop.querySelector('#rg-duration-wheel'), firstBlock.duration || 30);
+
+    const selectedDays = new Set(dueDaysSet);
+    backdrop.querySelectorAll('#rg-days .day-toggle').forEach(d=>{
+      d.addEventListener('click', ()=>{
+        const day = parseInt(d.dataset.day,10);
+        if(selectedDays.has(day)){ selectedDays.delete(day); d.classList.remove('sel'); }
+        else { selectedDays.add(day); d.classList.add('sel'); }
+      });
+    });
+
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.querySelector('#rg-cancel').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    backdrop.querySelector('#rg-save').addEventListener('click', ()=>{
+      if(selectedDays.size===0){ alert('Pick at least one day.'); return; }
+      const label = backdrop.querySelector('#rg-label').value.trim();
+      const subject = backdrop.querySelector('#rg-subject').value;
+      const start = startWheel.getValue();
+      const duration = durationWheel.getValue();
+
+      const existingByDay = {};
+      group.blocks.forEach(b=> existingByDay[b.day] = b);
+
+      group.blocks.forEach(b=>{
+        if(!selectedDays.has(b.day)) state.weeklyTemplate = state.weeklyTemplate.filter(x=>x.id!==b.id);
+      });
+      selectedDays.forEach(day=>{
+        const existing = existingByDay[day];
+        if(existing){
+          existing.subject = subject; existing.start = start; existing.duration = duration; existing.label = label || null;
+        } else {
+          state.weeklyTemplate.push({ id:'blk_'+Date.now()+'_'+day, day, subject, start, duration, label: label||null, weekStart: wk });
+        }
+      });
+      saveState();
+      openGoalCardId = null;
+      renderWeeklyGoalsList();
+      close();
+    });
+
+    backdrop.querySelector('#rg-delete-all').addEventListener('click', ()=>{
+      group.blocks.forEach(b=>{ state.weeklyTemplate = state.weeklyTemplate.filter(x=>x.id!==b.id); });
+      saveState();
+      openGoalCardId = null;
+      renderWeeklyGoalsList();
+      close();
+    });
+  }
 
   function openWeekGoalTypeChooser(){
     const backdrop = document.createElement('div');
@@ -4464,6 +4568,5 @@ window.storage = storage; // keep the rest of the app's code unchanged
   });
 })();
 </script>
-  <script type="module" src="./firebase-client.js"></script>
 </body>
 </html>
