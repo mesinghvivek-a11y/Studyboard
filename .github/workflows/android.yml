@@ -28,11 +28,18 @@ jobs:
     - name: Set up Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Convert Website to Android (Capacitor)
+    - name: Prepare Web Directory and Convert (Capacitor)
       run: |
+        # Create a web directory and move site assets into it
+        mkdir www
+        find . -maxdepth 1 -type f -not -name "package*" -not -name "README*" -exec cp {} www/ \;
+        # If you have assets/css/js folders at the root, copy them too:
+        find . -maxdepth 1 -type d -not -name "." -not -name ".." -not -name ".git" -not -name ".github" -not -name "www" -not -name "node_modules" -exec cp -r {} www/ \; || true
+        
+        # Initialize and build Capacitor app using the 'www' directory
         npm init -y
         npm install @capacitor/core @capacitor/cli
-        npx cap init Studyboard com.example.studyboard --web-dir=.
+        npx cap init Studyboard com.example.studyboard --web-dir=www
         npm install @capacitor/android
         npx cap add android
         npx cap sync
