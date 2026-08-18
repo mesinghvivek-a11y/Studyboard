@@ -1168,8 +1168,8 @@ async function enablePushNotifications(){
     const messaging = getMessaging(fbApp);
     const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
     if(!token) return { ok:false, reason:'error', detail:'getToken returned empty (no error thrown, but no token issued)' };
-    if(me){
-      await setDoc(doc(db, 'pushTokens', me.id), { token, updatedAt: Date.now() }, { merge:true });
+    if(window.__meId){
+      await setDoc(doc(db, 'pushTokens', window.__meId), { token, updatedAt: Date.now() }, { merge:true });
     }
     // Foreground messages (app open) show as a normal system notification too
     onMessage(messaging, (payload)=>{
@@ -2510,22 +2510,21 @@ window.storage = storage; // keep the rest of the app's code unchanged
     timerMode = mode;
     document.getElementById('modeStopwatch').classList.toggle('active', mode==='stopwatch');
     document.getElementById('modeCountdown').classList.toggle('active', mode==='countdown');
-    document.getElementById('modeStopwatch').classList.toggle('mode-collapsed', mode==='countdown');
-    document.getElementById('modeCountdown').classList.toggle('mode-collapsed', mode==='stopwatch');
     document.getElementById('countdownLenRow').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('ringOuter').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('stopwatchFace').style.display = mode==='countdown' ? 'none' : 'flex';
-    if(mode==='countdown') updateLengthChipVisibility();
+    updateRunningDeclutter();
   }
-  function updateLengthChipVisibility(){
-    const chips = document.querySelectorAll('#countdownLenChips .dur-chip');
-    const anySelected = [...chips].some(c=>c.classList.contains('sel'));
-    chips.forEach(c=>{
-      c.classList.toggle('mode-collapsed', anySelected && !c.classList.contains('sel'));
+  // Hide the irrelevant mode button / unselected lengths once a session is
+  // "committed" (started, or paused mid-session) — before that, and after a
+  // full Reset/Stop, both options stay visible so you can freely switch your mind.
+  function updateRunningDeclutter(){
+    const committed = timerRunning || elapsedMs > 0;
+    document.getElementById('modeStopwatch').classList.toggle('mode-collapsed', committed && timerMode==='countdown');
+    document.getElementById('modeCountdown').classList.toggle('mode-collapsed', committed && timerMode==='stopwatch');
+    document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>{
+      c.classList.toggle('mode-collapsed', committed && timerMode==='countdown' && !c.classList.contains('sel'));
     });
-  }
-  function resetModeVisibility(){
-    document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('mode-collapsed'));
   }
   document.getElementById('modeStopwatch').addEventListener('click', ()=>{
     if(timerRunning) return;
@@ -2542,12 +2541,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
   document.getElementById('countdownLenChips').querySelectorAll('.dur-chip').forEach(chip=>{
     chip.addEventListener('click', ()=>{
       if(timerRunning) return;
-      if(chip.classList.contains('sel')){ resetModeVisibility(); return; } // tap again to see all options
       document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
       chip.classList.add('sel');
       countdownTotalMs = parseInt(chip.dataset.min,10) * 60000;
       renderTimerDigits();
-      updateLengthChipVisibility();
     });
   });
   document.getElementById('timerSubject').addEventListener('change', renderRing);
@@ -2677,6 +2674,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       });
       startSnapshotScheduler();
       updateFocusToggleVisibility();
+      updateRunningDeclutter();
     } else {
       pauseTimer();
     }
@@ -2690,6 +2688,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     setLiveStatus({ studying:false, baseElapsedMs:elapsedMs });
     stopSnapshotScheduler();
     updateFocusToggleVisibility();
+    updateRunningDeclutter();
   }
   const MAX_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours — auto-stop safety cap
   function tick(){
@@ -2821,7 +2820,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stopSnapshotScheduler();
     lastMilestoneHourLocal = 0;
     updateFocusToggleVisibility();
-    resetModeVisibility();
+    updateRunningDeclutter();
   }
   function finishSession(completed, reason){
     timerRunning = false;
@@ -2857,6 +2856,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stopSnapshotScheduler();
     lastMilestoneHourLocal = 0;
     updateFocusToggleVisibility();
+    updateRunningDeclutter();
     if(justLoggedSession && reason!=='autostop' && durationMin >= 1){
       promptSessionNote(justLoggedSession, key);
     }
@@ -3169,6 +3169,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         document.getElementById('startBtn').textContent = 'Pause';
         setStatusText(st.mode==='countdown' ? 'focusing… (synced)' : 'running… (synced)');
         renderTimerDigits();
+        updateRunningDeclutter();
       }
     } else {
       // Remote says nothing is running. If this device still thinks it's running, another
@@ -3182,6 +3183,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         document.getElementById('startBtn').textContent = elapsedMs>0 ? 'Resume' : 'Start';
         setStatusText(elapsedMs>0 ? 'paused (stopped on another device)' : 'ready');
         renderTimerDigits();
+        updateRunningDeclutter();
       }
     }
   }
