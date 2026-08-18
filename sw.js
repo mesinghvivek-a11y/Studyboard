@@ -4,7 +4,7 @@
 // plain Web Push event, so we do NOT need the separate firebase-messaging-sw
 // script — this one file handles both).
 
-const CACHE_NAME = 'study-board-v2'; // bumped so old installs drop their stale cache
+const CACHE_NAME = 'study-board-v3'; // bumped so old installs drop their stale cache
 const APP_SHELL = [
   './index.html',
   './manifest.json',
@@ -56,16 +56,26 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ---------- Push notifications ----------
+// Firebase Cloud Messaging can deliver a payload in two shapes depending on
+// how it was sent: either flat ({title, body, ...}) or FCM's own wrapped
+// "notification" shape ({notification: {title, body}, data: {...}}). This
+// handler accepts either, so a message doesn't silently show up blank.
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { data = { title: 'Study Board', body: event.data ? event.data.text() : '' }; }
 
-  const title = data.title || 'Study Board';
+  const notif = data.notification || {};
+  const custom = data.data || {};
+
+  const title = notif.title || data.title || 'Study Board';
+  const body = notif.body || data.body || '';
+  const url = custom.url || data.url || './index.html';
+
   const options = {
-    body: data.body || '',
-    icon: './icons/icon-192.png',
+    body,
+    icon: notif.icon || './icons/icon-192.png',
     badge: './icons/icon-192.png',
-    data: { url: data.url || './index.html' },
+    data: { url },
     vibrate: [100, 50, 100]
   };
   event.waitUntil(self.registration.showNotification(title, options));
