@@ -2253,6 +2253,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!myGroupIds.includes(groupId)) myGroupIds.push(groupId);
     await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
     await setActiveGroup(groupId);
+    const existingMemberIds = Object.keys(g.members||{}).filter(id=>id!==me.id);
+    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`); }
     return g;
   }
   async function leaveGroup(groupId){
@@ -2659,6 +2661,16 @@ window.storage = storage; // keep the rest of the app's code unchanged
     exitFocusMode();
   });
 
+  function notifyFirstSessionOfDayIfNeeded(){
+    if(elapsedMs > 0) return; // resuming from pause, not a fresh start
+    const todayKey = fmtDate(new Date());
+    const alreadyLoggedToday = (state.sessions[todayKey]||[]).length > 0;
+    if(alreadyLoggedToday) return;
+    const flagKey = 'sb-notified-first-session-'+todayKey;
+    if(localStorage.getItem(flagKey)) return;
+    localStorage.setItem(flagKey, '1');
+    notifyOthers(`${me.name} started studying today 📚`);
+  }
   document.getElementById('startBtn').addEventListener('click', ()=>{
     if(!timerRunning){
       timerRunning = true;
@@ -2675,6 +2687,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       startSnapshotScheduler();
       updateFocusToggleVisibility();
       updateRunningDeclutter();
+      notifyFirstSessionOfDayIfNeeded();
     } else {
       pauseTimer();
     }
@@ -2833,6 +2846,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const endedAt = Date.now();
     let justLoggedSession = null;
     if(durationMin > 0){
+      const totalBefore = state.sessions[key].reduce((s,x)=>s+(x.duration||0),0);
       justLoggedSession = {
         id: 'sess_'+Date.now(),
         subject: subjectId,
@@ -2844,6 +2858,17 @@ window.storage = storage; // keep the rest of the app's code unchanged
       };
       state.sessions[key].push(justLoggedSession);
       saveState();
+      const dailyGoalMin = (state.goals && state.goals.dailyMin) || 0;
+      if(dailyGoalMin > 0){
+        const totalAfter = totalBefore + durationMin;
+        if(totalBefore < dailyGoalMin && totalAfter >= dailyGoalMin){
+          const flagKey = 'sb-notified-goal-'+key;
+          if(!localStorage.getItem(flagKey)){
+            localStorage.setItem(flagKey, '1');
+            notifyOthers(`${me.name} hit their daily goal today 🔥`);
+          }
+        }
+      }
     }
     setStatusText(reason==='autostop' ? 'auto-stopped at 4h limit 🛑' : (completed ? 'session complete 🎉' : 'ready'));
     document.getElementById('startBtn').textContent = 'Start';
