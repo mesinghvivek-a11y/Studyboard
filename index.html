@@ -915,6 +915,7 @@
     </div>
     <div class="auth-error" id="authError"></div>
     <button class="btn btn-primary" id="authSubmit" style="width:100%; padding:14px 0; margin-top:4px;">Log in</button>
+    <div class="auth-toggle" id="authToggle">New here? Create an account</div>
   </div>
 </div>
 
@@ -1108,7 +1109,7 @@ import {
   getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
-  getAuth, signInWithEmailAndPassword,
+  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, updateProfile
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import {
@@ -1543,21 +1544,46 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   function setAuthError(msg){ authError.textContent = msg || ''; }
 
+  let authMode = 'login'; // 'login' | 'signup'
+  function applyAuthMode(){
+    document.getElementById('authTitle').textContent = authMode==='login' ? 'Welcome back' : 'Create your account';
+    document.getElementById('authSubmit').textContent = authMode==='login' ? 'Log in' : 'Sign up';
+    document.getElementById('authToggle').textContent = authMode==='login' ? "New here? Create an account" : "Already have an account? Log in";
+    setAuthError('');
+  }
+  document.getElementById('authToggle').addEventListener('click', ()=>{
+    authMode = authMode==='login' ? 'signup' : 'login';
+    applyAuthMode();
+  });
+
   document.getElementById('authSubmit').addEventListener('click', async ()=>{
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
     setAuthError('');
     if(!email || !password){ setAuthError('Enter an email and password.'); return; }
+    if(authMode==='signup' && password.length < 6){ setAuthError('Password must be at least 6 characters.'); return; }
 
     document.getElementById('authSubmit').disabled = true;
     try{
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      booted = true;
-      window.__meId = cred.user.uid;
-      const res = await window.storage.get('study-board-profile', false);
-      me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
-      showApp();
-      await loadState();
+      if(authMode==='login'){
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        booted = true;
+        window.__meId = cred.user.uid;
+        const res = await window.storage.get('study-board-profile', false);
+        me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
+        showApp();
+        await loadState();
+      } else {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        booted = true;
+        window.__meId = cred.user.uid;
+        const defaultName = (email.split('@')[0] || 'Student').replace(/[^a-zA-Z0-9]+/g,' ').trim() || 'Student';
+        me = { id: cred.user.uid, name: defaultName, color: COLORS[0] };
+        try{ await window.storage.set('study-board-profile', JSON.stringify(me), false); }catch(e){}
+        await registerUser(me, true); // so this new member is immediately visible/joinable to groupmates
+        showApp();
+        await loadState();
+      }
     }catch(e){
       setAuthError(e.message.replace('Firebase: ','').replace(/\(auth\/.*\)\.?/,'').trim() || 'Something went wrong.');
     }
@@ -1772,26 +1798,33 @@ window.storage = storage; // keep the rest of the app's code unchanged
       return snap.exists() ? (snap.data().items || []) : [];
     }catch(e){ return []; }
   }
-  async function pushNotification(uid, text){
+  const NOTIF_DEFAULTS = { timerEnd:true, taskApproaching:true, studyStart:true, taskActivity:true, groupActivity:true };
+  async function loadNotificationSettings(uid){
+    try{ const snap = await getDoc(doc(db,'notificationSettings',uid)); return Object.assign({}, NOTIF_DEFAULTS, snap.exists()?snap.data():{}); }catch(e){ return Object.assign({}, NOTIF_DEFAULTS); }
+  }
+  async function saveNotificationSettings(uid, settings){
+    try{ await setDoc(doc(db,'notificationSettings',uid), settings, {merge:true}); return true; }catch(e){ console.error('notification settings save failed',e); return false; }
+  }
+  async function pushNotification(uid, text, type='taskActivity'){
     if(!uid) return;
     try{
       const items = await loadNotifications(uid);
-      items.push({ text, ts: Date.now(), read:false });
+      items.push({ text, type, ts: Date.now(), read:false });
       while(items.length > NOTIF_LIMIT) items.shift();
       await setDoc(doc(db, 'notifications', uid), { items });
     }catch(e){ console.error('notify failed', e); }
   }
-  async function notifyOthers(text, excludeId){
+  async function notifyOthers(text, excludeId, type='taskActivity'){
     const targets = usersList.filter(u=>u.id!==(excludeId||me.id));
-    for(const u of targets){ await pushNotification(u.id, text); }
+    for(const u of targets){ await pushNotification(u.id, text, type); }
   }
   async function notifyForComment(cid, title, text){
     const snippet = text.length>60 ? text.slice(0,57)+'…' : text;
     if(cid.startsWith('p_')){
       const ownerId = cid.split('_')[1];
-      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`);
+      if(ownerId && ownerId!==me.id) await pushNotification(ownerId, `${me.name} commented on "${title}": ${snippet}`, 'taskActivity');
     } else if(cid.startsWith('s_')){
-      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`);
+      await notifyOthers(`${me.name} commented on "${title}": ${snippet}`, undefined, 'taskActivity');
     }
   }
   async function refreshBellBadge(){
@@ -1813,6 +1846,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
       <div class="modal" style="max-height:75vh; display:flex; flex-direction:column;">
         <button class="close-x">×</button>
         <h3>Notifications</h3>
+        <div class="notif-settings" style="border:1px solid var(--card-line); border-radius:12px; padding:10px; margin-bottom:12px;">
+          <div style="font-weight:700; font-size:12px; margin-bottom:7px;">Alerts & reminders</div>
+          <div id="notifSettingsRows"></div>
+        </div>
         ${permState==='default' ? `
           <div class="live-row" style="justify-content:space-between; margin-bottom:12px;">
             <span style="color:var(--chalk-dim);">Get alerts even when the app's closed</span>
@@ -1839,6 +1876,19 @@ window.storage = storage; // keep the rest of the app's code unchanged
       </div>
     `;
     document.body.appendChild(backdrop);
+    const ns = await loadNotificationSettings(me.id);
+    const nsRows = [
+      ['timerEnd','⏱ Timer finished'],
+      ['taskApproaching','🔔 Task approaching (5 min)'],
+      ['studyStart','📚 Someone starts studying'],
+      ['taskActivity','📝 Tasks & comments'],
+      ['groupActivity','👥 Group join/leave']
+    ];
+    const nsWrap = backdrop.querySelector('#notifSettingsRows');
+    if(nsWrap){
+      nsWrap.innerHTML = nsRows.map(([k,label])=>`<label style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;"><span>${label}</span><input type="checkbox" data-ns="${k}" ${ns[k]!==false?'checked':''}></label>`).join('');
+      nsWrap.querySelectorAll('[data-ns]').forEach(cb=>cb.addEventListener('change',()=>saveNotificationSettings(me.id, Object.fromEntries(nsRows.map(([k])=>[k, !!(nsWrap.querySelector('[data-ns="'+k+'"]')||{}).checked])))));
+    }
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
@@ -2254,7 +2304,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
     await setActiveGroup(groupId);
     const existingMemberIds = Object.keys(g.members||{}).filter(id=>id!==me.id);
-    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`); }
+    for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`, 'groupActivity'); }
     return g;
   }
   async function leaveGroup(groupId){
@@ -2669,7 +2719,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const flagKey = 'sb-notified-first-session-'+todayKey;
     if(localStorage.getItem(flagKey)) return;
     localStorage.setItem(flagKey, '1');
-    notifyOthers(`${me.name} started studying today 📚`);
+    notifyOthers(`${me.name} started studying today 📚`, undefined, 'studyStart');
   }
   document.getElementById('startBtn').addEventListener('click', ()=>{
     if(!timerRunning){
@@ -2865,10 +2915,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
           const flagKey = 'sb-notified-goal-'+key;
           if(!localStorage.getItem(flagKey)){
             localStorage.setItem(flagKey, '1');
-            notifyOthers(`${me.name} hit their daily goal today 🔥`);
+            notifyOthers(`${me.name} hit their daily goal today 🔥`, undefined, 'taskActivity');
           }
         }
       }
+    }
+    if(completed && timerMode==='countdown' && me){
+      pushNotification(me.id, 'Focus timer finished — your focus session is complete.', 'timerEnd');
+      showToast('⏰ Focus timer finished');
     }
     setStatusText(reason==='autostop' ? 'auto-stopped at 4h limit 🛑' : (completed ? 'session complete 🎉' : 'ready'));
     document.getElementById('startBtn').textContent = 'Start';
@@ -3972,7 +4026,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           id:'wg_'+Date.now(), title, subject, type:'flexible', unit, target,
           weekStart: wk, note: note||null, manualAdjust:0, createdAt: Date.now()
         });
-        notifyOthers(`${me.name} set a new weekly goal: ${title}`);
+        notifyOthers(`${me.name} set a new weekly goal: ${title}`, undefined, 'taskActivity');
       }
       saveState();
       openGoalCardId = isEdit ? existingGoal.id : null;
@@ -4231,7 +4285,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             });
             await saveSharedTasks(dateKey, list);
           }
-          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`);
+          notifyOthers(`${me.name} added a shared weekly block: ${taskName}`, undefined, 'taskActivity');
         } else {
           selectedDays.forEach(day=>{
             state.weeklyTemplate.push({
@@ -4240,7 +4294,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             });
           });
           saveState();
-          notifyOthers(`${me.name} added a weekly study block: ${taskName}`);
+          notifyOthers(`${me.name} added a weekly study block: ${taskName}`, undefined, 'taskActivity');
         }
       } else if(together){
         const dateKey = fmtDate(selectedDate);
@@ -4251,7 +4305,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           completions: {}
         });
         await saveSharedTasks(dateKey, list);
-        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`);
+        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`, undefined, 'taskActivity');
       } else {
         const key = fmtDate(selectedDate);
         if(!state.dailyExtra[key]) state.dailyExtra[key] = [];
@@ -4261,7 +4315,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           linkedGoalId: linkGoalId
         });
         saveState();
-        notifyOthers(`${me.name} added a task: ${taskName}`);
+        notifyOthers(`${me.name} added a task: ${taskName}`, undefined, 'taskActivity');
       }
       render();
       close();
