@@ -508,6 +508,8 @@
   body.focus-active header.top,
   body.focus-active .group-bar,
   body.focus-active .people-row,
+  body.focus-active .people-collapse-btn,
+  body.focus-active .shared-people-wrap,
   body.focus-active .snap-row,
   body.focus-active nav.tabs,
   body.focus-active #goalCard,
@@ -653,7 +655,12 @@
   .task-progress-donut .pct{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; color:var(--chalk); }
   .week-nav-label-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; gap:1px; min-width:0; }
   .week-nav-label-row{ display:flex; align-items:center; gap:6px; }
-  .week-nav-pen{ border:0; background:none; color:var(--chalk-faint); font-size:12px; cursor:pointer; padding:2px; }
+  .week-nav-pen{
+    border:1px solid var(--accent); background:var(--accent-dim); color:var(--accent);
+    font-size:11px; font-weight:700; cursor:pointer; padding:4px 9px; border-radius:20px;
+    display:flex; align-items:center; gap:4px; letter-spacing:0.2px;
+  }
+  .week-nav-pen:active{ background:var(--accent); color:var(--ink); }
   .week-nav-range{ display:flex; justify-content:space-between; width:100%; padding:0 4px; font-size:9px; color:var(--chalk-faint); font-family:'JetBrains Mono'; }
   .person-chip{
     flex:0 0 auto; display:flex; align-items:center; gap:7px;
@@ -964,12 +971,19 @@
 
   /* ---------- v6 NOW / LIVE layout ---------- */
   .group-bar{ display:none !important; }
-  .shared-people-wrap{ display:flex; align-items:center; gap:6px; margin:0 16px 12px; position:relative; z-index:6; }
-  .shared-people-row{ flex:1; min-width:0; padding:0 0 2px; }
-  .people-collapse-btn{ flex:0 0 auto; width:28px; height:46px; border-radius:12px; background:var(--card); border:1px solid var(--card-line); color:var(--chalk-faint); cursor:pointer; font-size:18px; line-height:1; }
-  .people-collapse-btn:active{ background:var(--accent-dim); color:var(--accent); }
+  .shared-people-wrap{ display:flex; flex-direction:column; margin:0 16px 6px; position:relative; z-index:6; }
+  .shared-people-row{ order:2; padding:0 0 8px; }
+  .people-collapse-btn{
+    order:1; flex:0 0 auto; width:100%; min-height:0;
+    display:flex; align-items:center; justify-content:center;
+    background:none; border:none; padding:7px 0; margin:0;
+    color:var(--chalk-faint); cursor:pointer; font-size:12px; line-height:1;
+  }
+  .people-collapse-btn:active{ color:var(--accent); }
+  .people-collapse-btn::before{ content:'▾'; }
+  .shared-people-wrap:not(.collapsed) .people-collapse-btn::before{ content:'▴'; }
   .shared-people-wrap.collapsed .shared-people-row{ display:none; }
-  .shared-people-wrap.collapsed .people-collapse-btn{ width:30px; margin-left:auto; }
+  .shared-people-wrap.collapsed{ margin-bottom:2px; }
   .live-group-shell{ margin:0 0 14px; }
   .live-group-head{ display:flex; justify-content:flex-start; }
   .live-group-btn{
@@ -1041,6 +1055,10 @@
     <div class="sub" style="margin-bottom:22px;">stay on the clock, together</div>
     <h2 id="authTitle">Welcome back</h2>
 
+    <div class="field-row" id="nameRow" style="display:none;">
+      <label>Your name</label>
+      <input type="text" id="authName" placeholder="e.g. Sam">
+    </div>
     <div class="field-row">
       <label>Email</label>
       <input type="text" id="authEmail" placeholder="you@example.com" autocapitalize="off" autocorrect="off">
@@ -1051,6 +1069,7 @@
     </div>
     <div class="auth-error" id="authError"></div>
     <button class="btn btn-primary" id="authSubmit" style="width:100%; padding:14px 0; margin-top:4px;">Log in</button>
+    <div class="auth-toggle" id="authToggle">New here? Create an account</div>
   </div>
 </div>
 
@@ -1081,7 +1100,7 @@
   <!-- User profile row for NOW / TODAY / WEEK. Group controls stay only on LIVE. -->
   <div class="shared-people-wrap" id="sharedPeopleWrap">
     <div class="people-row shared-people-row" id="peopleRow"></div>
-    <button type="button" class="people-collapse-btn" id="peopleCollapseBtn" title="Collapse people">‹</button>
+    <button type="button" class="people-collapse-btn" id="peopleCollapseBtn" title="Collapse people"></button>
   </div>
 
   <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
@@ -1157,7 +1176,7 @@
     <section class="screen" id="screen-week">
       <div class="week-nav" id="weekNav">
         <button class="week-nav-arrow" id="weekPrev">‹</button>
-        <div class="week-nav-label-wrap"><div class="week-nav-label-row"><div class="week-nav-label" id="weekNavLabel">This week</div><button class="week-nav-pen" id="weekStartPen" title="Choose week start">✎</button></div><div class="week-nav-range"><span id="weekStartRange">Sun</span><span id="weekEndRange">Sat</span></div></div>
+        <div class="week-nav-label-wrap"><div class="week-nav-label-row"><div class="week-nav-label" id="weekNavLabel">This week</div><button class="week-nav-pen" id="weekStartPen" title="Choose week start">✎ Start day</button></div><div class="week-nav-range"><span id="weekStartRange">Sun</span><span id="weekEndRange">Sat</span></div></div>
         <button class="week-nav-arrow" id="weekNext">›</button>
       </div>
       <div class="wk-section-head">
@@ -1249,7 +1268,7 @@ import {
   getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField, deleteDoc
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
-  getAuth, signInWithEmailAndPassword,
+  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, updateProfile
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import {
@@ -1701,21 +1720,44 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   function setAuthError(msg){ authError.textContent = msg || ''; }
 
+  let authMode = 'login'; // or 'signup'
+  document.getElementById('authToggle').addEventListener('click', ()=>{
+    authMode = authMode==='login' ? 'signup' : 'login';
+    document.getElementById('nameRow').style.display = authMode==='signup' ? 'block' : 'none';
+    document.getElementById('authSubmit').textContent = authMode==='signup' ? 'Create account' : 'Log in';
+    document.getElementById('authTitle').textContent = authMode==='signup' ? 'Join the board' : 'Welcome back';
+    document.getElementById('authToggle').textContent = authMode==='signup' ? 'Already have an account? Log in' : 'New here? Create an account';
+    setAuthError('');
+  });
+
   document.getElementById('authSubmit').addEventListener('click', async ()=>{
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
+    const name = document.getElementById('authName').value.trim();
     setAuthError('');
     if(!email || !password){ setAuthError('Enter an email and password.'); return; }
+    if(authMode==='signup' && !name){ setAuthError('Enter your name.'); return; }
 
     document.getElementById('authSubmit').disabled = true;
     try{
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      booted = true;
-      window.__meId = cred.user.uid;
-      const res = await window.storage.get('study-board-profile', false);
-      me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
-      showApp();
-      await loadState();
+      if(authMode==='signup'){
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        booted = true;
+        window.__meId = cred.user.uid;
+        me = { id: cred.user.uid, name, color: COLORS[Math.floor(Math.random()*COLORS.length)] };
+        await window.storage.set('study-board-profile', JSON.stringify(me), false);
+        await registerUser(me);
+        showApp();
+        await loadState();
+      } else {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        booted = true;
+        window.__meId = cred.user.uid;
+        const res = await window.storage.get('study-board-profile', false);
+        me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
+        showApp();
+        await loadState();
+      }
     }catch(e){
       setAuthError(e.message.replace('Firebase: ','').replace(/\(auth\/.*\)\.?/,'').trim() || 'Something went wrong.');
     }
@@ -1723,22 +1765,30 @@ window.storage = storage; // keep the rest of the app's code unchanged
   });
 
   async function doLogout(){
-    // stop any active timer/session cleanly so it never appears "studying" after logout,
-    // and make sure that save actually lands before we sign out (no debounce race)
-    exitFocusMode();
-    if(timerRunning){
-      if(elapsedMs > 3000){ finishSession(false); } else { hardReset(); }
-    }
-    await flushStateNow();
-    await setLiveStatus({ studying:false, baseElapsedMs:0 });
-    if(selfLiveUnsub){ selfLiveUnsub(); selfLiveUnsub = null; }
-    if(boardUnsub){ boardUnsub(); boardUnsub = null; }
-    stopLiveTimers();
-    if(friendBoardsPollHandle){ clearInterval(friendBoardsPollHandle); friendBoardsPollHandle = null; }
+    // Every cleanup step below is best-effort and individually guarded — a failure in
+    // any one of them (flaky network, a stuck listener, etc.) must never prevent the
+    // actual sign-out from running, or the person is left stuck with no way to log out.
+    try{ exitFocusMode(); }catch(e){ console.error('logout: exitFocusMode failed', e); }
+    try{
+      if(timerRunning){
+        if(elapsedMs > 3000){ finishSession(false); } else { hardReset(); }
+      }
+    }catch(e){ console.error('logout: stopping timer failed', e); }
+    try{ await flushStateNow(); }catch(e){ console.error('logout: flushStateNow failed', e); }
+    try{ await setLiveStatus({ studying:false, baseElapsedMs:0 }); }catch(e){ console.error('logout: setLiveStatus failed', e); }
+    try{ if(selfLiveUnsub){ selfLiveUnsub(); selfLiveUnsub = null; } }catch(e){ console.error('logout: selfLiveUnsub failed', e); }
+    try{ if(boardUnsub){ boardUnsub(); boardUnsub = null; } }catch(e){ console.error('logout: boardUnsub failed', e); }
+    try{ stopLiveTimers(); }catch(e){ console.error('logout: stopLiveTimers failed', e); }
+    try{ if(friendBoardsPollHandle){ clearInterval(friendBoardsPollHandle); friendBoardsPollHandle = null; } }catch(e){}
     friendCache = {};
     liveCache = {};
     viewingId = null;
-    await signOut(auth);
+    try{
+      await signOut(auth);
+    }catch(e){
+      console.error('logout: signOut failed', e);
+      alert('Could not log out: ' + (e.message || 'unknown error') + '\nCheck your connection and try again.');
+    }
   }
 
   document.getElementById('acctBtn').addEventListener('click', openAccountModal);
@@ -2658,7 +2708,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const renderInto = (el, visible)=>{
       if(!el) return;
       if(!visible || !me){ el.innerHTML=''; el.style.display='none'; return; }
-      el.style.display='flex';
+      el.style.display=''; // defer to CSS (base .people-row{display:flex} plus the .collapsed override) instead of
+                            // forcing display:flex inline, which used to always win over the collapse rule below
       const others = usersList.filter(u=>u.id!==me.id);
       const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
       el.innerHTML = chips.map(c=>{
@@ -2681,7 +2732,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(wrap){
       wrap.classList.toggle('collapsed', sharedPeopleCollapsed && currentScreen!=='live');
       const b=document.getElementById('peopleCollapseBtn');
-      if(b) b.textContent = sharedPeopleCollapsed ? '›' : '‹';
+      if(b) b.title = sharedPeopleCollapsed ? 'Show who\'s here' : 'Collapse';
     }
   }
 
@@ -4430,7 +4481,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <select id="m-subject"></select>
         </div>
 
-        ${(!isTemplate && !isEdit) ? `
+        ${!isTemplate ? `
         <div class="field-row" id="m-link-goal-row">
           <label>Link to weekly goal <span style="opacity:.6; text-transform:none;">(optional, one click)</span></label>
           <select id="m-link-goal"><option value="">— none —</option></select>
@@ -4486,6 +4537,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const weekGoals = (state.weeklyGoals||[]).filter(g=>g.weekStart===wk);
       linkGoalSel.innerHTML = '<option value="">— none —</option>' +
         weekGoals.map(g=>`<option value="${g.id}">${escapeHtml(g.title)}</option>`).join('');
+      if(existingBlock && existingBlock.linkedGoalId) linkGoalSel.value = existingBlock.linkedGoalId;
     }
 
     let pickedColor = COLORS[0];
@@ -4545,7 +4597,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
         } else {
           const list = state.dailyExtra[dateKeyForExtra] || [];
           const blk = list.find(b=>b.id===existingBlock.id);
-          if(blk){ blk.subject = subjectId; blk.start = start; blk.duration = duration; blk.label = label; }
+          if(blk){
+            blk.subject = subjectId; blk.start = start; blk.duration = duration; blk.label = label;
+            if(linkGoalSel) blk.linkedGoalId = linkGoalSel.value || null;
+          }
         }
         saveState();
         render();
