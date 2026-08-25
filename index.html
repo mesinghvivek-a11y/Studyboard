@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Study Board</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#151821">
+<meta name="theme-color" content="#000000">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,19 +14,25 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script>
+(function(){
+  try{
+    var t = localStorage.getItem('sb-theme') || 'dark';
+    var p = localStorage.getItem('sb-palette') || 'cyan';
+    document.documentElement.setAttribute('data-theme', t);
+    document.documentElement.setAttribute('data-palette', p);
+  }catch(e){}
+})();
+</script>
 <style>
-  :root{
-    --board:#151821;
-    --board-2:#1A1E29;
-    --card:#222634;
-    --card-line: rgba(255,255,255,0.09);
+  :root, [data-theme="dark"]{
+    --board:#000000;
+    --board-2:#0A0A0A;
+    --card:#141414;
+    --card-line: rgba(255,255,255,0.08);
     --chalk:#FFFFFF;
     --chalk-dim:#B9BFCB;
-    --chalk-faint:#9CA3AF;
-    --accent:#22D3EE;
-    --accent-rgb: 34,211,238;
-    --accent-dim: rgba(34,211,238,0.16);
-    --ink: #0B1420; /* dark text painted on bright accent/coral surfaces */
+    --chalk-faint:#8B909A;
     --danger:#FF5A5F;
     --c1:#FF5A5F; /* coral */
     --c1-rgb: 255,90,95;
@@ -37,10 +43,45 @@
     --c5:#E6A0C4; /* pink */
     --c6:#E8C468; /* yellow */
   }
+  [data-theme="light"]{
+    --board:#FFFFFF;
+    --board-2:#F6F7F9;
+    --card:#F7F8FA;
+    --card-line: rgba(15,17,21,0.10);
+    --chalk:#14161A;
+    --chalk-dim:#4B5160;
+    --chalk-faint:#82879A;
+    --danger:#E0353B;
+    --c1:#E0353B;
+    --c1-rgb: 224,53,59;
+    --c1-dim: rgba(224,53,59,0.12);
+    --c2:#3E7EA8;
+    --c3:#2F9163;
+    --c4:#7B57B0;
+    --c5:#C24E85;
+    --c6:#A97609;
+  }
+
+  /* ---- Color palettes: control accent + button-ink only, independent of light/dark ---- */
+  :root, [data-palette="cyan"]{
+    --accent:#22D3EE; --accent-rgb: 34,211,238; --accent-dim: rgba(34,211,238,0.16); --ink:#042229;
+  }
+  [data-palette="violet"]{
+    --accent:#8B5CF6; --accent-rgb: 139,92,246; --accent-dim: rgba(139,92,246,0.18); --ink:#FFFFFF;
+  }
+  [data-palette="rose"]{
+    --accent:#FB4570; --accent-rgb: 251,69,112; --accent-dim: rgba(251,69,112,0.16); --ink:#FFFFFF;
+  }
+  [data-palette="emerald"]{
+    --accent:#12B981; --accent-rgb: 18,185,129; --accent-dim: rgba(18,185,129,0.16); --ink:#042A1E;
+  }
+  [data-palette="amber"]{
+    --accent:#F5A623; --accent-rgb: 245,166,35; --accent-dim: rgba(245,166,35,0.18); --ink:#2E1C04;
+  }
   *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
   html,body{margin:0;padding:0;height:100%; overflow:hidden;}
   body{
-    background: radial-gradient(ellipse at 20% 0%, #1C2130 0%, var(--board) 55%), var(--board);
+    background: var(--board);
     color: var(--chalk);
     font-family:'Inter', sans-serif;
     overscroll-behavior:none;
@@ -58,6 +99,7 @@
     pointer-events:none;
     z-index:0;
   }
+  [data-theme="light"] body::before{ display:none; }
   #app{
     width:100%; max-width:480px;
     height:100vh; height:100dvh;
@@ -122,8 +164,17 @@
   .mode-switch button.mode-collapsed{ flex:0 0 0; width:0; padding:0; margin:0; opacity:0; pointer-events:none; }
   .mode-switch button.active{ background:var(--accent-dim); color:var(--accent); }
 
-  .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; }
+  .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; min-height:230px; }
   .ring-outer{ position:relative; width:230px; height:230px; }
+  .mode-face{ transition:opacity .22s ease, transform .22s ease, max-height .22s ease, margin .22s ease; }
+  .mode-face.mode-collapsed{ opacity:0; transform:scale(.96); max-height:0 !important; overflow:hidden; margin:0 !important; pointer-events:none; }
+  .focus-mode-icon{
+    position:absolute; top:10px; right:-8px; width:34px; height:34px; border-radius:50%;
+    border:1px solid var(--card-line); background:var(--card); color:var(--accent);
+    display:none; align-items:center; justify-content:center; font-size:17px; cursor:pointer;
+    z-index:4; box-shadow:0 5px 16px rgba(0,0,0,.28);
+  }
+  .focus-mode-icon.visible{ display:flex; }
   .ring-svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; }
   .ring-track{ fill:none; stroke:var(--card); stroke-width:14; }
   .ring-progress{
@@ -147,9 +198,11 @@
 
   /* ---------- Digital stopwatch (no dial — continuous count) ---------- */
   .stopwatch-face{
+    position:relative; width:230px; height:230px;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     min-height:230px; text-align:center;
   }
+  .stopwatch-face .stopwatch-focus-icon{ top:6px; right:-8px; }
   .sw-digits{ display:flex; align-items:baseline; font-family:'JetBrains Mono'; font-weight:700; color:var(--chalk); }
   .sw-main{ font-size:54px; letter-spacing:0.5px; transition: color .25s, text-shadow .25s; }
   .sw-sec{ font-size:22px; color:var(--chalk-faint); margin-left:2px; font-weight:600; }
@@ -488,21 +541,18 @@
   }
 
   .task-pin-btn{
-    flex:0 0 auto; width:40px; height:40px; border-radius:12px; background:var(--card); border:1px solid var(--card-line);
-    font-size:16px; cursor:pointer; color:var(--chalk-faint);
+    flex:0 0 auto; width:44px; height:44px; border-radius:50%; background:var(--card); border:1px solid var(--card-line);
+    font-size:17px; cursor:pointer; color:var(--chalk-faint); display:flex; align-items:center; justify-content:center;
   }
   .task-pin-btn.pinned{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
-  .task-pin-label{ font-size:11px; color:var(--accent); margin-top:6px; }
+  .task-pin-btn:active{ transform:scale(.96); }
+  .timer-link-btn{ margin:0; }
+  .task-pin-label{ font-size:11px; color:var(--accent); margin:-14px 0 8px; text-align:center; width:100%; }
 
   .week-day{ margin-bottom:20px; }
 
   /* ---------- distraction-free focus mode ---------- */
-  .focus-toggle-btn{
-    display:none; width:100%; margin-top:12px; background:var(--accent-dim); border:1px solid var(--accent);
-    color:var(--accent); font-size:13px; font-weight:700; padding:11px 0; border-radius:12px; cursor:pointer; letter-spacing:0.3px;
-    position:relative; z-index:2;
-  }
-  .focus-toggle-btn.visible{ display:block; }
+  .focus-toggle-btn{ display:none !important; }
   .focus-exit-btn{
     display:none; position:fixed; top:16px; right:16px; z-index:500; background:var(--c1);
     border:none; color:var(--ink); font-weight:700; font-size:12px; padding:9px 16px; border-radius:20px; cursor:pointer;
@@ -512,16 +562,15 @@
   .mode-fade{ transition: opacity .28s ease, max-height .28s ease, margin .28s ease, transform .28s ease; overflow:hidden; }
   .mode-fade.mode-collapsed{ opacity:0; max-height:0 !important; margin:0 !important; pointer-events:none; transform:translateY(-4px); }
 
-  body.focus-active{ background:#0A0C11; }
+  body.focus-active{ background:var(--board); }
   body.focus-active header.top,
-  body.focus-active .group-people-row,
+  body.focus-active .profile-zone,
   body.focus-active .people-row,
   body.focus-active .snap-row,
   body.focus-active nav.tabs,
   body.focus-active #goalCard,
   body.focus-active #friendTimerBanner,
   body.focus-active .session-log,
-  body.focus-active .focus-toggle-btn,
   body.focus-active .field-row,
   body.focus-active .mode-switch{
     display:none !important;
@@ -532,6 +581,7 @@
   }
   body.focus-active .focus-exit-btn{ display:block; }
   body.focus-active .ring-outer, body.focus-active .stopwatch-face{ transform: scale(1.15); }
+  body.focus-active .focus-mode-icon{ display:none !important; }
   body.focus-active .timer-controls{ margin-top:26px; max-width:280px; }
   .history-day{ margin-bottom:22px; }
   .history-day-heading{
@@ -598,23 +648,38 @@
   .day-toggle.sel{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
   .close-x{ position:absolute; top:20px; right:20px; background:none; border:none; color:var(--chalk-faint); font-size:20px; cursor:pointer; }
 
-  /* ---------- Group + people, merged into one row ---------- */
-  .group-people-row{
-    display:flex; align-items:center; gap:8px; padding:0 16px 14px; overflow-x:auto; scrollbar-width:none;
+  /* ---------- persistent profile row / group controls ---------- */
+  .profile-zone{ padding:0 16px 10px; }
+  .profile-collapse-bar{
+    min-height:18px; height:18px; display:flex; align-items:center; justify-content:space-between; gap:8px;
+    margin:0 -2px 2px; overflow:hidden;
   }
-  .group-people-row::-webkit-scrollbar{ display:none; }
+  .profile-collapse-btn{
+    width:24px; height:18px; border:none; background:transparent; color:var(--chalk-faint);
+    font-size:11px; line-height:1; padding:0; cursor:pointer; border-radius:6px;
+  }
+  .profile-collapse-btn:active{ background:var(--accent-dim); }
+  .live-group-controls{ display:none; align-items:center; justify-content:flex-end; gap:6px; margin-left:auto; }
+  body.screen-live-active .live-group-controls{ display:flex; }
+  .people-row{
+    display:flex; align-items:center; gap:8px; overflow-x:auto; scrollbar-width:none;
+    max-height:58px; opacity:1; transition:max-height .2s ease, opacity .18s ease, margin .2s ease;
+  }
+  .people-row::-webkit-scrollbar{ display:none; }
+  .people-row.collapsed{ max-height:0; opacity:0; margin:0; pointer-events:none; }
+
   .group-chip{
     flex:0 0 auto; display:flex; align-items:center; gap:6px; max-width:130px;
     background:var(--card); border:1px solid var(--card-line); border-radius:20px;
-    padding:6px 10px; cursor:pointer; font-size:12px; font-weight:700; color:var(--chalk);
+    padding:5px 9px; cursor:pointer; font-size:11px; font-weight:700; color:var(--chalk);
   }
   .group-chip span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .group-chip .group-bar-arrow{ margin-left:0; }
   .group-chip-info{
-    flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--card); border:1px solid var(--card-line);
-    color:var(--chalk-dim); font-size:14px; cursor:pointer; line-height:1;
+    flex:0 0 auto; width:28px; height:28px; border-radius:50%; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:13px; cursor:pointer; line-height:1;
   }
-  .row-divider{ flex:0 0 auto; width:1px; height:26px; background:var(--card-line); margin:0 2px; }
+  .row-divider{ display:none; }
   .group-bar-arrow{ color:var(--chalk-faint); font-size:11px; flex:0 0 auto; }
   .deadline-tag{ font-size:10px; font-weight:600; color:var(--c1); margin-left:4px; }
 
@@ -898,6 +963,11 @@
   }
   .seg-btn.sel{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
   .modal-subhead{ margin:0 0 10px; font-family:'Kalam'; font-size:14px; color:var(--chalk-dim); font-weight:400; }
+  .appearance-row{ display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:nowrap; }
+  .appearance-row .seg-row{ flex:0 0 auto; }
+  .appearance-row .seg-btn{ flex:0 0 auto; width:38px; padding:8px 0; font-size:15px; }
+  .appearance-row .color-row{ flex:0 0 auto; gap:8px; margin-top:0; }
+  .appearance-row .swatch{ width:24px; height:24px; }
 
   /* ---------- nudge toast ---------- */
   .nudge-toast{
@@ -969,6 +1039,10 @@
     <div class="sub" style="margin-bottom:22px;">stay on the clock, together</div>
     <h2 id="authTitle">Welcome back</h2>
 
+    <div class="field-row" id="nameRow" style="display:none;">
+      <label>Your name</label>
+      <input type="text" id="authName" placeholder="e.g. Sam">
+    </div>
     <div class="field-row">
       <label>Email</label>
       <input type="text" id="authEmail" placeholder="you@example.com" autocapitalize="off" autocorrect="off">
@@ -979,6 +1053,7 @@
     </div>
     <div class="auth-error" id="authError"></div>
     <button class="btn btn-primary" id="authSubmit" style="width:100%; padding:14px 0; margin-top:4px;">Log in</button>
+    <div class="auth-toggle" id="authToggle">New here? Create an account</div>
   </div>
 </div>
 
@@ -1006,14 +1081,18 @@
     </div>
   </header>
 
-  <div class="group-people-row">
-    <button class="group-chip" id="groupBar">
-      <span id="groupBarLabel">Loading…</span>
-      <span class="group-bar-arrow">▾</span>
-    </button>
-    <button class="group-chip-info" id="groupBarInfo" title="Group details, QR & invite">⋯</button>
-    <div class="row-divider"></div>
-    <div class="people-row" id="peopleRow"></div>
+  <div class="profile-zone">
+    <div class="profile-collapse-bar">
+      <button type="button" class="profile-collapse-btn" id="profileCollapseBtn" aria-expanded="true" title="Collapse profiles">⌃</button>
+      <div class="live-group-controls" id="liveGroupControls">
+        <button class="group-chip" id="groupBar">
+          <span id="groupBarLabel">Loading…</span>
+          <span class="group-bar-arrow">▾</span>
+        </button>
+        <button class="group-chip-info" id="groupBarInfo" title="Group details, QR & invite">⋯</button>
+      </div>
+    </div>
+    <div class="people-row profile-people-row" id="peopleRow"></div>
   </div>
 
   <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
@@ -1025,19 +1104,11 @@
     <section class="screen active" id="screen-timer">
       <div class="friend-timer-card" id="friendTimerBanner" style="display:none;"></div>
 
+      <select id="timerSubject" aria-hidden="true" tabindex="-1" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></select>
       <div id="timerControlsWrap">
         <div class="mode-switch">
           <button id="modeStopwatch" class="active">Stopwatch</button>
           <button id="modeCountdown">Focus Timer</button>
-        </div>
-
-        <div class="field-row">
-          <label>Subject</label>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <select id="timerSubject" style="flex:1;"></select>
-            <button type="button" class="task-pin-btn" id="taskPinBtn" title="Link to a daily task (optional)">📌</button>
-          </div>
-          <div id="taskPinLabel" class="task-pin-label" style="display:none;"></div>
         </div>
 
         <div class="field-row" id="countdownLenRow" style="display:none;">
@@ -1053,7 +1124,7 @@
         </div>
 
         <div class="timer-ring-wrap">
-          <div class="ring-outer" id="ringOuter" style="display:none;">
+          <div class="ring-outer mode-face" id="ringOuter" style="display:none;">
             <svg viewBox="0 0 220 220" class="ring-svg">
               <circle cx="110" cy="110" r="100" class="ring-track"></circle>
               <circle cx="110" cy="110" r="100" class="ring-progress" id="ringProgress"></circle>
@@ -1062,20 +1133,23 @@
               <div class="timer-digits" id="timerDigits">00:00:00</div>
               <div class="timer-label" id="timerStatus">ready</div>
             </div>
+            <button type="button" class="focus-mode-icon" id="focusToggleBtn" aria-label="Enter focus mode" title="Focus mode">🧘</button>
           </div>
-          <div class="stopwatch-face" id="stopwatchFace">
+          <div class="stopwatch-face mode-face" id="stopwatchFace">
             <div class="sw-digits">
               <span class="sw-main" id="swMain">00:00</span><span class="sw-sec" id="swSec">:00</span>
             </div>
             <div class="timer-label" id="swStatus">ready</div>
+            <button type="button" class="focus-mode-icon stopwatch-focus-icon" id="focusToggleBtnSw" aria-label="Enter focus mode" title="Focus mode">🧘</button>
           </div>
         </div>
 
         <div class="timer-controls">
           <button class="btn btn-ghost" id="resetBtn">Reset/Stop</button>
+          <button type="button" class="task-pin-btn timer-link-btn" id="taskPinBtn" title="Link this timer to a daily task" aria-label="Link this timer to a daily task">📌</button>
           <button class="btn btn-primary" id="startBtn">Start</button>
         </div>
-        <button type="button" class="focus-toggle-btn" id="focusToggleBtn">🧘 Enter focus mode</button>
+        <div id="taskPinLabel" class="task-pin-label" style="display:none;"></div>
       </div>
 
       <div class="goal-card" id="goalCard" style="display:none;"></div>
@@ -1175,7 +1249,7 @@ import {
   getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
-  getAuth, signInWithEmailAndPassword,
+  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, updateProfile
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import {
@@ -1287,6 +1361,13 @@ function escapeHtml(s){
 window.storage = storage; // keep the rest of the app's code unchanged
 (function(){
   const COLORS = ['#FF5A5F','#7FB3D5','#8FCB9B','#B8A0D9','#E6A0C4','#E8C468'];
+  const PALETTES = [
+    { id:'cyan',    accent:'#22D3EE' },
+    { id:'violet',  accent:'#8B5CF6' },
+    { id:'rose',    accent:'#FB4570' },
+    { id:'emerald', accent:'#12B981' },
+    { id:'amber',   accent:'#F5A623' }
+  ];
   const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const STORAGE_KEY = 'study-board-data-v1';
   const USERS_KEY = 'study-board-users'; // shared: [{id,name,color}]
@@ -1301,11 +1382,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
     sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note, linkedTaskId} ] }
     goals: { dailyMin: 120, weeklyMin: 600 }, // overall study goals used for streak/progress tracking
     weeklyGoals: [], // {id, title, subject, type:'flexible', unit:'hours'|'sessions'|'count', target, planId, note, manualAdjust, createdAt}
-    plans: [] // {id, startDate:'YYYY-MM-DD', endDate:'YYYY-MM-DD', label, createdAt} — a fixed-date record. Dates never change after creation.
+    plans: [], // {id, startDate:'YYYY-MM-DD', endDate:'YYYY-MM-DD', label, createdAt} — a fixed-date record. Dates never change after creation.
+    themeMode: 'dark',      // 'dark' | 'light'
+    themePalette: 'cyan'    // one of PALETTES ids
   };
 
   let selectedDate = new Date();
   let currentScreen = 'timer';
+  document.body.classList.add('screen-timer-active');
 
   let me = null;              // {id, name, color}
   let allProfiles = [];       // global directory: everyone who has ever registered (for name/color/photo lookup)
@@ -1504,6 +1588,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       state = Object.assign(state, snap.data().value);
     }
     stateReadyToPersist = true;
+    applyTheme();
     migrateLegacyWeeklyTemplate(true);
     maybeWriteDailyBackup();
     await loadUsersList();
@@ -1655,21 +1740,44 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return AUTH_ERROR_MESSAGES[code] || (e && e.message ? e.message.replace('Firebase: ','') : 'Something went wrong. Please try again.');
   }
 
+  let authMode = 'login'; // or 'signup'
+  document.getElementById('authToggle').addEventListener('click', ()=>{
+    authMode = authMode==='login' ? 'signup' : 'login';
+    document.getElementById('nameRow').style.display = authMode==='signup' ? 'block' : 'none';
+    document.getElementById('authSubmit').textContent = authMode==='signup' ? 'Create account' : 'Log in';
+    document.getElementById('authTitle').textContent = authMode==='signup' ? 'Join the board' : 'Welcome back';
+    document.getElementById('authToggle').textContent = authMode==='signup' ? 'Already have an account? Log in' : 'New here? Create an account';
+    setAuthError('');
+  });
+
   document.getElementById('authSubmit').addEventListener('click', async ()=>{
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
+    const name = document.getElementById('authName').value.trim();
     setAuthError('');
     if(!email || !password){ setAuthError('Enter an email and password.'); return; }
+    if(authMode==='signup' && !name){ setAuthError('Enter your name.'); return; }
 
     document.getElementById('authSubmit').disabled = true;
     try{
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      booted = true;
-      window.__meId = cred.user.uid;
-      const res = await window.storage.get('study-board-profile', false);
-      me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
-      showApp();
-      await loadState();
+      if(authMode==='signup'){
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        booted = true;
+        window.__meId = cred.user.uid;
+        me = { id: cred.user.uid, name, color: COLORS[Math.floor(Math.random()*COLORS.length)] };
+        await window.storage.set('study-board-profile', JSON.stringify(me), false);
+        await registerUser(me, true);
+        showApp();
+        await loadState();
+      } else {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        booted = true;
+        window.__meId = cred.user.uid;
+        const res = await window.storage.get('study-board-profile', false);
+        me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
+        showApp();
+        await loadState();
+      }
     }catch(e){
       setAuthError(friendlyAuthError(e));
     }
@@ -1677,22 +1785,30 @@ window.storage = storage; // keep the rest of the app's code unchanged
   });
 
   async function doLogout(){
-    // stop any active timer/session cleanly so it never appears "studying" after logout,
-    // and make sure that save actually lands before we sign out (no debounce race)
-    exitFocusMode();
-    if(timerRunning){
-      if(elapsedMs > 3000){ finishSession(false); } else { hardReset(); }
-    }
-    await flushStateNow();
-    await setLiveStatus({ studying:false, baseElapsedMs:0 });
-    if(selfLiveUnsub){ selfLiveUnsub(); selfLiveUnsub = null; }
-    if(boardUnsub){ boardUnsub(); boardUnsub = null; }
-    stopLiveTimers();
-    if(friendBoardsPollHandle){ clearInterval(friendBoardsPollHandle); friendBoardsPollHandle = null; }
+    // Every cleanup step below is best-effort and individually guarded — a failure in
+    // any one of them (flaky network, a stuck listener, etc.) must never prevent the
+    // actual sign-out from running, or the person is left stuck with no way to log out.
+    try{ exitFocusMode(); }catch(e){ console.error('logout: exitFocusMode failed', e); }
+    try{
+      if(timerRunning){
+        if(elapsedMs > 3000){ finishSession(false); } else { hardReset(); }
+      }
+    }catch(e){ console.error('logout: stopping timer failed', e); }
+    try{ await flushStateNow(); }catch(e){ console.error('logout: flushStateNow failed', e); }
+    try{ await setLiveStatus({ studying:false, baseElapsedMs:0 }); }catch(e){ console.error('logout: setLiveStatus failed', e); }
+    try{ if(selfLiveUnsub){ selfLiveUnsub(); selfLiveUnsub = null; } }catch(e){ console.error('logout: selfLiveUnsub failed', e); }
+    try{ if(boardUnsub){ boardUnsub(); boardUnsub = null; } }catch(e){ console.error('logout: boardUnsub failed', e); }
+    try{ stopLiveTimers(); }catch(e){ console.error('logout: stopLiveTimers failed', e); }
+    try{ if(friendBoardsPollHandle){ clearInterval(friendBoardsPollHandle); friendBoardsPollHandle = null; } }catch(e){}
     friendCache = {};
     liveCache = {};
     viewingId = null;
-    await signOut(auth);
+    try{
+      await signOut(auth);
+    }catch(e){
+      console.error('logout: signOut failed', e);
+      alert('Could not log out: ' + (e.message || 'unknown error') + '\nCheck your connection and try again.');
+    }
   }
 
   document.getElementById('acctBtn').addEventListener('click', openAccountModal);
@@ -1752,6 +1868,19 @@ window.storage = storage; // keep the rest of the app's code unchanged
           </div>
         </div>
         <div class="section-divider"></div>
+        <h4 class="modal-subhead">Appearance</h4>
+        <div class="field-row">
+          <div class="appearance-row">
+            <div class="seg-row" id="acct-theme-mode">
+              <button type="button" class="seg-btn ${(state.themeMode||'dark')==='dark'?'sel':''}" data-mode="dark" title="Dark">●</button>
+              <button type="button" class="seg-btn ${state.themeMode==='light'?'sel':''}" data-mode="light" title="Light">☀</button>
+            </div>
+            <div class="color-row" id="acct-palette">
+              ${PALETTES.map(p=>`<div class="swatch ${p.id===(state.themePalette||'cyan')?'sel':''}" data-palette="${p.id}" style="background:${p.accent}" title="${p.id}"></div>`).join('')}
+            </div>
+          </div>
+        </div>
+        <div class="section-divider"></div>
         <h4 style="margin:0 0 10px; font-family:'Kalam'; font-size:14px; color:var(--chalk-dim); font-weight:400;">Study goals</h4>
         <div class="field-row">
           <label>Daily goal (hours, 0 = off)</label>
@@ -1805,6 +1934,21 @@ window.storage = storage; // keep the rest of the app's code unchanged
         backdrop.querySelectorAll('#acct-colors .swatch').forEach(s=>s.classList.remove('sel'));
         sw.classList.add('sel');
         pickedColor = sw.dataset.color;
+      });
+    });
+
+    backdrop.querySelectorAll('#acct-theme-mode .seg-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('#acct-theme-mode .seg-btn').forEach(b=>b.classList.remove('sel'));
+        btn.classList.add('sel');
+        setThemeMode(btn.dataset.mode);
+      });
+    });
+    backdrop.querySelectorAll('#acct-palette .swatch').forEach(sw=>{
+      sw.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('#acct-palette .swatch').forEach(s=>s.classList.remove('sel'));
+        sw.classList.add('sel');
+        setThemePalette(sw.dataset.palette);
       });
     });
 
@@ -2484,6 +2628,29 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   }
   function pad(n){ return String(n).padStart(2,'0'); }
+  function applyTheme(){
+    const mode = state.themeMode || 'dark';
+    const palette = state.themePalette || 'cyan';
+    document.documentElement.setAttribute('data-theme', mode);
+    document.documentElement.setAttribute('data-palette', palette);
+    try{
+      localStorage.setItem('sb-theme', mode);
+      localStorage.setItem('sb-palette', palette);
+    }catch(e){}
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if(metaTheme) metaTheme.setAttribute('content', mode==='light' ? '#FFFFFF' : '#000000');
+  }
+  function setThemeMode(mode){
+    state.themeMode = mode==='light' ? 'light' : 'dark';
+    applyTheme();
+    saveState();
+  }
+  function setThemePalette(id){
+    state.themePalette = PALETTES.some(p=>p.id===id) ? id : 'cyan';
+    applyTheme();
+    saveState();
+  }
+
   function fmtHM(totalMinutes){
     const m = Math.max(0, Math.round(totalMinutes||0));
     const h = Math.floor(m/60), mm = m%60;
@@ -2618,6 +2785,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
       btn.classList.add('active');
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
       currentScreen = btn.dataset.screen;
+      document.body.classList.remove('screen-timer-active','screen-today-active','screen-week-active','screen-live-active','screen-history-active');
+      document.body.classList.add('screen-'+currentScreen+'-active');
       document.getElementById('screen-'+currentScreen).classList.add('active');
       if(currentScreen==='history' && !document.getElementById('historyDate').value){
         document.getElementById('historyDate').value = fmtDate(new Date());
@@ -2628,6 +2797,17 @@ window.storage = storage; // keep the rest of the app's code unchanged
       render();
     });
   });
+  const profileCollapseBtn = document.getElementById('profileCollapseBtn');
+  const peopleRowEl = document.getElementById('peopleRow');
+  let profileRowCollapsed = false;
+  profileCollapseBtn.addEventListener('click', ()=>{
+    profileRowCollapsed = !profileRowCollapsed;
+    peopleRowEl.classList.toggle('collapsed', profileRowCollapsed);
+    profileCollapseBtn.textContent = profileRowCollapsed ? '⌄' : '⌃';
+    profileCollapseBtn.setAttribute('aria-expanded', String(!profileRowCollapsed));
+    profileCollapseBtn.title = profileRowCollapsed ? 'Expand profiles' : 'Collapse profiles';
+  });
+
   document.getElementById('fabAdd').style.display = 'none';
 
   // ---------- TIMER LOGIC ----------
@@ -2639,6 +2819,16 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let lastTick = null;
   let linkedTaskId = null; // optional: today's task this session's time should count toward
 
+  function getLinkedTask(){
+    if(!linkedTaskId) return null;
+    return blocksForDateIn(state, new Date()).find(x=>x.id===linkedTaskId) || null;
+  }
+  function syncTimerSubjectFromLink(){
+    const linked = getLinkedTask();
+    const select = document.getElementById('timerSubject');
+    if(linked && select) select.value = linked.subject || select.value;
+    return linked;
+  }
   function renderTaskPinLabel(){
     const labelEl = document.getElementById('taskPinLabel');
     const btn = document.getElementById('taskPinBtn');
@@ -2686,6 +2876,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       listEl.querySelectorAll('[data-tid]').forEach(item=>{
         item.addEventListener('click', ()=>{
           linkedTaskId = item.dataset.tid;
+          syncTimerSubjectFromLink();
           renderTaskPinLabel();
           close();
         });
@@ -2704,8 +2895,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('modeStopwatch').classList.toggle('active', mode==='stopwatch');
     document.getElementById('modeCountdown').classList.toggle('active', mode==='countdown');
     document.getElementById('countdownLenRow').style.display = mode==='countdown' ? 'block' : 'none';
-    document.getElementById('ringOuter').style.display = mode==='countdown' ? 'block' : 'none';
-    document.getElementById('stopwatchFace').style.display = mode==='countdown' ? 'none' : 'flex';
+    const ring = document.getElementById('ringOuter');
+    const sw = document.getElementById('stopwatchFace');
+    ring.style.display = mode==='countdown' ? 'block' : 'none';
+    sw.style.display = mode==='countdown' ? 'none' : 'flex';
+    ring.classList.toggle('mode-collapsed', mode!=='countdown');
+    sw.classList.toggle('mode-collapsed', mode==='countdown');
     updateRunningDeclutter();
   }
   // Hide the irrelevant mode button / unselected lengths once a session is
@@ -2819,9 +3014,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // ---------- distraction-free focus mode ----------
   let wakeLockSentinel = null;
   function updateFocusToggleVisibility(){
-    const btn = document.getElementById('focusToggleBtn');
-    if(btn) btn.classList.toggle('visible', timerRunning);
-    if(!timerRunning) exitFocusMode(); // can't stay in focus mode once the timer isn't running
+    ['focusToggleBtn','focusToggleBtnSw'].forEach(id=>{
+      const btn = document.getElementById(id);
+      if(btn) btn.classList.toggle('visible', timerRunning);
+    });
+    if(!timerRunning) exitFocusMode();
   }
   async function enterFocusMode(){
     if(!timerRunning) return; // only enterable once a session is actually running
@@ -2834,10 +3031,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.body.classList.remove('focus-active');
     if(wakeLockSentinel){ wakeLockSentinel.release().catch(()=>{}); wakeLockSentinel = null; }
   }
-  document.getElementById('focusToggleBtn').addEventListener('click', (e)=>{
-    e.preventDefault();
-    e.stopPropagation(); // otherwise this same tap bubbles to the body listener below and instantly exits again
-    enterFocusMode();
+  ['focusToggleBtn','focusToggleBtnSw'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('click', (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      enterFocusMode();
+    });
   });
   document.getElementById('focusExitBtn').addEventListener('click', (e)=>{
     e.preventDefault();
@@ -2874,7 +3074,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.getElementById('startBtn').textContent = 'Pause';
       setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
       tickHandle = setInterval(tick, 250);
-      const subjectId = document.getElementById('timerSubject').value;
+      const linkedTask = syncTimerSubjectFromLink();
+      const subjectId = linkedTask?.subject || document.getElementById('timerSubject').value;
       setLiveStatus({
         studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
         mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
@@ -3111,7 +3312,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       <div class="modal">
         <h3>What did you cover?</h3>
         <div class="field-row">
-          <label>${escapeHtml(subjectName(session.subject))} · ${session.duration} min</label>
+          <label>${escapeHtml(subjectName(session.subject))} · ${Math.round((session.duration||0)*10)/10} min</label>
           <textarea id="note-input" rows="3" placeholder="e.g. Finished Ch.4 practice problems, need to review formulas" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;"></textarea>
         </div>
         ${recapHtml}
@@ -3550,6 +3751,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <select id="es-subject"></select>
         </div>
         <div class="field-row">
+          <label>Linked task</label>
+          <select id="es-linked"><option value="">No linked task</option></select>
+          <div style="font-size:10.5px; color:var(--chalk-faint); margin-top:5px;">You can link this session now even if it was started without a link.</div>
+        </div>
+        <div class="field-row">
           <label>Duration (minutes)</label>
           <input type="number" id="es-duration" min="1" step="1" value="${Math.round(session.duration)}">
         </div>
@@ -3565,6 +3771,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     `;
     document.body.appendChild(backdrop);
     renderSubjectOptions(backdrop.querySelector('#es-subject'), session.subject);
+    const linkedSelect = backdrop.querySelector('#es-linked');
+    const sessionTasks = blocksForDateIn(state, new Date());
+    linkedSelect.innerHTML = '<option value="">No linked task</option>' + sessionTasks.map(b=>{
+      const label = b.label || subjectNameIn(b.subject, state);
+      return `<option value="${escapeHtml(b.id)}">${escapeHtml(label)} · ${subjectNameIn(b.subject,state)} · ${b.duration||30} min</option>`;
+    }).join('');
+    if(session.linkedTaskId) linkedSelect.value = session.linkedTaskId;
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
@@ -3583,7 +3796,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const newNote = backdrop.querySelector('#es-note').value.trim();
       const key = fmtDate(new Date());
       const s = (state.sessions[key]||[]).find(x=>x.id===session.id);
-      if(s){ s.subject = newSubject; s.duration = newDuration; s.note = newNote || null; }
+      if(s){
+         s.subject = newSubject;
+         s.duration = newDuration;
+         s.note = newNote || null;
+         s.linkedTaskId = backdrop.querySelector('#es-linked').value || null;
+       }
       await flushStateNow();
       renderSessions();
       renderGoalCard();
