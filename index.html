@@ -164,17 +164,8 @@
   .mode-switch button.mode-collapsed{ flex:0 0 0; width:0; padding:0; margin:0; opacity:0; pointer-events:none; }
   .mode-switch button.active{ background:var(--accent-dim); color:var(--accent); }
 
-  .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; min-height:230px; }
+  .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; }
   .ring-outer{ position:relative; width:230px; height:230px; }
-  .mode-face{ transition:opacity .22s ease, transform .22s ease, max-height .22s ease, margin .22s ease; }
-  .mode-face.mode-collapsed{ opacity:0; transform:scale(.96); max-height:0 !important; overflow:hidden; margin:0 !important; pointer-events:none; }
-  .focus-mode-icon{
-    position:absolute; top:10px; right:-8px; width:34px; height:34px; border-radius:50%;
-    border:1px solid var(--card-line); background:var(--card); color:var(--accent);
-    display:none; align-items:center; justify-content:center; font-size:17px; cursor:pointer;
-    z-index:4; box-shadow:0 5px 16px rgba(0,0,0,.28);
-  }
-  .focus-mode-icon.visible{ display:flex; }
   .ring-svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; }
   .ring-track{ fill:none; stroke:var(--card); stroke-width:14; }
   .ring-progress{
@@ -198,11 +189,9 @@
 
   /* ---------- Digital stopwatch (no dial — continuous count) ---------- */
   .stopwatch-face{
-    position:relative; width:230px; height:230px;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     min-height:230px; text-align:center;
   }
-  .stopwatch-face .stopwatch-focus-icon{ top:6px; right:-8px; }
   .sw-digits{ display:flex; align-items:baseline; font-family:'JetBrains Mono'; font-weight:700; color:var(--chalk); }
   .sw-main{ font-size:54px; letter-spacing:0.5px; transition: color .25s, text-shadow .25s; }
   .sw-sec{ font-size:22px; color:var(--chalk-faint); margin-left:2px; font-weight:600; }
@@ -316,7 +305,20 @@
   .btn-danger{ background:var(--c1-dim); color:var(--c1); border:1px solid rgba(var(--c1-rgb),0.3); }
 
   .session-log{ margin-top:26px; }
-  .session-log h3{ font-family:'Kalam'; font-size:18px; margin:0 0 10px; color:var(--chalk); }
+  .session-log h3{
+    font-family:'Kalam'; font-size:18px; margin:0 0 10px; color:var(--chalk);
+    display:flex; align-items:center; gap:8px;
+  }
+  .session-log-toggle{
+    background:none; border:none; color:var(--accent); font-size:13px; font-weight:900;
+    cursor:pointer; padding:2px 6px; opacity:0.85; line-height:1;
+  }
+  .session-log-toggle:active{ opacity:1; }
+  .task-pin-label{ font-size:11px; color:var(--accent); margin-top:16px; text-align:center; }
+  .task-pin-edit{
+    background:none; border:none; color:var(--chalk-faint); font-size:10.5px; cursor:pointer;
+    text-decoration:underline; padding:0 0 0 4px;
+  }
   .session-item{
     display:flex; align-items:center; justify-content:space-between;
     padding:10px 12px; background:var(--card); border-radius:12px; margin-bottom:8px;
@@ -541,18 +543,20 @@
   }
 
   .task-pin-btn{
-    flex:0 0 auto; width:44px; height:44px; border-radius:50%; background:var(--card); border:1px solid var(--card-line);
-    font-size:17px; cursor:pointer; color:var(--chalk-faint); display:flex; align-items:center; justify-content:center;
+    flex:0 0 auto; width:40px; height:40px; border-radius:12px; background:var(--card); border:1px solid var(--card-line);
+    font-size:16px; cursor:pointer; color:var(--chalk-faint);
   }
   .task-pin-btn.pinned{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
-  .task-pin-btn:active{ transform:scale(.96); }
-  .timer-link-btn{ margin:0; }
-  .task-pin-label{ font-size:11px; color:var(--accent); margin:-14px 0 8px; text-align:center; width:100%; }
 
   .week-day{ margin-bottom:20px; }
 
   /* ---------- distraction-free focus mode ---------- */
-  .focus-toggle-btn{ display:none !important; }
+  .focus-toggle-btn{
+    display:none; width:100%; margin-top:12px; background:var(--accent-dim); border:1px solid var(--accent);
+    color:var(--accent); font-size:13px; font-weight:700; padding:11px 0; border-radius:12px; cursor:pointer; letter-spacing:0.3px;
+    position:relative; z-index:2;
+  }
+  .focus-toggle-btn.visible{ display:block; }
   .focus-exit-btn{
     display:none; position:fixed; top:16px; right:16px; z-index:500; background:var(--c1);
     border:none; color:var(--ink); font-weight:700; font-size:12px; padding:9px 16px; border-radius:20px; cursor:pointer;
@@ -564,15 +568,18 @@
 
   body.focus-active{ background:var(--board); }
   body.focus-active header.top,
-  body.focus-active .profile-zone,
-  body.focus-active .people-row,
+  body.focus-active .group-bar-wrap,
+  body.focus-active .shared-people-wrap,
+  body.focus-active .people-collapse-btn,
   body.focus-active .snap-row,
   body.focus-active nav.tabs,
   body.focus-active #goalCard,
   body.focus-active #friendTimerBanner,
   body.focus-active .session-log,
+  body.focus-active .focus-toggle-btn,
   body.focus-active .field-row,
-  body.focus-active .mode-switch{
+  body.focus-active .mode-switch,
+  body.focus-active .timer-controls{
     display:none !important;
   }
   body.focus-active main{ padding-bottom:0; }
@@ -581,45 +588,17 @@
   }
   body.focus-active .focus-exit-btn{ display:block; }
   body.focus-active .ring-outer, body.focus-active .stopwatch-face{ transform: scale(1.15); }
-  body.focus-active .focus-mode-icon{ display:none !important; }
-  body.focus-active .timer-controls{ margin-top:26px; max-width:280px; }
+  body.focus-active .task-pin-label{ margin-top:24px; font-size:13px; }
   .history-day{ margin-bottom:22px; }
   .history-day-heading{
     font-family:'Kalam'; font-size:16px; color:var(--chalk-dim); margin:0 0 8px; letter-spacing:0.2px;
     padding-bottom:6px; border-bottom:1px solid var(--card-line);
-  }
-  .week-nav{
-    display:flex; align-items:center; justify-content:space-between; gap:6px;
-    margin:6px 0 18px; background:var(--card); border:1px solid var(--card-line); border-radius:14px; padding:8px 6px;
   }
   .week-nav-arrow{
     width:32px; height:32px; border-radius:10px; background:none; border:none; color:var(--chalk);
     font-size:18px; cursor:pointer; flex:0 0 auto;
   }
   .week-nav-arrow:active{ background:var(--accent-dim); }
-  .week-nav-mid{ flex:1; min-width:0; text-align:center; }
-  .week-nav-dates{
-    display:flex; align-items:center; justify-content:space-between; font-family:'JetBrains Mono';
-    font-size:10.5px; color:var(--chalk-faint); padding:0 4px;
-  }
-  .week-nav-sep{ opacity:0.5; }
-  .week-nav-label{ font-family:'Kalam'; font-size:15px; color:var(--chalk); }
-  .week-nav-pen{
-    width:30px; height:30px; border-radius:10px; background:none; border:none; color:var(--chalk-faint);
-    font-size:13px; cursor:pointer; flex:0 0 auto;
-  }
-  .week-day h4{
-    font-family:'Kalam'; font-size:17px; margin:0 0 8px; color:var(--chalk);
-    display:flex; align-items:center; gap:8px;
-  }
-  .week-day h4 .count{ font-family:'Inter'; font-size:11px; color:var(--chalk-faint); font-weight:500; }
-  .block-chip{
-    display:flex; align-items:center; justify-content:space-between;
-    background:var(--card); border:1px solid var(--card-line); border-left:4px solid var(--c1);
-    border-radius:10px; padding:10px 12px; margin-bottom:6px; font-size:13px;
-  }
-  .block-chip .left{ display:flex; flex-direction:column; }
-  .block-chip .t{ font-family:'JetBrains Mono'; font-size:11px; color:var(--chalk-faint); }
 
   /* ---------- Modal ---------- */
   .modal-backdrop{
@@ -648,40 +627,40 @@
   .day-toggle.sel{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
   .close-x{ position:absolute; top:20px; right:20px; background:none; border:none; color:var(--chalk-faint); font-size:20px; cursor:pointer; }
 
-  /* ---------- persistent profile row / group controls ---------- */
-  .profile-zone{ padding:0 16px 10px; }
-  .profile-collapse-bar{
-    min-height:18px; height:18px; display:flex; align-items:center; justify-content:space-between; gap:8px;
-    margin:0 -2px 2px; overflow:hidden;
+  /* ---------- Group bar (Live screen only) ---------- */
+  .group-bar-wrap{
+    display:flex; align-items:center; gap:8px; padding:0 16px 14px;
   }
-  .profile-collapse-btn{
-    width:24px; height:18px; border:none; background:transparent; color:var(--chalk-faint);
-    font-size:11px; line-height:1; padding:0; cursor:pointer; border-radius:6px;
-  }
-  .profile-collapse-btn:active{ background:var(--accent-dim); }
-  .live-group-controls{ display:none; align-items:center; justify-content:flex-end; gap:6px; margin-left:auto; }
-  body.screen-live-active .live-group-controls{ display:flex; }
-  .people-row{
-    display:flex; align-items:center; gap:8px; overflow-x:auto; scrollbar-width:none;
-    max-height:58px; opacity:1; transition:max-height .2s ease, opacity .18s ease, margin .2s ease;
-  }
-  .people-row::-webkit-scrollbar{ display:none; }
-  .people-row.collapsed{ max-height:0; opacity:0; margin:0; pointer-events:none; }
-
   .group-chip{
     flex:0 0 auto; display:flex; align-items:center; gap:6px; max-width:130px;
     background:var(--card); border:1px solid var(--card-line); border-radius:20px;
-    padding:5px 9px; cursor:pointer; font-size:11px; font-weight:700; color:var(--chalk);
+    padding:6px 10px; cursor:pointer; font-size:12px; font-weight:700; color:var(--chalk);
   }
   .group-chip span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .group-chip .group-bar-arrow{ margin-left:0; }
   .group-chip-info{
-    flex:0 0 auto; width:28px; height:28px; border-radius:50%; background:var(--card); border:1px solid var(--card-line);
-    color:var(--chalk-dim); font-size:13px; cursor:pointer; line-height:1;
+    flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:14px; cursor:pointer; line-height:1;
   }
-  .row-divider{ display:none; }
+  .row-divider{ flex:0 0 auto; width:1px; height:26px; background:var(--card-line); margin:0 2px; }
   .group-bar-arrow{ color:var(--chalk-faint); font-size:11px; flex:0 0 auto; }
   .deadline-tag{ font-size:10px; font-weight:600; color:var(--c1); margin-left:4px; }
+
+  /* ---------- People row (Now / Today / Plan) — collapsible ---------- */
+  .shared-people-wrap{ display:flex; flex-direction:column; margin:0 16px 6px; position:relative; z-index:6; }
+  .shared-people-wrap .people-row{ order:2; padding:0 0 8px; overflow-x:auto; scrollbar-width:none; }
+  .shared-people-wrap .people-row::-webkit-scrollbar{ display:none; }
+  .people-collapse-btn{
+    order:1; flex:0 0 auto; width:100%; min-height:0;
+    display:flex; align-items:center; justify-content:center;
+    background:none; border:none; padding:8px 0; margin:0;
+    color:var(--accent); opacity:0.8; cursor:pointer; font-size:15px; font-weight:900; line-height:1;
+  }
+  .people-collapse-btn:active{ opacity:1; }
+  .people-collapse-btn::before{ content:'▾'; }
+  .shared-people-wrap:not(.collapsed) .people-collapse-btn::before{ content:'▴'; }
+  .shared-people-wrap.collapsed .people-row{ display:none; }
+  .shared-people-wrap.collapsed{ margin-bottom:2px; }
 
   .grp-list-item{
     display:flex; align-items:center; justify-content:space-between; background:var(--card);
@@ -715,7 +694,7 @@
   .switch input:checked + .slider{ background:var(--accent); }
   .switch input:checked + .slider:before{ transform:translateX(18px); }
 
-  /* ---------- People switcher (now nested inside .group-people-row) ---------- */
+  /* ---------- People switcher (Now / Today / Plan) ---------- */
   .people-row{
     display:flex; gap:8px; flex:0 0 auto;
   }
@@ -1081,18 +1060,17 @@
     </div>
   </header>
 
-  <div class="profile-zone">
-    <div class="profile-collapse-bar">
-      <button type="button" class="profile-collapse-btn" id="profileCollapseBtn" aria-expanded="true" title="Collapse profiles">⌃</button>
-      <div class="live-group-controls" id="liveGroupControls">
-        <button class="group-chip" id="groupBar">
-          <span id="groupBarLabel">Loading…</span>
-          <span class="group-bar-arrow">▾</span>
-        </button>
-        <button class="group-chip-info" id="groupBarInfo" title="Group details, QR & invite">⋯</button>
-      </div>
-    </div>
-    <div class="people-row profile-people-row" id="peopleRow"></div>
+  <div class="group-bar-wrap" id="groupBarWrap" style="display:none;">
+    <button class="group-chip" id="groupBar">
+      <span id="groupBarLabel">Loading…</span>
+      <span class="group-bar-arrow">▾</span>
+    </button>
+    <button class="group-chip-info" id="groupBarInfo" title="Group details, QR & invite">⋯</button>
+  </div>
+
+  <div class="shared-people-wrap" id="sharedPeopleWrap">
+    <div class="people-row" id="peopleRow"></div>
+    <button type="button" class="people-collapse-btn" id="peopleCollapseBtn" title="Collapse people"></button>
   </div>
 
   <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
@@ -1104,14 +1082,15 @@
     <section class="screen active" id="screen-timer">
       <div class="friend-timer-card" id="friendTimerBanner" style="display:none;"></div>
 
-      <select id="timerSubject" aria-hidden="true" tabindex="-1" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></select>
       <div id="timerControlsWrap">
-        <div class="mode-switch">
+        <div class="mode-switch mode-fade">
           <button id="modeStopwatch" class="active">Stopwatch</button>
           <button id="modeCountdown">Focus Timer</button>
         </div>
 
-        <div class="field-row" id="countdownLenRow" style="display:none;">
+        <select id="timerSubject" style="display:none;"></select>
+
+        <div class="field-row mode-fade" id="countdownLenRow" style="display:none;">
           <label>Length</label>
           <div class="dur-chip-row" id="countdownLenChips">
             <div class="dur-chip" data-preset="30"><span class="dur-min">30 min</span></div>
@@ -1124,7 +1103,7 @@
         </div>
 
         <div class="timer-ring-wrap">
-          <div class="ring-outer mode-face" id="ringOuter" style="display:none;">
+          <div class="ring-outer" id="ringOuter" style="display:none;">
             <svg viewBox="0 0 220 220" class="ring-svg">
               <circle cx="110" cy="110" r="100" class="ring-track"></circle>
               <circle cx="110" cy="110" r="100" class="ring-progress" id="ringProgress"></circle>
@@ -1133,30 +1112,29 @@
               <div class="timer-digits" id="timerDigits">00:00:00</div>
               <div class="timer-label" id="timerStatus">ready</div>
             </div>
-            <button type="button" class="focus-mode-icon" id="focusToggleBtn" aria-label="Enter focus mode" title="Focus mode">🧘</button>
           </div>
-          <div class="stopwatch-face mode-face" id="stopwatchFace">
+          <div class="stopwatch-face" id="stopwatchFace">
             <div class="sw-digits">
               <span class="sw-main" id="swMain">00:00</span><span class="sw-sec" id="swSec">:00</span>
             </div>
             <div class="timer-label" id="swStatus">ready</div>
-            <button type="button" class="focus-mode-icon stopwatch-focus-icon" id="focusToggleBtnSw" aria-label="Enter focus mode" title="Focus mode">🧘</button>
           </div>
         </div>
 
         <div class="timer-controls">
           <button class="btn btn-ghost" id="resetBtn">Reset/Stop</button>
-          <button type="button" class="task-pin-btn timer-link-btn" id="taskPinBtn" title="Link this timer to a daily task" aria-label="Link this timer to a daily task">📌</button>
+          <button type="button" class="task-pin-btn" id="taskPinBtn" title="Link to a daily task (optional)">📌</button>
           <button class="btn btn-primary" id="startBtn">Start</button>
         </div>
+        <button type="button" class="focus-toggle-btn" id="focusToggleBtn">🧘 Enter focus mode</button>
         <div id="taskPinLabel" class="task-pin-label" style="display:none;"></div>
       </div>
 
       <div class="goal-card" id="goalCard" style="display:none;"></div>
 
       <div class="session-log">
-        <h3 id="sessionListTitle">Today's sessions</h3>
-        <div id="sessionList"></div>
+        <h3><span id="sessionListTitle">Today's sessions</span> <button type="button" class="session-log-toggle" id="sessionLogToggle" title="Show today's sessions">▾</button></h3>
+        <div id="sessionList" style="display:none;"></div>
       </div>
     </section>
 
@@ -1249,6 +1227,9 @@ import {
   getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
+  getDatabase, ref as rtdbRef, set as rtdbSet, get as rtdbGet, onValue as rtdbOnValue
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, updateProfile
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
@@ -1262,10 +1243,14 @@ const firebaseConfig = {
   projectId: "study-board-6c9d0",
   storageBucket: "study-board-6c9d0.firebasestorage.app",
   messagingSenderId: "706066762938",
-  appId: "1:706066762938:web:6e0cde4838353927b74683"
+  appId: "1:706066762938:web:6e0cde4838353927b74683",
+  // TODO: paste your Realtime Database URL here — Firebase console → Realtime Database →
+  // top of the Data tab, looks like "https://study-board-6c9d0-default-rtdb.<region>.firebasedatabase.app"
+  databaseURL: "https://study-board-6c9d0-default-rtdb.firebaseio.com"
 };
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
+const rtdb = getDatabase(fbApp); // live status + snapshots only — never anything that must be durable
 const auth = getAuth(fbApp);
 // NOTE: intentionally NOT calling enableIndexedDbPersistence() here. Safari/WebKit's
 // IndexedDB (which is what every iPhone, iPad, and home-screen PWA on this project
@@ -1384,12 +1369,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
     weeklyGoals: [], // {id, title, subject, type:'flexible', unit:'hours'|'sessions'|'count', target, planId, note, manualAdjust, createdAt}
     plans: [], // {id, startDate:'YYYY-MM-DD', endDate:'YYYY-MM-DD', label, createdAt} — a fixed-date record. Dates never change after creation.
     themeMode: 'dark',      // 'dark' | 'light'
-    themePalette: 'cyan'    // one of PALETTES ids
+    themePalette: 'cyan',   // one of PALETTES ids
+    schemaVersion: 0         // 0 = unmigrated/legacy. Bumped to CURRENT_SCHEMA_VERSION once migrateLegacyWeeklyTemplate
+                              // has run against this user's real server data — do not default this to the current
+                              // version, or existing users whose saved data predates this field would wrongly skip migration.
   };
 
   let selectedDate = new Date();
   let currentScreen = 'timer';
-  document.body.classList.add('screen-timer-active');
 
   let me = null;              // {id, name, color}
   let allProfiles = [];       // global directory: everyone who has ever registered (for name/color/photo lookup)
@@ -1457,7 +1444,19 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // loaded from the live server (not a possibly-stale offline cache) — saving
   // data built from a stale cache would permanently erase anything a
   // different device added since this device's cache was last refreshed.
-  function migrateLegacyWeeklyTemplate(fromFreshServerData){
+  // Writes a full, timestamped, never-overwritten copy of the board to a separate
+  // collection before any risky transform runs. If a future migration ever has a bug,
+  // this is the recovery copy — completely independent of the once-a-day backup below.
+  async function backupNow(tag){
+    if(!me) return;
+    try{
+      const backupRef = doc(db, 'boardBackups', me.id + '_' + tag + '_' + Date.now());
+      await setDoc(backupRef, { uid: me.id, tag, savedAt: Date.now(), value: state });
+    }catch(e){ console.warn('backupNow(' + tag + ') failed', e); }
+  }
+  const CURRENT_SCHEMA_VERSION = 2; // bump this, and add a new migration below, for any future structural change
+  async function migrateLegacyWeeklyTemplate(fromFreshServerData){
+    if((state.schemaVersion||0) >= CURRENT_SCHEMA_VERSION) return; // already migrated — never re-run this against real data
     let changed = false;
     if(state.weeklyTemplate && state.weeklyTemplate.length){
       const before = state.weeklyTemplate.length;
@@ -1467,6 +1466,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const legacyStarts = new Set();
     (state.weeklyTemplate||[]).forEach(b=>{ if(b.weekStart && !b.planId) legacyStarts.add(b.weekStart); });
     (state.weeklyGoals||[]).forEach(g=>{ if(g.weekStart && !g.planId) legacyStarts.add(g.weekStart); });
+    if(legacyStarts.size && fromFreshServerData){
+      await backupNow('premigration_v'+CURRENT_SCHEMA_VERSION); // snapshot the exact pre-transform data first
+    }
     if(legacyStarts.size){
       state.plans = state.plans || [];
       legacyStarts.forEach(ws=>{
@@ -1487,6 +1489,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const start = new Date(); start.setHours(0,0,0,0); start.setDate(start.getDate()-start.getDay());
       const end = new Date(start); end.setDate(end.getDate()+6);
       state.plans = [{ id:'plan_'+Date.now(), startDate: fmtDate(start), endDate: fmtDate(end), label: null, createdAt: Date.now() }];
+      changed = true;
+    }
+    if(fromFreshServerData){
+      state.schemaVersion = CURRENT_SCHEMA_VERSION; // stamp so this never re-runs against this user's real data again
       changed = true;
     }
     if(changed && fromFreshServerData) saveState();
@@ -1589,7 +1595,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
     stateReadyToPersist = true;
     applyTheme();
-    migrateLegacyWeeklyTemplate(true);
+    await migrateLegacyWeeklyTemplate(true);
     maybeWriteDailyBackup();
     await loadUsersList();
     await loadMyGroupIds();
@@ -2137,6 +2143,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
     label.innerHTML = `📍 ${escapeHtml(activeGroupData.name)}${deadlineTag}`;
   }
+  function updateGroupBarVisibility(){
+    const wrap = document.getElementById('groupBarWrap');
+    if(wrap) wrap.style.display = (currentScreen==='live') ? 'flex' : 'none';
+  }
   document.getElementById('groupBar').addEventListener('click', ()=> openGroupsModal());
   document.getElementById('groupBarInfo').addEventListener('click', ()=>{
     if(activeGroupId) openGroupsModal(activeGroupId);
@@ -2544,8 +2554,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
 
+  let sharedPeopleCollapsed = false;
   function renderPeopleRow(){
+    const wrap = document.getElementById('sharedPeopleWrap');
     const el = document.getElementById('peopleRow');
+    if(wrap) wrap.style.display = (currentScreen==='live') ? 'none' : 'flex';
+    if(wrap) wrap.classList.toggle('collapsed', sharedPeopleCollapsed);
     if(!me){ el.innerHTML=''; return; }
     const others = usersList.filter(u=>u.id!==me.id);
     const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
@@ -2785,8 +2799,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       btn.classList.add('active');
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
       currentScreen = btn.dataset.screen;
-      document.body.classList.remove('screen-timer-active','screen-today-active','screen-week-active','screen-live-active','screen-history-active');
-      document.body.classList.add('screen-'+currentScreen+'-active');
       document.getElementById('screen-'+currentScreen).classList.add('active');
       if(currentScreen==='history' && !document.getElementById('historyDate').value){
         document.getElementById('historyDate').value = fmtDate(new Date());
@@ -2794,21 +2806,31 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const titles = {timer:['Now','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
       document.getElementById('headerTitle').textContent = titles[currentScreen][0];
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
+      setSessionLogExpanded(false); // collapses again every time you land on/leave the Now tab
+      updateGroupBarVisibility();
       render();
     });
   });
-  const profileCollapseBtn = document.getElementById('profileCollapseBtn');
-  const peopleRowEl = document.getElementById('peopleRow');
-  let profileRowCollapsed = false;
-  profileCollapseBtn.addEventListener('click', ()=>{
-    profileRowCollapsed = !profileRowCollapsed;
-    peopleRowEl.classList.toggle('collapsed', profileRowCollapsed);
-    profileCollapseBtn.textContent = profileRowCollapsed ? '⌄' : '⌃';
-    profileCollapseBtn.setAttribute('aria-expanded', String(!profileRowCollapsed));
-    profileCollapseBtn.title = profileRowCollapsed ? 'Expand profiles' : 'Collapse profiles';
+  document.getElementById('fabAdd').style.display = 'none';
+  updateGroupBarVisibility();
+
+  document.getElementById('peopleCollapseBtn').addEventListener('click', ()=>{
+    sharedPeopleCollapsed = !sharedPeopleCollapsed;
+    renderPeopleRow();
   });
 
-  document.getElementById('fabAdd').style.display = 'none';
+  // ---------- Today's sessions: collapsed by default, toggled by the arrow beside the heading ----------
+  let sessionLogExpanded = false;
+  function setSessionLogExpanded(expanded){
+    sessionLogExpanded = expanded;
+    const list = document.getElementById('sessionList');
+    const btn = document.getElementById('sessionLogToggle');
+    if(list) list.style.display = expanded ? 'block' : 'none';
+    if(btn){ btn.textContent = expanded ? '▴' : '▾'; btn.title = expanded ? 'Hide' : "Show today's sessions"; }
+  }
+  document.getElementById('sessionLogToggle').addEventListener('click', ()=>{
+    setSessionLogExpanded(!sessionLogExpanded);
+  });
 
   // ---------- TIMER LOGIC ----------
   let timerMode = 'stopwatch'; // or 'countdown'
@@ -2819,16 +2841,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let lastTick = null;
   let linkedTaskId = null; // optional: today's task this session's time should count toward
 
-  function getLinkedTask(){
-    if(!linkedTaskId) return null;
-    return blocksForDateIn(state, new Date()).find(x=>x.id===linkedTaskId) || null;
-  }
-  function syncTimerSubjectFromLink(){
-    const linked = getLinkedTask();
-    const select = document.getElementById('timerSubject');
-    if(linked && select) select.value = linked.subject || select.value;
-    return linked;
-  }
   function renderTaskPinLabel(){
     const labelEl = document.getElementById('taskPinLabel');
     const btn = document.getElementById('taskPinBtn');
@@ -2840,8 +2852,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const todayKey = fmtDate(new Date());
     const b = blocksForDateIn(state, new Date()).find(x=>x.id===linkedTaskId);
     labelEl.style.display = 'block';
-    labelEl.textContent = b ? `📌 linked to: ${b.label || subjectNameIn(b.subject, state)}` : '📌 linked task no longer exists today';
+    const canEdit = !timerRunning;
+    labelEl.innerHTML = b
+      ? `📌 linked to: ${escapeHtml(b.label || subjectNameIn(b.subject, state))}${canEdit ? ` <button type="button" class="task-pin-edit" id="taskPinEdit">✎ edit</button>` : ''}`
+      : '📌 linked task no longer exists today';
     btn.classList.add('pinned');
+    const editBtn = document.getElementById('taskPinEdit');
+    if(editBtn) editBtn.addEventListener('click', openTaskPinPicker);
   }
   function openTaskPinPicker(){
     if(timerRunning) return;
@@ -2876,7 +2893,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
       listEl.querySelectorAll('[data-tid]').forEach(item=>{
         item.addEventListener('click', ()=>{
           linkedTaskId = item.dataset.tid;
-          syncTimerSubjectFromLink();
+          const linkedBlock = todayBlocks.find(x=>x.id===linkedTaskId);
+          if(linkedBlock) document.getElementById('timerSubject').value = linkedBlock.subject; // keep the logged session's subject in step with the task it's linked to
           renderTaskPinLabel();
           close();
         });
@@ -2895,12 +2913,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('modeStopwatch').classList.toggle('active', mode==='stopwatch');
     document.getElementById('modeCountdown').classList.toggle('active', mode==='countdown');
     document.getElementById('countdownLenRow').style.display = mode==='countdown' ? 'block' : 'none';
-    const ring = document.getElementById('ringOuter');
-    const sw = document.getElementById('stopwatchFace');
-    ring.style.display = mode==='countdown' ? 'block' : 'none';
-    sw.style.display = mode==='countdown' ? 'none' : 'flex';
-    ring.classList.toggle('mode-collapsed', mode!=='countdown');
-    sw.classList.toggle('mode-collapsed', mode==='countdown');
+    document.getElementById('ringOuter').style.display = mode==='countdown' ? 'block' : 'none';
+    document.getElementById('stopwatchFace').style.display = mode==='countdown' ? 'none' : 'flex';
     updateRunningDeclutter();
   }
   // Hide the irrelevant mode button / unselected lengths once a session is
@@ -2917,6 +2931,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const customSelected = document.querySelector('#countdownLenChips .dur-chip.sel')?.dataset.preset === 'custom';
     const hideForRun = committed && timerMode==='countdown';
     customWrap.style.display = (customSelected && !hideForRun) ? 'block' : 'none';
+
+    // Fully tuck away the whole mode-switch row and the whole duration-length row
+    // once a session is underway — they're just clutter mid-session, and reappear
+    // in full the moment the session is actually Reset/Stopped.
+    document.querySelector('.mode-switch').classList.toggle('mode-collapsed', committed);
+    document.getElementById('countdownLenRow').classList.toggle('mode-collapsed', committed && timerMode==='countdown');
   }
   document.getElementById('modeStopwatch').addEventListener('click', ()=>{
     if(timerRunning) return;
@@ -3014,11 +3034,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // ---------- distraction-free focus mode ----------
   let wakeLockSentinel = null;
   function updateFocusToggleVisibility(){
-    ['focusToggleBtn','focusToggleBtnSw'].forEach(id=>{
-      const btn = document.getElementById(id);
-      if(btn) btn.classList.toggle('visible', timerRunning);
-    });
-    if(!timerRunning) exitFocusMode();
+    const btn = document.getElementById('focusToggleBtn');
+    if(btn) btn.classList.toggle('visible', timerRunning);
+    if(!timerRunning) exitFocusMode(); // can't stay in focus mode once the timer isn't running
   }
   async function enterFocusMode(){
     if(!timerRunning) return; // only enterable once a session is actually running
@@ -3031,13 +3049,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.body.classList.remove('focus-active');
     if(wakeLockSentinel){ wakeLockSentinel.release().catch(()=>{}); wakeLockSentinel = null; }
   }
-  ['focusToggleBtn','focusToggleBtnSw'].forEach(id=>{
-    const el = document.getElementById(id);
-    if(el) el.addEventListener('click', (e)=>{
-      e.preventDefault();
-      e.stopPropagation();
-      enterFocusMode();
-    });
+  document.getElementById('focusToggleBtn').addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation(); // otherwise this same tap bubbles to the body listener below and instantly exits again
+    enterFocusMode();
   });
   document.getElementById('focusExitBtn').addEventListener('click', (e)=>{
     e.preventDefault();
@@ -3074,8 +3089,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.getElementById('startBtn').textContent = 'Pause';
       setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
       tickHandle = setInterval(tick, 250);
-      const linkedTask = syncTimerSubjectFromLink();
-      const subjectId = linkedTask?.subject || document.getElementById('timerSubject').value;
+      const subjectId = document.getElementById('timerSubject').value;
       setLiveStatus({
         studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
         mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
@@ -3083,6 +3097,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
       startSnapshotScheduler();
       updateFocusToggleVisibility();
       updateRunningDeclutter();
+      renderTaskPinLabel();
+      startLiveUiTicker();
       notifyFirstSessionOfDayIfNeeded();
     } else {
       pauseTimer();
@@ -3098,6 +3114,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stopSnapshotScheduler();
     updateFocusToggleVisibility();
     updateRunningDeclutter();
+    renderTaskPinLabel();
+    stopLiveUiTicker();
+    renderGoalCard(); renderPeopleRow(); // one final refresh so the paused numbers are exact
   }
   const MAX_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours — auto-stop safety cap
   function tick(){
@@ -3237,6 +3256,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     lastMilestoneHourLocal = 0;
     updateFocusToggleVisibility();
     updateRunningDeclutter();
+    renderTaskPinLabel();
+    stopLiveUiTicker();
+    renderGoalCard(); renderPeopleRow();
   }
   function finishSession(completed, reason){
     timerRunning = false;
@@ -3287,6 +3309,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     lastMilestoneHourLocal = 0;
     updateFocusToggleVisibility();
     updateRunningDeclutter();
+    renderTaskPinLabel();
+    stopLiveUiTicker();
+    renderGoalCard(); renderPeopleRow();
     if(justLoggedSession && reason!=='autostop' && durationMin >= 1){
       promptSessionNote(justLoggedSession, key);
     }
@@ -3434,6 +3459,23 @@ window.storage = storage; // keep the rest of the app's code unchanged
     else if(timerRunning){ startSnapshotScheduler(); }
   });
 
+  // ---------- live UI ticker: keeps goal card / people row / linked-task progress / analyse
+  // page in sync with the running session every second, instead of only updating once the
+  // session finishes and gets saved ----------
+  let liveUiTickHandle = null;
+  function startLiveUiTicker(){
+    if(liveUiTickHandle) return; // already running
+    liveUiTickHandle = setInterval(()=>{
+      renderGoalCard();
+      renderPeopleRow();
+      if(currentScreen==='today') renderTaskList();
+      if(currentScreen==='history') renderHistory();
+    }, 1000);
+  }
+  function stopLiveUiTicker(){
+    if(liveUiTickHandle){ clearInterval(liveUiTickHandle); liveUiTickHandle = null; }
+  }
+
   function isSnapshotStale(st){
     if(!st || !st.snapshotAt) return false;
     // scale the stale window to whatever frequency that person actually broadcasts at,
@@ -3516,13 +3558,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderPeopleRow(); renderSnapRow();
     updateFriendTimerCard();
     try{
-      await setDoc(doc(db, 'liveStatus', me.id), merged, { merge:true });
+      await rtdbSet(rtdbRef(rtdb, 'liveStatus/' + me.id), merged);
     }catch(e){ console.error('live status failed', e); }
   }
   async function getLiveStatus(uid){
     try{
-      const snap = await getDoc(doc(db, 'liveStatus', uid));
-      return snap.exists() ? snap.data() : null;
+      const snap = await rtdbGet(rtdbRef(rtdb, 'liveStatus/' + uid));
+      return snap.exists() ? snap.val() : null;
     }catch(e){ return null; }
   }
   async function refreshLiveStatuses(){
@@ -3570,8 +3612,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let selfLiveUnsub = null;
   function subscribeSelfLiveStatus(){
     if(selfLiveUnsub) selfLiveUnsub();
-    selfLiveUnsub = onSnapshot(doc(db, 'liveStatus', me.id), (snap)=>{
-      const st = snap.exists() ? snap.data() : null;
+    selfLiveUnsub = rtdbOnValue(rtdbRef(rtdb, 'liveStatus/' + me.id), (snap)=>{
+      const st = snap.exists() ? snap.val() : null;
       liveCache[me.id] = st;
       reconcileLocalTimerFromRemote(st);
       renderPeopleRow(); renderSnapRow();
@@ -3595,9 +3637,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
         tickHandle = setInterval(tick, 250);
         if(st.subject) document.getElementById('timerSubject').value = st.subject;
         document.getElementById('startBtn').textContent = 'Pause';
-        setStatusText(st.mode==='countdown' ? 'focusing… (synced)' : 'running… (synced)');
+        setStatusText(st.mode==='countdown' ? 'focusing…' : 'running…');
         renderTimerDigits();
         updateRunningDeclutter();
+        startLiveUiTicker();
       }
     } else {
       // Remote says nothing is running. If this device still thinks it's running, another
@@ -3612,6 +3655,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
         setStatusText(elapsedMs>0 ? 'paused (stopped on another device)' : 'ready');
         renderTimerDigits();
         updateRunningDeclutter();
+        stopLiveUiTicker();
+        renderGoalCard(); renderPeopleRow();
       }
     }
   }
@@ -3751,11 +3796,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <select id="es-subject"></select>
         </div>
         <div class="field-row">
-          <label>Linked task</label>
-          <select id="es-linked"><option value="">No linked task</option></select>
-          <div style="font-size:10.5px; color:var(--chalk-faint); margin-top:5px;">You can link this session now even if it was started without a link.</div>
-        </div>
-        <div class="field-row">
           <label>Duration (minutes)</label>
           <input type="number" id="es-duration" min="1" step="1" value="${Math.round(session.duration)}">
         </div>
@@ -3771,13 +3811,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     `;
     document.body.appendChild(backdrop);
     renderSubjectOptions(backdrop.querySelector('#es-subject'), session.subject);
-    const linkedSelect = backdrop.querySelector('#es-linked');
-    const sessionTasks = blocksForDateIn(state, new Date());
-    linkedSelect.innerHTML = '<option value="">No linked task</option>' + sessionTasks.map(b=>{
-      const label = b.label || subjectNameIn(b.subject, state);
-      return `<option value="${escapeHtml(b.id)}">${escapeHtml(label)} · ${subjectNameIn(b.subject,state)} · ${b.duration||30} min</option>`;
-    }).join('');
-    if(session.linkedTaskId) linkedSelect.value = session.linkedTaskId;
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
@@ -3796,12 +3829,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const newNote = backdrop.querySelector('#es-note').value.trim();
       const key = fmtDate(new Date());
       const s = (state.sessions[key]||[]).find(x=>x.id===session.id);
-      if(s){
-         s.subject = newSubject;
-         s.duration = newDuration;
-         s.note = newNote || null;
-         s.linkedTaskId = backdrop.querySelector('#es-linked').value || null;
-       }
+      if(s){ s.subject = newSubject; s.duration = newDuration; s.note = newNote || null; }
       await flushStateNow();
       renderSessions();
       renderGoalCard();
@@ -3847,7 +3875,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
           let checkInner = status==='done'?'✓':(status==='missed'?'✕':(status==='moved'?'➡️':''));
           let checkExtraClass = '';
           if(isToday){
-            const linkedMin = (state.sessions[dateKey]||[]).filter(s=>s.linkedTaskId===b.id).reduce((s,x)=>s+(x.duration||0),0);
+            let linkedMin = (state.sessions[dateKey]||[]).filter(s=>s.linkedTaskId===b.id).reduce((s,x)=>s+(x.duration||0),0);
+            if(timerRunning && linkedTaskId===b.id) linkedMin += elapsedMs/60000; // live, not-yet-saved time on this exact task
             if(linkedMin > 0 && status!=='missed'){
               const pct = Math.min(100, Math.round((linkedMin/(b.duration||30))*100));
               if(pct >= 100 && status!=='done'){
