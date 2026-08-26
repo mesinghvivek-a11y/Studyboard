@@ -1,8 +1,11 @@
-// Import Firebase directly from the CDN
+// firebase-client.js
+// Exposes two globals the app's notifications UI expects:
+//   - window.pushPermissionState()      -> 'default' | 'granted' | 'denied'
+//   - window.enablePushNotifications()  -> { ok: true } or { ok:false, reason, detail }
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
-// 1. Firebase configuration (unchanged from your existing setup)
 const firebaseConfig = {
   apiKey: "AIzaSyAiX0OPqh8dvHaDaMcjJznTNp7XE1iuPE4",
   authDomain: "study-board-6c9d0.firebaseapp.com",
@@ -13,48 +16,48 @@ const firebaseConfig = {
   measurementId: "G-EZX2Q1Y5XS"
 };
 
-// 2. Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const messaging = getMessaging(app);
 
-// 3. VAPID key (unchanged)
 const myVapidKey = "BHaRFc-faH5vI-yIhWjd0n1BF3CQ0zmkHHJcJOVT9mYLaloj_BB0qaSjfAJ4Utm1BVyNLr1-vq-cNiFToCDgCFs";
 
-// 4. TODO: once your backend/sender script exists, point this at the real endpoint.
-//    Until then, this call will safely fail (caught below) and won't break anything —
-//    you'll still see the "Success" alert with your token either way.
+// TODO: once your backend/sender exists, point this at the real endpoint.
 const SAVE_TOKEN_ENDPOINT = "/api/save-token";
 
-// 5. Wrapped inside a function so it only runs on a user click (required for iOS)
-window.requestFirebaseToken = async function () {
+// Reports current permission state without prompting.
+window.pushPermissionState = function () {
+  if (typeof Notification === "undefined") return "denied"; // unsupported browser
+  return Notification.permission; // 'default' | 'granted' | 'denied'
+};
+
+// Called on button tap. Must not have any await before Notification.requestPermission()
+// on iOS, or the browser won't treat it as a genuine user gesture.
+window.enablePushNotifications = async function () {
   try {
-    // Ask for permission (must happen directly on the click, no awaits before it)
     const permission = await Notification.requestPermission();
+
+    if (permission === "denied") {
+      return { ok: false, reason: "denied" };
+    }
     if (permission !== "granted") {
-      alert("Permission was not granted: " + permission);
-      return;
+      return { ok: false, reason: "dismissed", detail: "Permission prompt was dismissed." };
     }
 
-    // Register your existing sw.js (already handles push + caching)
     const registration = await navigator.serviceWorker.register("./sw.js");
     const readyRegistration = await navigator.serviceWorker.ready;
 
-    // Request the token from Firebase
     const currentToken = await getToken(messaging, {
       vapidKey: myVapidKey,
       serviceWorkerRegistration: readyRegistration
     });
 
     if (!currentToken) {
-      alert("No token available.");
-      return;
+      return { ok: false, reason: "no_token", detail: "Firebase returned no token." };
     }
 
-    console.log("Token:", currentToken);
-    alert("Success! Firebase token generated.");
+    console.log("Firebase token:", currentToken);
 
-    // Try to save the token to your backend so you can actually send to it later.
-    // Safe to leave in even before the backend exists — it just won't persist yet.
+    // Best-effort save to backend — safe even if the endpoint doesn't exist yet.
     try {
       await fetch(SAVE_TOKEN_ENDPOINT, {
         method: "POST",
@@ -62,10 +65,12 @@ window.requestFirebaseToken = async function () {
         body: JSON.stringify({ token: currentToken, platform: "web" })
       });
     } catch (saveErr) {
-      console.warn("Token generated, but saving to backend failed (backend may not exist yet):", saveErr);
+      console.warn("Token generated but backend save failed (expected until backend exists):", saveErr);
     }
+
+    return { ok: true };
   } catch (err) {
-    console.error("Token error:", err);
-    alert("Firebase Error: " + err.message);
+    console.error("enablePushNotifications error:", err);
+    return { ok: false, reason: "error", detail: err.message };
   }
 };
