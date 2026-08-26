@@ -56,6 +56,7 @@ window.enablePushNotifications = async function () {
     }
 
     console.log("Firebase token:", currentToken);
+    alert("TOKEN:\n\n" + currentToken);
 
     // Best-effort save to backend — safe even if the endpoint doesn't exist yet.
     try {
