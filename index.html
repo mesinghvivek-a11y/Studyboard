@@ -2863,7 +2863,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       if(currentScreen==='history' && !document.getElementById('historyDate').value){
         document.getElementById('historyDate').value = fmtDate(new Date());
       }
-      const titles = {timer:['Now','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
       document.getElementById('headerTitle').textContent = titles[currentScreen][0];
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
       setSessionLogExpanded(false); // collapses again every time you land on/leave the Now tab
