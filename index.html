@@ -185,6 +185,7 @@
     font-family:'JetBrains Mono'; font-weight:700; font-size:38px; letter-spacing:0.5px;
     color:var(--chalk);
   }
+  .timer-digits .tdig-ss{ font-size:0.6em; color:var(--chalk-faint); }
   .timer-label{ font-size:12px; color:var(--chalk-faint); margin-top:6px; letter-spacing:0.5px; }
 
   /* ---------- Digital stopwatch (no dial — continuous count) ---------- */
@@ -197,19 +198,27 @@
   .sw-sec{ font-size:22px; color:var(--chalk-faint); margin-left:2px; font-weight:600; }
   .stopwatch-face.running .sw-main{ color:var(--accent); text-shadow: 0 0 14px rgba(var(--accent-rgb),0.45); }
 
-  .dur-chip-row{ display:flex; gap:8px; }
-  .dur-chip{
-    flex:1; text-align:center; padding:8px 0; border-radius:12px; background:var(--card);
-    border:1px solid var(--card-line); color:var(--chalk-dim); cursor:pointer;
-    display:flex; flex-direction:column; align-items:center; gap:2px;
-    transition: flex .28s ease, opacity .22s ease, padding .28s ease, margin .28s ease, width .28s ease;
-    overflow:hidden;
+  /* ---------- Focus Timer length picker, integrated into the ring itself ---------- */
+  .ring-len-picker{
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center; gap:4px;
   }
-  .dur-chip.mode-collapsed{ flex:0 0 0; width:0; padding:0; margin:0; border-width:0; opacity:0; pointer-events:none; }
-  .dur-chip .dur-min{ font-size:13px; font-weight:600; }
-  .dur-chip .dur-tag{ font-size:9px; text-transform:uppercase; letter-spacing:0.4px; color:var(--chalk-faint); white-space:nowrap; }
-  .dur-chip.sel{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
-  .dur-chip.sel .dur-tag{ color:var(--accent); opacity:0.8; }
+  .rlp-col{ display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .rlp-arrow{
+    width:30px; height:20px; border-radius:7px; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:10px; cursor:pointer; padding:0; line-height:1;
+  }
+  .rlp-arrow:active{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
+  .rlp-wheel{
+    width:58px; height:120px; overflow-y:scroll; scroll-snap-type:y mandatory;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch; position:relative;
+  }
+  .rlp-wheel::-webkit-scrollbar{ display:none; }
+  .rlp-wheel .opt{
+    height:40px; display:flex; align-items:center; justify-content:center; scroll-snap-align:center;
+    font-family:'JetBrains Mono'; font-size:19px; font-weight:700; color:var(--chalk-faint); transition: color .15s;
+  }
+  .rlp-wheel .opt.center{ color:var(--chalk); font-size:23px; }
+  .rlp-colon{ font-family:'JetBrains Mono'; font-size:23px; font-weight:700; color:var(--chalk-dim); align-self:center; margin:24px 0 0; }
 
   /* ---------- wheel / dial picker (time & duration, no typing) ---------- */
   .wheel-picker{
@@ -327,8 +336,9 @@
   .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:8px; }
 
   /* ---------- Today screen ---------- */
+  .day-scroller-row{ display:flex; align-items:center; gap:8px; }
   .day-scroller{
-    display:flex; gap:8px; overflow-x:auto; padding:4px 0 18px; scrollbar-width:none;
+    display:flex; gap:8px; overflow-x:auto; padding:4px 0 18px; scrollbar-width:none; flex:1; min-width:0;
   }
   .day-scroller::-webkit-scrollbar{ display:none; }
   .day-chip{
@@ -339,24 +349,22 @@
   .day-chip .dname{ font-size:10px; color:var(--chalk-faint); letter-spacing:0.5px; }
   .day-chip.active .dname{ color:var(--accent); }
   .day-chip .dnum{ font-family:'JetBrains Mono'; font-weight:700; font-size:16px; margin-top:2px; color:var(--chalk); }
+  .jump-to-date-btn{
+    flex:0 0 auto; width:44px; height:44px; margin-bottom:14px; border-radius:14px;
+    background:var(--card); border:1px solid var(--card-line); font-size:17px; cursor:pointer; color:var(--chalk-dim);
+  }
+  .jump-to-date-btn:active{ background:var(--accent-dim); border-color:var(--accent); }
 
   .task-card{
     display:flex; align-items:flex-start; gap:12px;
     background:var(--card); border:1px solid var(--card-line); border-radius:14px;
     padding:14px; margin-bottom:10px;
-    position:relative; overflow:visible; 
+    position:relative;
   }
-  
-  .task-card:has(.task-menu.open) {
-    z-index: 50;
-  }
-
   .task-card.done{ opacity:0.45; }
-  
   .task-card > .progress-fill{
     position:absolute; top:0; left:0; bottom:0; z-index:0; opacity:0.16; pointer-events:none;
-    transition: width 1s linear;
-    border-radius: 14px;
+    transition: width 1s linear; border-radius:14px;
   }
   .task-card > .time, .task-card > .check, .task-card > .body, .task-card > .task-menu-wrap{
     position:relative; z-index:1;
@@ -1114,27 +1122,28 @@
 
         <select id="timerSubject" style="display:none;"></select>
 
-        <div class="field-row mode-fade" id="countdownLenRow" style="display:none;">
-          <label>Length</label>
-          <div class="dur-chip-row" id="countdownLenChips">
-            <div class="dur-chip" data-preset="30"><span class="dur-min">30 min</span></div>
-            <div class="dur-chip sel" data-preset="60"><span class="dur-min">1 hour</span></div>
-            <div class="dur-chip" data-preset="custom"><span class="dur-min">Custom</span></div>
-          </div>
-          <div id="customLenWrap" style="display:none; margin-top:10px;">
-            <div id="customLenWheel"></div>
-          </div>
-        </div>
-
         <div class="timer-ring-wrap">
           <div class="ring-outer" id="ringOuter" style="display:none;">
             <svg viewBox="0 0 220 220" class="ring-svg">
               <circle cx="110" cy="110" r="100" class="ring-track"></circle>
               <circle cx="110" cy="110" r="100" class="ring-progress" id="ringProgress"></circle>
             </svg>
-            <div class="timer-face">
-              <div class="timer-digits" id="timerDigits">00:00:00</div>
+            <div class="timer-face" id="ringDigitsFace">
+              <div class="timer-digits" id="timerDigits">00:00<span class="tdig-ss">:00</span></div>
               <div class="timer-label" id="timerStatus">ready</div>
+            </div>
+            <div class="ring-len-picker" id="ringLenPicker">
+              <div class="rlp-col">
+                <button type="button" class="rlp-arrow" id="rlpHUp">▲</button>
+                <div class="rlp-wheel" id="rlpHWheel"></div>
+                <button type="button" class="rlp-arrow" id="rlpHDown">▼</button>
+              </div>
+              <div class="rlp-colon">:</div>
+              <div class="rlp-col">
+                <button type="button" class="rlp-arrow" id="rlpMUp">▲</button>
+                <div class="rlp-wheel" id="rlpMWheel"></div>
+                <button type="button" class="rlp-arrow" id="rlpMDown">▼</button>
+              </div>
             </div>
           </div>
           <div class="stopwatch-face" id="stopwatchFace">
@@ -1166,7 +1175,11 @@
 
     <!-- TODAY SCREEN -->
     <section class="screen" id="screen-today">
-      <div class="day-scroller" id="dayScroller"></div>
+      <div class="day-scroller-row">
+        <div class="day-scroller" id="dayScroller"></div>
+        <button type="button" class="jump-to-date-btn" id="jumpToDateBtn" title="Jump to a date">📅</button>
+        <input type="date" id="jumpToDateInput" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;">
+      </div>
       <div id="taskList"></div>
     </section>
 
@@ -1253,7 +1266,7 @@ import {
   getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
-  getDatabase, ref as rtdbRef, set as rtdbSet, get as rtdbGet, onValue as rtdbOnValue
+  getDatabase, ref as rtdbRef, update as rtdbUpdate, get as rtdbGet, onValue as rtdbOnValue
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
@@ -1396,9 +1409,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     plans: [], // {id, startDate:'YYYY-MM-DD', endDate:'YYYY-MM-DD', label, createdAt} — a fixed-date record. Dates never change after creation.
     themeMode: 'dark',      // 'dark' | 'light'
     themePalette: 'cyan',   // one of PALETTES ids
-    schemaVersion: 0         // 0 = unmigrated/legacy. Bumped to CURRENT_SCHEMA_VERSION once migrateLegacyWeeklyTemplate
+    schemaVersion: 0,        // 0 = unmigrated/legacy. Bumped to CURRENT_SCHEMA_VERSION once migrateLegacyWeeklyTemplate
                               // has run against this user's real server data — do not default this to the current
                               // version, or existing users whose saved data predates this field would wrongly skip migration.
+    tombstones: {}           // { id: deletedAtTimestamp } — every deleted plan/task/goal/subject/session ID goes here so
+                              // that a merge with another device's stale (pre-deletion) copy can never bring it back.
   };
 
   let selectedDate = new Date();
@@ -1434,26 +1449,44 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let lastSyncAt = null;
   let syncStatus = 'stale'; // 'stale' | 'syncing' | 'ok' | 'err'
   let applyingRemote = false;
-  function mergeArraysById(localArr, remoteArr){
+  function tombstone(id){
+    if(id==null) return;
+    state.tombstones = state.tombstones || {};
+    state.tombstones[id] = Date.now();
+  }
+  function pruneOldTombstones(){
+    const cutoff = Date.now() - 120*24*3600*1000; // 120 days — long past any realistic stale-device window
+    const tb = state.tombstones || {};
+    let changed = false;
+    Object.keys(tb).forEach(id=>{ if(tb[id] < cutoff){ delete tb[id]; changed = true; } });
+    if(changed) saveState();
+  }
+  function mergeArraysById(localArr, remoteArr, tombstones){
+    const tb = tombstones || {};
     const byId = new Map();
-    (remoteArr||[]).forEach(it=>{ if(it && it.id!=null) byId.set(it.id, it); });
-    (localArr||[]).forEach(it=>{ if(it && it.id!=null && !byId.has(it.id)) byId.set(it.id, it); });
+    (remoteArr||[]).forEach(it=>{ if(it && it.id!=null && !tb[it.id]) byId.set(it.id, it); });
+    (localArr||[]).forEach(it=>{ if(it && it.id!=null && !tb[it.id] && !byId.has(it.id)) byId.set(it.id, it); });
     return Array.from(byId.values());
   }
-  function mergeKeyedArrayMaps(localMap, remoteMap){
+  function mergeKeyedArrayMaps(localMap, remoteMap, tombstones){
     const out = {};
     const keys = new Set([...Object.keys(localMap||{}), ...Object.keys(remoteMap||{})]);
-    keys.forEach(k=>{ out[k] = mergeArraysById((localMap||{})[k], (remoteMap||{})[k]); });
+    keys.forEach(k=>{ out[k] = mergeArraysById((localMap||{})[k], (remoteMap||{})[k], tombstones); });
     return out;
   }
   function mergeRemoteIntoState(remote){
     if(!remote) return;
-    state.subjects = mergeArraysById(state.subjects, remote.subjects);
-    state.weeklyTemplate = mergeArraysById(state.weeklyTemplate, remote.weeklyTemplate);
-    state.weeklyGoals = mergeArraysById(state.weeklyGoals, remote.weeklyGoals);
-    state.plans = mergeArraysById(state.plans, remote.plans);
-    state.dailyExtra = mergeKeyedArrayMaps(state.dailyExtra, remote.dailyExtra);
-    state.sessions = mergeKeyedArrayMaps(state.sessions, remote.sessions);
+    // Tombstones merge first, as a simple union — once any device has recorded an ID as
+    // deleted, it stays deleted everywhere. IDs are always freshly generated (timestamp-based),
+    // never reused, so a tombstoned ID can never collide with an unrelated new item later.
+    const tb = Object.assign({}, remote.tombstones||{}, state.tombstones||{});
+    state.tombstones = tb;
+    state.subjects = mergeArraysById(state.subjects, remote.subjects, tb);
+    state.weeklyTemplate = mergeArraysById(state.weeklyTemplate, remote.weeklyTemplate, tb);
+    state.weeklyGoals = mergeArraysById(state.weeklyGoals, remote.weeklyGoals, tb);
+    state.plans = mergeArraysById(state.plans, remote.plans, tb);
+    state.dailyExtra = mergeKeyedArrayMaps(state.dailyExtra, remote.dailyExtra, tb);
+    state.sessions = mergeKeyedArrayMaps(state.sessions, remote.sessions, tb);
     // completion is a flat {key: 'done'|'missed'} map with no per-key timestamp;
     // union it so a tick on one device never un-ticks what another device set.
     state.completion = Object.assign({}, remote.completion||{}, state.completion||{});
@@ -1622,6 +1655,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stateReadyToPersist = true;
     applyTheme();
     await migrateLegacyWeeklyTemplate(true);
+    pruneOldTombstones();
     maybeWriteDailyBackup();
     await loadUsersList();
     await loadMyGroupIds();
@@ -2834,6 +2868,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
       setSessionLogExpanded(false); // collapses again every time you land on/leave the Now tab
       updateGroupBarVisibility();
+      selectedDate = new Date(); // Today always opens on today — jump-to-date is a deliberate one-off action, not a sticky state
       render();
     });
   });
@@ -2866,6 +2901,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let tickHandle = null;
   let lastTick = null;
   let linkedTaskId = null; // optional: today's task this session's time should count toward
+  let openTaskMenuId = null; // which task's ⋮ menu is open — must survive renderTaskList's per-second re-render while a timer runs
 
   function renderTaskPinLabel(){
     const labelEl = document.getElementById('taskPinLabel');
@@ -2922,7 +2958,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           const linkedBlock = todayBlocks.find(x=>x.id===linkedTaskId);
           if(linkedBlock){
             document.getElementById('timerSubject').value = linkedBlock.subject; // keep the logged session's subject in step with the task it's linked to
-            if(timerMode==='countdown' && !timerRunning) applyLinkedTaskDurationToLength(linkedBlock.duration || 30);
+            if(timerMode==='countdown' && !timerRunning) applyLinkedTaskDurationToLength(remainingMinutesForTask(linkedBlock));
           }
           renderTaskPinLabel();
           close();
@@ -2935,22 +2971,18 @@ window.storage = storage; // keep the rest of the app's code unchanged
       close();
     });
   }
-  // Seeds the Focus Timer length from a just-linked task's own duration — still
+  // How much of this task's target is still left today — a task you're 20 of 30 min
+  // into should offer a 10-min focus timer, not the full 30 again.
+  function remainingMinutesForTask(b){
+    const dateKey = fmtDate(new Date());
+    const logged = (state.sessions[dateKey]||[]).filter(s=>s.linkedTaskId===b.id).reduce((s,x)=>s+(x.duration||0),0);
+    return Math.max(1, Math.round((b.duration||30) - logged));
+  }
+  // Seeds the Focus Timer length from a just-linked task's own remaining duration — still
   // fully editable afterward via the chips/wheel, this is just a helpful starting point.
   function applyLinkedTaskDurationToLength(minutes){
     countdownTotalMs = Math.max(1, minutes) * 60000;
-    const chips = document.querySelectorAll('#countdownLenChips .dur-chip');
-    const matchingChip = Array.from(chips).find(c=> c.dataset.preset!=='custom' && parseInt(c.dataset.preset,10)===minutes);
-    chips.forEach(c=>c.classList.remove('sel'));
-    const customWrap = document.getElementById('customLenWrap');
-    if(matchingChip){
-      matchingChip.classList.add('sel');
-      customWrap.style.display = 'none';
-    } else {
-      document.querySelector('#countdownLenChips .dur-chip[data-preset="custom"]').classList.add('sel');
-      customWrap.style.display = 'block';
-      customLenWheelHandle = createHourMinWheel(document.getElementById('customLenWheel'), minutes);
-    }
+    if(timerMode==='countdown') buildRingLenPicker();
     renderTimerDigits();
   }
   function playTaskOnNowPage(taskId){
@@ -2964,7 +2996,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(timerMode!=='countdown') document.getElementById('modeCountdown').click();
     linkedTaskId = b.id;
     document.getElementById('timerSubject').value = b.subject;
-    applyLinkedTaskDurationToLength(b.duration || 30);
+    applyLinkedTaskDurationToLength(remainingMinutesForTask(b));
     renderTaskPinLabel();
     document.getElementById('startBtn').click();
   }
@@ -2974,31 +3006,26 @@ window.storage = storage; // keep the rest of the app's code unchanged
     timerMode = mode;
     document.getElementById('modeStopwatch').classList.toggle('active', mode==='stopwatch');
     document.getElementById('modeCountdown').classList.toggle('active', mode==='countdown');
-    document.getElementById('countdownLenRow').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('ringOuter').style.display = mode==='countdown' ? 'block' : 'none';
     document.getElementById('stopwatchFace').style.display = mode==='countdown' ? 'none' : 'flex';
+    if(mode==='countdown') buildRingLenPicker();
     updateRunningDeclutter();
   }
-  // Hide the irrelevant mode button / unselected lengths once a session is
-  // "committed" (started, or paused mid-session) — before that, and after a
-  // full Reset/Stop, both options stay visible so you can freely switch your mind.
+  // Hide the irrelevant mode button, and swap the ring between the HH/MM length
+  // picker and the live countdown readout, once a session is "committed" (started,
+  // or paused mid-session) — before that, and after a full Reset/Stop, the picker
+  // stays interactive so you can freely change your mind.
   function updateRunningDeclutter(){
     const committed = timerRunning || elapsedMs > 0;
     document.getElementById('modeStopwatch').classList.toggle('mode-collapsed', committed && timerMode==='countdown');
     document.getElementById('modeCountdown').classList.toggle('mode-collapsed', committed && timerMode==='stopwatch');
-    document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>{
-      c.classList.toggle('mode-collapsed', committed && timerMode==='countdown' && !c.classList.contains('sel'));
-    });
-    const customWrap = document.getElementById('customLenWrap');
-    const customSelected = document.querySelector('#countdownLenChips .dur-chip.sel')?.dataset.preset === 'custom';
-    const hideForRun = committed && timerMode==='countdown';
-    customWrap.style.display = (customSelected && !hideForRun) ? 'block' : 'none';
-
-    // Fully tuck away the whole mode-switch row and the whole duration-length row
-    // once a session is underway — they're just clutter mid-session, and reappear
-    // in full the moment the session is actually Reset/Stopped.
     document.querySelector('.mode-switch').classList.toggle('mode-collapsed', committed);
-    document.getElementById('countdownLenRow').classList.toggle('mode-collapsed', committed && timerMode==='countdown');
+
+    const showPicker = timerMode==='countdown' && !committed;
+    const pickerEl = document.getElementById('ringLenPicker');
+    const digitsEl = document.getElementById('ringDigitsFace');
+    if(pickerEl) pickerEl.style.display = showPicker ? 'flex' : 'none';
+    if(digitsEl) digitsEl.style.display = showPicker ? 'none' : 'flex';
   }
   document.getElementById('modeStopwatch').addEventListener('click', ()=>{
     if(timerRunning) return;
@@ -3012,30 +3039,45 @@ window.storage = storage; // keep the rest of the app's code unchanged
     elapsedMs = 0;
     renderTimerDigits();
   });
-  let customLenWheelHandle = null;
-  function initCustomLenWheel(){
-    if(!customLenWheelHandle){
-      customLenWheelHandle = createHourMinWheel(document.getElementById('customLenWheel'), 60);
-    }
-  }
-  document.getElementById('countdownLenChips').querySelectorAll('.dur-chip').forEach(chip=>{
-    chip.addEventListener('click', ()=>{
-      if(timerRunning) return;
-      document.querySelectorAll('#countdownLenChips .dur-chip').forEach(c=>c.classList.remove('sel'));
-      chip.classList.add('sel');
-      const preset = chip.dataset.preset;
-      const customWrap = document.getElementById('customLenWrap');
-      if(preset==='custom'){
-        customWrap.style.display = 'block';
-        initCustomLenWheel();
-        countdownTotalMs = customLenWheelHandle.getValue() * 60000;
-      } else {
-        customWrap.style.display = 'none';
-        countdownTotalMs = parseInt(preset,10) * 60000;
-      }
+  // Builds (or rebuilds) the ring-integrated HH/MM length picker from whatever
+  // countdownTotalMs currently holds. Hours scroll 0-6, minutes 0-59 — both smoothly
+  // scrollable, and each also has a small ▲/▼ pair that moves exactly one unit per tap.
+  let ringLenWheels = null;
+  function buildRingLenPicker(){
+    const totalMin = Math.max(1, Math.round(countdownTotalMs/60000) || 60);
+    const hours = Array.from({length:7}, (_,i)=>i); // 0-6
+    const mins = Array.from({length:60}, (_,i)=>pad(i)); // 0-59, one-minute granularity
+    let ih = Math.min(6, Math.floor(totalMin/60));
+    let im = totalMin % 60;
+    const hWheel = buildWheelColumn(document.getElementById('rlpHWheel'), hours, hours.indexOf(ih), ()=> pushRingLenValue());
+    const mWheel = buildWheelColumn(document.getElementById('rlpMWheel'), mins, im, ()=> pushRingLenValue());
+    ringLenWheels = { hWheel, mWheel, hours, mins };
+    function pushRingLenValue(){
+      const h = ringLenWheels.hWheel.value, m = parseInt(ringLenWheels.mWheel.value,10);
+      countdownTotalMs = Math.max(1, h*60+m) * 60000;
       renderTimerDigits();
-    });
-  });
+    }
+    document.getElementById('rlpHUp').onclick = ()=>{
+      const cur = hours.indexOf(hWheel.value);
+      hWheel.setIndex(Math.min(hours.length-1, cur+1));
+      pushRingLenValue();
+    };
+    document.getElementById('rlpHDown').onclick = ()=>{
+      const cur = hours.indexOf(hWheel.value);
+      hWheel.setIndex(Math.max(0, cur-1));
+      pushRingLenValue();
+    };
+    document.getElementById('rlpMUp').onclick = ()=>{
+      const cur = mins.indexOf(mWheel.value);
+      mWheel.setIndex((cur+1) % mins.length);
+      pushRingLenValue();
+    };
+    document.getElementById('rlpMDown').onclick = ()=>{
+      const cur = mins.indexOf(mWheel.value);
+      mWheel.setIndex((cur-1+mins.length) % mins.length);
+      pushRingLenValue();
+    };
+  }
   document.getElementById('timerSubject').addEventListener('change', renderRing);
 
   document.getElementById('liveMiniStart').addEventListener('click', ()=> document.getElementById('startBtn').click());
@@ -3059,7 +3101,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const s = totalSec%60;
     const mini = document.getElementById('liveMiniDigits');
     if(timerMode==='countdown'){
-      document.getElementById('timerDigits').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+      document.getElementById('timerDigits').innerHTML = `${pad(h)}:${pad(m)}<span class="tdig-ss">:${pad(s)}</span>`;
       renderRing();
       if(mini) mini.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
     } else {
@@ -3146,19 +3188,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
       timerRunning = true;
       lastTick = Date.now();
       if(!sessionStartClock) sessionStartClock = Date.now() - elapsedMs;
-      if(timerMode==='countdown'){
-        const selChip = document.querySelector('#countdownLenChips .dur-chip.sel');
-        if(selChip && selChip.dataset.preset==='custom' && customLenWheelHandle){
-          countdownTotalMs = customLenWheelHandle.getValue() * 60000;
-        }
-      }
       document.getElementById('startBtn').textContent = 'Pause';
       setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
       tickHandle = setInterval(tick, 250);
       const subjectId = document.getElementById('timerSubject').value;
       setLiveStatus({
         studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
-        mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs
+        mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs,
+        linkedTaskId: linkedTaskId || null
       });
       startSnapshotScheduler();
       updateFocusToggleVisibility();
@@ -3314,10 +3351,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     clearInterval(tickHandle);
     elapsedMs = 0;
     sessionStartClock = null;
+    linkedTaskId = null;
     document.getElementById('startBtn').textContent = 'Start';
     setStatusText('ready');
     renderTimerDigits();
-    setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
+    setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes(), linkedTaskId:null });
     stopSnapshotScheduler();
     lastMilestoneHourLocal = 0;
     updateFocusToggleVisibility();
@@ -3325,6 +3363,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTaskPinLabel();
     stopLiveUiTicker();
     renderGoalCard(); renderPeopleRow();
+    if(currentScreen==='today') renderTaskList();
   }
   function finishSession(completed, reason){
     timerRunning = false;
@@ -3367,10 +3406,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('startBtn').textContent = 'Start';
     elapsedMs = 0;
     sessionStartClock = null;
+    linkedTaskId = null;
     exitFocusMode();
     renderTimerDigits();
     renderSessions();
-    setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes() });
+    setLiveStatus({ studying:false, baseElapsedMs:0, todayTotalMin: todayTotalMinutes(), linkedTaskId:null });
     stopSnapshotScheduler();
     lastMilestoneHourLocal = 0;
     updateFocusToggleVisibility();
@@ -3378,6 +3418,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTaskPinLabel();
     stopLiveUiTicker();
     renderGoalCard(); renderPeopleRow();
+    if(currentScreen==='today') renderTaskList();
     if(justLoggedSession && reason!=='autostop' && durationMin >= 1){
       promptSessionNote(justLoggedSession, key);
     }
@@ -3619,12 +3660,22 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let liveTickHandle = null;
   async function setLiveStatus(patch){
     if(!me) return;
+    // Optimistic local update for instant UI feedback — this local cache is fine to use for
+    // rendering, but must NEVER be pushed to the server as a full overwrite (see below).
     const merged = Object.assign({ name: me.name, color: me.color }, liveCache[me.id]||{}, patch, { updatedAt: Date.now() });
     liveCache[me.id] = merged;
     renderPeopleRow(); renderSnapRow();
     updateFriendTimerCard();
     try{
-      await rtdbSet(rtdbRef(rtdb, 'liveStatus/' + me.id), merged);
+      // A true partial update: only the keys in `patch` (+name/color/updatedAt) are touched at
+      // the server. Using set() here previously meant any device whose local cache hadn't yet
+      // caught up with the *other* fields (studying, startedAt, baseElapsedMs, ...) would wipe
+      // them out the moment it wrote anything at all — e.g. logging in on a second device,
+      // or this same device's own periodic "todayTotalMin" refresh, could silently stop
+      // another in-progress session without ever saving its elapsed time. update() can't do
+      // that: fields not present in the patch are left completely untouched server-side,
+      // no matter what this device's local cache does or doesn't know.
+      await rtdbUpdate(rtdbRef(rtdb, 'liveStatus/' + me.id), Object.assign({}, patch, { name: me.name, color: me.color, updatedAt: Date.now() }));
     }catch(e){ console.error('live status failed', e); }
   }
   async function getLiveStatus(uid){
@@ -3702,6 +3753,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
         clearInterval(tickHandle);
         tickHandle = setInterval(tick, 250);
         if(st.subject) document.getElementById('timerSubject').value = st.subject;
+        linkedTaskId = st.linkedTaskId || null; // whichever task another device linked, this device must show/lock the same one
+        renderTaskPinLabel();
         document.getElementById('startBtn').textContent = 'Pause';
         setStatusText(st.mode==='countdown' ? 'focusing…' : 'running…');
         renderTimerDigits();
@@ -3717,12 +3770,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
         clearInterval(tickHandle);
         elapsedMs = st.baseElapsedMs || 0;
         sessionStartClock = null;
+        linkedTaskId = null; // the session that was linked to it is over — clear so this device can freely link something new
+        renderTaskPinLabel();
         document.getElementById('startBtn').textContent = elapsedMs>0 ? 'Resume' : 'Start';
         setStatusText(elapsedMs>0 ? 'paused (stopped on another device)' : 'ready');
         renderTimerDigits();
         updateRunningDeclutter();
         stopLiveUiTicker();
         renderGoalCard(); renderPeopleRow();
+        if(currentScreen==='today') renderTaskList();
       }
     }
   }
@@ -3932,7 +3988,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
     backdrop.querySelector('#es-delete').addEventListener('click', async ()=>{
       state.sessions[dateKey] = (state.sessions[dateKey]||[]).filter(s=>s.id!==session.id);
+      tombstone(session.id);
       await flushStateNow();
+      if(isToday) setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // profile-chip total is cached in liveStatus, not derived live — must push explicitly
       renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart();
       if(currentScreen==='today') renderTaskList();
       close();
@@ -3968,6 +4026,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         s.linkedTaskId = newLinkedTaskId;
       }
       await flushStateNow();
+      if(isToday) setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // profile-chip total is cached in liveStatus, not derived live — must push explicitly
       renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart();
       if(currentScreen==='today') renderTaskList();
       close();
@@ -3988,6 +4047,24 @@ window.storage = storage; // keep the rest of the app's code unchanged
       chip.addEventListener('click', ()=>{ selectedDate = d; render(); });
       el.appendChild(chip);
     }
+    // scroll the active chip into view so jumping to a far-off date is visibly obvious, not just silently applied
+    const activeChip = el.querySelector('.day-chip.active');
+    if(activeChip) activeChip.scrollIntoView({ block:'nearest', inline:'center' });
+  }
+  const jumpBtn = document.getElementById('jumpToDateBtn');
+  if(!jumpBtn.dataset.wired){
+    jumpBtn.dataset.wired = '1';
+    jumpBtn.addEventListener('click', ()=>{
+      const input = document.getElementById('jumpToDateInput');
+      input.value = fmtDate(selectedDate);
+      if(input.showPicker){ input.showPicker(); } else { input.click(); }
+    });
+    document.getElementById('jumpToDateInput').addEventListener('change', (e)=>{
+      if(!e.target.value) return;
+      const [y,m,d] = e.target.value.split('-').map(Number);
+      selectedDate = new Date(y, m-1, d);
+      render();
+    });
   }
   async function renderTaskList(){
     const el = document.getElementById('taskList');
@@ -4024,6 +4101,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             }
           }
           const subjColor = subjectColorIn(b.subject, state);
+          const lockedByTimer = isToday && timerRunning && linkedTaskId===b.id;
           return `
             <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
               ${pct>0 ? `<div class="progress-fill" style="width:${pct}%; background:${subjColor};"></div>` : ''}
@@ -4034,17 +4112,21 @@ window.storage = storage; // keep the rest of the app's code unchanged
                   <span class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, state)}</span>
                   ${pct>0 && status!=='done' ? `<span class="name-pct">${pct}%</span>` : ''}
                 </div>
-                <div class="meta"><span class="dot" style="background:${subjColor}"></span>${subjectNameIn(b.subject, state)} · ${b.duration||30} min</div>
+                <div class="meta"><span class="dot" style="background:${subjColor}"></span>${subjectNameIn(b.subject, state)} · ${b.duration||30} min${lockedByTimer ? ' · ⏱ timer running' : ''}</div>
                 ${b.linkedGoalId ? `<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId, state))}</div>` : ''}
               </div>
               <div class="task-menu-wrap">
                 <button type="button" class="task-menu-btn" data-menu-id="${b.id}">⋮</button>
                 <div class="task-menu" data-menu-for="${b.id}">
-                  ${isToday && status!=='done' ? `<button type="button" class="task-play" data-play-id="${b.id}">▶ Start focus timer</button>` : ''}
+                  ${lockedByTimer
+                    ? `<button type="button" class="task-play" data-stop-id="${b.id}">⏹ Stop timer</button>`
+                    : (isToday && status!=='done' && !timerRunning ? `<button type="button" class="task-play" data-play-id="${b.id}">▶ Start focus timer</button>` : '')}
                   <button type="button" class="cmt-btn" data-cid="${commentsIdFor(b.id, me.id)}" data-title="${escapeHtml(b.label||subjectNameIn(b.subject,state))}">💬 Comment</button>
-                  <button type="button" class="task-edit" data-id="${b.id}" data-source="${b.source}">✏️ Edit</button>
+                  ${lockedByTimer
+                    ? `<div style="font-size:11px; color:var(--chalk-faint); padding:6px 10px;">Stop the timer to edit, move, or delete this task.</div>`
+                    : `<button type="button" class="task-edit" data-id="${b.id}" data-source="${b.source}">✏️ Edit</button>
                   <button type="button" class="task-move" data-id="${b.id}" data-source="${b.source}">➡️ Move to...</button>
-                  <button type="button" class="task-del" data-id="${b.id}" data-source="${b.source}">🗑 Delete</button>
+                  <button type="button" class="task-del" data-id="${b.id}" data-source="${b.source}">🗑 Delete</button>`}
                 </div>
               </div>
             </div>
@@ -4116,6 +4198,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
 
     el.innerHTML = html;
+    if(openTaskMenuId){
+      const reopened = el.querySelector(`.task-menu[data-menu-for="${openTaskMenuId}"]`);
+      if(reopened) reopened.classList.add('open'); else openTaskMenuId = null;
+    }
 
     // ---- combined ⋮ menu: open/close ----
     el.querySelectorAll('.task-menu-btn').forEach(btn=>{
@@ -4124,13 +4210,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
         const menu = el.querySelector(`.task-menu[data-menu-for="${btn.dataset.menuId}"]`);
         const isOpen = menu.classList.contains('open');
         el.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open'));
-        if(!isOpen) menu.classList.add('open');
+        if(!isOpen){ menu.classList.add('open'); openTaskMenuId = btn.dataset.menuId; }
+        else openTaskMenuId = null;
       });
     });
     if(!el.dataset.menuCloseWired){
       el.dataset.menuCloseWired = '1';
       document.addEventListener('click', ()=>{
         el.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open'));
+        openTaskMenuId = null;
       });
     }
 
@@ -4147,6 +4235,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
     el.querySelectorAll('.task-play[data-play-id]').forEach(btn=>{
       btn.addEventListener('click', ()=> playTaskOnNowPage(btn.dataset.playId));
+    });
+    el.querySelectorAll('.task-play[data-stop-id]').forEach(btn=>{
+      btn.addEventListener('click', ()=> document.getElementById('resetBtn').click());
     });
     el.querySelectorAll('.task-edit[data-id]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
@@ -4177,6 +4268,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           const key = fmtDate(selectedDate);
           state.dailyExtra[key] = (state.dailyExtra[key]||[]).filter(b=>b.id!==id);
         }
+        tombstone(id);
         saveState();
         renderTaskList();
         renderWeeklyGoalsList();
@@ -4564,6 +4656,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
         state.weeklyGoals = state.weeklyGoals.filter(g=>g.id!==btn.dataset.del);
+        tombstone(btn.dataset.del);
         openGoalCardId = null;
         saveState();
         renderWeeklyGoalsList();
@@ -4661,7 +4754,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       group.blocks.forEach(b=> existingByDay[b.day] = b);
 
       group.blocks.forEach(b=>{
-        if(!selectedDays.has(b.day)) state.weeklyTemplate = state.weeklyTemplate.filter(x=>x.id!==b.id);
+        if(!selectedDays.has(b.day)){ state.weeklyTemplate = state.weeklyTemplate.filter(x=>x.id!==b.id); tombstone(b.id); }
       });
       selectedDays.forEach(day=>{
         const existing = existingByDay[day];
@@ -4678,7 +4771,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
 
     backdrop.querySelector('#rg-delete-all').addEventListener('click', ()=>{
-      group.blocks.forEach(b=>{ state.weeklyTemplate = state.weeklyTemplate.filter(x=>x.id!==b.id); });
+      group.blocks.forEach(b=>{ state.weeklyTemplate = state.weeklyTemplate.filter(x=>x.id!==b.id); tombstone(b.id); });
       saveState();
       openGoalCardId = null;
       renderWeeklyGoalsList();
