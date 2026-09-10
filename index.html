@@ -349,11 +349,19 @@
   .day-chip .dname{ font-size:10px; color:var(--chalk-faint); letter-spacing:0.5px; }
   .day-chip.active .dname{ color:var(--accent); }
   .day-chip .dnum{ font-family:'JetBrains Mono'; font-weight:700; font-size:16px; margin-top:2px; color:var(--chalk); }
+  .jump-to-date-wrap{ position:relative; flex:0 0 auto; width:44px; height:44px; margin-bottom:14px; }
   .jump-to-date-btn{
-    flex:0 0 auto; width:44px; height:44px; margin-bottom:14px; border-radius:14px;
-    background:var(--card); border:1px solid var(--card-line); font-size:17px; cursor:pointer; color:var(--chalk-dim);
+    position:absolute; inset:0; width:100%; height:100%; border-radius:14px; pointer-events:none;
+    background:var(--card); border:1px solid var(--card-line); font-size:17px; color:var(--chalk-dim);
   }
-  .jump-to-date-btn:active{ background:var(--accent-dim); border-color:var(--accent); }
+  .jump-to-date-wrap:active .jump-to-date-btn{ background:var(--accent-dim); border-color:var(--accent); }
+  /* The real date input sits directly on top of the visible button so a genuine tap opens the
+     native picker reliably (showPicker()/click()-forwarding on a hidden input is inconsistent,
+     especially in iOS WKWebView) — the button underneath is purely decorative (pointer-events:none). */
+  #jumpToDateInput{
+    position:absolute; inset:0; width:100%; height:100%; opacity:0; border:none; padding:0; margin:0;
+    cursor:pointer; -webkit-appearance:none; appearance:none;
+  }
 
   .task-card{
     display:flex; align-items:flex-start; gap:12px;
@@ -437,10 +445,40 @@
   }
   .plan-card{ background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:14px 16px; margin-bottom:14px; }
   .plan-card-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px; }
-  .plan-card-title{ font-family:'Kalam'; font-size:16px; color:var(--chalk); }
+  .plan-card-title{ font-family:'Kalam'; font-size:16px; color:var(--chalk); display:flex; align-items:center; gap:7px; }
   .plan-card-dates{ font-family:'JetBrains Mono'; font-size:11.5px; color:var(--chalk-faint); margin-top:2px; }
   .plan-card-actions{ display:flex; gap:6px; flex-shrink:0; }
   .plan-card-actions button{ background:none; border:none; font-size:15px; cursor:pointer; color:var(--chalk-faint); padding:4px; }
+  .cat-dot{ width:9px; height:9px; border-radius:50%; flex:0 0 auto; display:inline-block; }
+  .cat-chip{
+    display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700; text-transform:uppercase;
+    letter-spacing:0.4px; padding:2px 8px 2px 6px; border-radius:20px; border:1px solid var(--card-line); color:var(--chalk-dim);
+    flex:0 0 auto;
+  }
+
+  /* ---------- Plan calendar picker (start/end range, category-aware) ---------- */
+  .pcal-nav{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+  .pcal-nav-label{ flex:1; text-align:center; font-family:'Kalam'; font-size:14px; color:var(--chalk); }
+  .pcal-grid{ display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); grid-auto-rows:38px; gap:4px; }
+  .pcal-dow-row{ display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); margin-bottom:3px; }
+  .pcal-dow{ text-align:center; font-size:9.5px; color:var(--chalk-faint); text-transform:uppercase; letter-spacing:0.3px; }
+  .pcal-cell{
+    position:relative; min-width:0; border-radius:9px; background:var(--card); border:1px solid var(--card-line);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:'JetBrains Mono'; font-size:11.5px; color:var(--chalk-dim);
+  }
+  .pcal-cell.empty{ background:none; border:none; cursor:default; }
+  .pcal-cell.past{ opacity:0.3; cursor:default; }
+  .pcal-cell.blocked{ opacity:0.4; cursor:not-allowed; text-decoration:line-through; }
+  .pcal-cell.in-range{ background:var(--accent-dim); border-color:var(--accent); color:var(--chalk); }
+  .pcal-cell.range-end{ background:var(--accent); border-color:var(--accent); color:var(--ink); font-weight:700; }
+  .pcal-cell.selected{ background:var(--accent); border-color:var(--accent); color:var(--ink); font-weight:700; }
+  .pcal-cell.overflow{ background:var(--c6); border-color:var(--c6); color:var(--ink); font-weight:700; }
+  .pcal-cell .pcal-dots{ position:absolute; bottom:3px; left:50%; transform:translateX(-50%); display:flex; gap:2px; }
+  .pcal-cell .pcal-dots i{ width:4px; height:4px; border-radius:50%; display:block; }
+  .pcal-legend{ display:flex; flex-wrap:wrap; gap:8px 12px; margin-top:10px; font-size:10.5px; color:var(--chalk-faint); }
+  .pcal-legend span{ display:inline-flex; align-items:center; gap:4px; }
+  .pcal-hint{ font-size:11px; color:var(--chalk-faint); margin-top:8px; text-align:center; }
+  .pcal-conflict{ font-size:11.5px; color:var(--c1); background:var(--c1-dim); border:1px solid rgba(var(--c1-rgb),0.3); border-radius:10px; padding:8px 10px; margin-top:8px; line-height:1.5; }
   .move-to-next{ background:none; border:1px dashed var(--card-line); border-radius:8px; color:var(--chalk-faint); font-size:11px; padding:5px 8px; cursor:pointer; margin-top:8px; }
   .move-to-next:hover{ color:var(--chalk); border-color:var(--accent); }
 
@@ -657,6 +695,18 @@
     color:var(--chalk-dim); font-size:12px; cursor:pointer; font-weight:600;
   }
   .day-toggle.sel{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
+  .day-toggle.partial{ border-color:var(--c6); color:var(--c6); }
+  .day-toggle .dsub{ display:block; font-size:9px; opacity:.65; margin-top:2px; font-family:'JetBrains Mono'; font-weight:600; }
+  .subject-row{ display:flex; gap:8px; align-items:stretch; }
+  .subject-row select{ flex:1; }
+  .subject-add-btn{
+    flex:0 0 auto; width:42px; border-radius:10px; background:var(--accent-dim); color:var(--accent);
+    border:1px solid rgba(var(--accent-rgb),0.3); font-size:18px; cursor:pointer;
+  }
+  .dest-readonly{
+    font-size:12px; color:var(--chalk-dim); background:var(--card); border:1px solid var(--card-line);
+    border-radius:10px; padding:10px 12px; margin-bottom:14px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  }
   .close-x{ position:absolute; top:20px; right:20px; background:none; border:none; color:var(--chalk-faint); font-size:20px; cursor:pointer; }
 
   /* ---------- Group bar (Live screen only) ---------- */
@@ -781,15 +831,32 @@
 
   /* ---------- Auth screen ---------- */
   .auth-screen{
-    min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center;
-    padding:24px; position:relative; z-index:2;
+    position:fixed; inset:0; min-height:100vh; width:100%; display:flex; align-items:center; justify-content:center;
+    padding:24px; z-index:500; background:rgba(0,0,0,0.55);
   }
+  [data-theme="light"] .auth-screen{ background:rgba(20,22,26,0.35); }
   .auth-card{
     width:100%; max-width:380px; background:var(--card); border:1px solid var(--card-line);
-    border-radius:20px; padding:28px 24px;
+    border-radius:20px; padding:28px 24px; position:relative; max-height:88vh; overflow-y:auto;
   }
   .auth-logo{ font-family:'Kalam'; font-size:26px; margin:0 0 2px; }
   .auth-card h2{ font-family:'Kalam'; font-size:19px; margin:0 0 16px; color:var(--chalk); }
+  .auth-forgot{
+    text-align:right; font-size:11.5px; color:var(--accent); cursor:pointer; margin:-8px 0 10px; text-decoration:underline;
+  }
+  .auth-note{ font-size:12px; color:var(--accent); background:var(--accent-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px; line-height:1.5; }
+  .auth-divider{
+    display:flex; align-items:center; text-align:center; color:var(--chalk-faint); font-size:11px;
+    margin:18px 0 14px; letter-spacing:0.5px; text-transform:uppercase;
+  }
+  .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background:var(--card-line); }
+  .auth-divider span{ padding:0 10px; }
+  .btn-google{
+    background:#fff; color:#1F1F1F; border:1px solid var(--card-line);
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    padding:12px 0; border-radius:12px; font-weight:600; font-size:14px; cursor:pointer;
+  }
+  .btn-google:active{ opacity:0.85; }
 
   #loadBlocker{
     position:fixed; inset:0; z-index:999; background:var(--board);
@@ -802,6 +869,10 @@
     animation: spin 0.8s linear infinite;
   }
   @keyframes spin{ to{ transform:rotate(360deg); } }
+  #loadBlockerRetry{
+    margin-top:16px; background:var(--accent); color:var(--ink); border:none; border-radius:12px;
+    padding:11px 22px; font-weight:700; font-size:13px; cursor:pointer;
+  }
 
   #offlineBanner{
     position:fixed; top:0; left:0; right:0; z-index:998; text-align:center;
@@ -870,6 +941,61 @@
   .notif-item.unread{ border:1px solid rgba(var(--accent-rgb),0.4); }
 
   /* ---------- account modal ---------- */
+  .guest-banner{
+    background:var(--accent-dim); border:1px solid var(--accent); border-radius:14px;
+    padding:14px; margin-bottom:14px;
+  }
+  .guest-banner-name{ font-family:'Kalam'; font-size:16px; color:var(--chalk); margin-bottom:4px; }
+  .guest-banner-sub{ font-size:12px; color:var(--chalk-dim); line-height:1.5; }
+  .membership-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:14px;
+    padding:12px 14px; margin-bottom:6px;
+  }
+  .membership-plan{ font-weight:700; font-size:14px; color:var(--chalk); }
+  .membership-sub{ font-size:11px; color:var(--chalk-faint); margin-top:2px; }
+  .btn-upgrade{
+    flex:0 0 auto; background:linear-gradient(135deg, var(--accent), var(--c6)); color:var(--ink);
+    border:none; border-radius:20px; padding:9px 16px; font-weight:800; font-size:12.5px; cursor:pointer;
+  }
+  .btn-upgrade:active{ opacity:0.85; }
+
+  /* ---------- Settings hub: navigable row list ---------- */
+  .settings-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:14px;
+    padding:13px 14px; margin-bottom:8px; cursor:pointer;
+  }
+  .settings-row:active{ background:var(--accent-dim); border-color:var(--accent); }
+  .settings-row .label{ display:flex; align-items:center; gap:10px; font-weight:600; font-size:14px; color:var(--chalk); }
+  .settings-row .icon{ font-size:17px; flex:0 0 auto; }
+  .settings-row .chev{ color:var(--chalk-faint); font-size:15px; flex:0 0 auto; }
+  .settings-sub-header{
+    display:flex; align-items:center; gap:10px; margin-bottom:18px;
+  }
+  .settings-back{
+    background:var(--card); border:1px solid var(--card-line); border-radius:10px;
+    width:34px; height:34px; font-size:16px; color:var(--chalk); cursor:pointer; flex:0 0 auto;
+  }
+  .settings-sub-header h3{ margin:0; }
+  .field-readonly{
+    background:var(--board); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk-faint);
+    font-family:'Inter'; font-size:14px; padding:10px 12px;
+  }
+  .danger-zone{ border:1px solid var(--c1-dim); background:var(--c1-dim); border-radius:14px; padding:14px; margin-top:8px; }
+  .danger-zone .dz-title{ font-weight:700; color:var(--c1); font-size:13px; margin-bottom:6px; }
+  .danger-zone .dz-sub{ font-size:11.5px; color:var(--chalk-dim); line-height:1.5; margin-bottom:10px; }
+  .blocked-row{
+    display:flex; align-items:center; justify-content:space-between; background:var(--card);
+    border:1px solid var(--card-line); border-radius:12px; padding:10px 12px; margin-bottom:6px; font-size:13px;
+  }
+  .priv-option{
+    display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--card-line);
+    border-radius:12px; padding:12px; margin-bottom:8px; cursor:pointer;
+  }
+  .priv-option.sel{ border-color:var(--accent); background:var(--accent-dim); }
+  .priv-option .name{ font-weight:700; font-size:13.5px; }
+  .priv-option .desc{ font-size:11px; color:var(--chalk-faint); margin-top:2px; }
   .acct-photo-row{ display:flex; align-items:center; gap:16px; margin-bottom:18px; }
   .acct-photo{
     width:72px; height:72px; border-radius:50%; background:var(--c1-dim); color:var(--c1);
@@ -1044,8 +1170,9 @@
 </style>
 </head>
 <body>
-<div class="auth-screen" id="authScreen">
+<div class="auth-screen" id="authScreen" style="display:none;">
   <div class="auth-card">
+    <button class="close-x" id="authClose" style="display:none;">×</button>
     <h1 class="auth-logo">Study Board</h1>
     <div class="sub" style="margin-bottom:22px;">stay on the clock, together</div>
     <h2 id="authTitle">Welcome back</h2>
@@ -1062,16 +1189,28 @@
       <label>Password</label>
       <input type="password" id="authPassword" placeholder="At least 6 characters">
     </div>
+    <div class="auth-forgot" id="authForgot">Forgot password?</div>
     <div class="auth-error" id="authError"></div>
+    <div class="auth-note" id="authNote" style="display:none;"></div>
     <button class="btn btn-primary" id="authSubmit" style="width:100%; padding:14px 0; margin-top:4px;">Log in</button>
     <div class="auth-toggle" id="authToggle">New here? Create an account</div>
+
+    <div class="auth-divider" id="authDivider"><span>or</span></div>
+    <button class="btn btn-google" id="authGoogle" style="width:100%;">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.08-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33C2.44 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.97 10.72c-.18-.54-.28-1.12-.28-1.72s.1-1.18.28-1.72V4.95H.96C.35 6.17 0 7.55 0 9s.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      Continue with Google
+    </button>
+    <div id="authNativeGoogleNote" style="display:none; font-size:11px; color:var(--chalk-faint); text-align:center; margin-top:10px;">
+      Google sign-in isn't available in the app yet — use email above, or open the website in your browser.
+    </div>
   </div>
 </div>
 
-<div id="loadBlocker" style="display:none;">
+<div id="loadBlocker" style="display:flex;">
   <div class="load-blocker-card">
-    <div class="load-spinner"></div>
+    <div class="load-spinner" id="loadBlockerSpinner"></div>
     <div id="loadBlockerMsg">Loading your data…</div>
+    <button type="button" id="loadBlockerRetry" style="display:none;">Retry</button>
   </div>
 </div>
 
@@ -1177,8 +1316,10 @@
     <section class="screen" id="screen-today">
       <div class="day-scroller-row">
         <div class="day-scroller" id="dayScroller"></div>
-        <button type="button" class="jump-to-date-btn" id="jumpToDateBtn" title="Jump to a date">📅</button>
-        <input type="date" id="jumpToDateInput" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;">
+        <div class="jump-to-date-wrap">
+          <button type="button" class="jump-to-date-btn" id="jumpToDateBtn" title="Jump to a date" tabindex="-1">📅</button>
+          <input type="date" id="jumpToDateInput">
+        </div>
       </div>
       <div id="taskList"></div>
     </section>
@@ -1263,14 +1404,17 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField
+  getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot, deleteField, deleteDoc
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {
   getDatabase, ref as rtdbRef, update as rtdbUpdate, get as rtdbGet, onValue as rtdbOnValue
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  onAuthStateChanged, signOut, updateProfile
+  onAuthStateChanged, signOut, updateProfile, signInAnonymously,
+  linkWithCredential, linkWithPopup, signInWithPopup, signInWithCredential,
+  EmailAuthProvider, GoogleAuthProvider,
+  sendEmailVerification, sendPasswordResetEmail, deleteUser
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import {
   getMessaging, getToken, onMessage, isSupported as messagingIsSupported
@@ -1393,6 +1537,38 @@ window.storage = storage; // keep the rest of the app's code unchanged
     { id:'amber',   accent:'#F5A623' }
   ];
   const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // ---------- Plan categories: a fixed set (Work/Health/Personal-style). Same-category plans
+  // may never date-overlap; different categories are free to overlap. Purely additive to the
+  // Plan record (plan.category) — legacy plans without one default to 'other' at read time via
+  // categoryFor(), so no migration/schemaVersion bump is needed for this.
+  const PLAN_CATEGORIES = [
+    { id:'study',    name:'Study',    color:'#E8C468' },
+    { id:'work',     name:'Work',     color:'#7FB3D5' },
+    { id:'health',   name:'Health',   color:'#8FCB9B' },
+    { id:'personal', name:'Personal', color:'#B8A0D9' },
+    { id:'other',    name:'Other',    color:'#E6A0C4' }
+  ];
+  function categoryFor(plan){
+    return PLAN_CATEGORIES.find(c=>c.id===(plan&&plan.category)) || PLAN_CATEGORIES[PLAN_CATEGORIES.length-1];
+  }
+  function categoryOptionsHtml(selectedId){
+    return PLAN_CATEGORIES.map(c=>`<option value="${c.id}" ${c.id===(selectedId||'other')?'selected':''}>${c.name}</option>`).join('');
+  }
+  // Two YYYY-MM-DD ranges overlap (inclusive) — string compare is safe since the format sorts lexically same as date.
+  function dateRangesOverlap(aStart, aEnd, bStart, bEnd){
+    return aStart <= bEnd && bStart <= aEnd;
+  }
+  // Plans (other than excludeId) whose date range touches this range, split by whether they
+  // share this category (a hard block) or not (fine — different categories may overlap).
+  function findPlanConflicts(data, category, startDate, endDate, excludeId){
+    const overlapping = (data.plans||[]).filter(p=>
+      p.id!==excludeId && dateRangesOverlap(startDate, endDate, p.startDate, p.endDate)
+    );
+    return {
+      sameCategory: overlapping.filter(p=> (p.category||'other')===category),
+      otherCategory: overlapping.filter(p=> (p.category||'other')!==category)
+    };
+  }
   const STORAGE_KEY = 'study-board-data-v1';
   const USERS_KEY = 'study-board-users'; // shared: [{id,name,color}]
 
@@ -1400,20 +1576,46 @@ window.storage = storage; // keep the rest of the app's code unchanged
     subjects: [
       {id:'s1', name:'General', color:'#7FB3D5'}
     ],
-    weeklyTemplate: [], // {id, day(0-6), subject, start, duration, label, planId}
-    dailyExtra: {},     // { 'YYYY-MM-DD': [ {id, subject, start, duration, label} ] }
-    completion: {},     // { 'YYYY-MM-DD|blockId': true }
+    // Simplified Target model (v4). One flat array; each Target is either a recurring
+    // day-pattern block or a single-date "once" task — the old aggregate hours/sessions/
+    // count goal type was removed entirely (see simplifyTargets migration). Every item's
+    // `id` is preserved through every migration, so completion keys ('YYYY-MM-DD|id') and
+    // session links (linkedTaskId) never need rewriting for NEW writes — only the v3→v4
+    // migration itself does a one-time, explicit remap when it merges old per-day rows.
+    // {
+    //   id, planId (required for 'recurring'; null allowed for a 'once' task with no
+    //     covering plan — matches the old dailyExtra, which never required a plan),
+    //   subject, label, note, createdAt,
+    //   kind: 'recurring' | 'once',
+    //   timing: 'fixed' | 'floating', start ('HH:MM'|null when floating), duration (min),
+    //   days: [0-6, ...]  — only for kind==='recurring'; [0,1,2,3,4,5,6] means "All day"
+    //   date: 'YYYY-MM-DD' — only for kind==='once'
+    // }
+    targets: [],
+    completion: {},     // { 'YYYY-MM-DD|targetId': true }
     sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note, linkedTaskId} ] }
     goals: { dailyMin: 120, weeklyMin: 600 }, // overall study goals used for streak/progress tracking
-    weeklyGoals: [], // {id, title, subject, type:'flexible', unit:'hours'|'sessions'|'count', target, planId, note, manualAdjust, createdAt}
-    plans: [], // {id, startDate:'YYYY-MM-DD', endDate:'YYYY-MM-DD', label, createdAt} — a fixed-date record. Dates never change after creation.
+    plans: [], // {id, startDate:'YYYY-MM-DD', endDate:'YYYY-MM-DD', category, label, createdAt} — a fixed-date record. Dates never change after creation.
     themeMode: 'dark',      // 'dark' | 'light'
     themePalette: 'cyan',   // one of PALETTES ids
-    schemaVersion: 0,        // 0 = unmigrated/legacy. Bumped to CURRENT_SCHEMA_VERSION once migrateLegacyWeeklyTemplate
-                              // has run against this user's real server data — do not default this to the current
-                              // version, or existing users whose saved data predates this field would wrongly skip migration.
-    tombstones: {}           // { id: deletedAtTimestamp } — every deleted plan/task/goal/subject/session ID goes here so
+    schemaVersion: 0,        // 0 = unmigrated/legacy. Bumped to CURRENT_SCHEMA_VERSION once every
+                              // migration below has run against this user's real server data — do not
+                              // default this to the current version, or existing users whose saved data
+                              // predates this field would wrongly skip migration.
+    tombstones: {},          // { id: deletedAtTimestamp } — every deleted plan/task/goal/subject/session ID goes here so
                               // that a merge with another device's stale (pre-deletion) copy can never bring it back.
+    guestNudgeShown: false,  // one-time flag: has this guest already seen the "sign in to save progress" nudge?
+    phone: null,             // optional, shown/edited in the Settings profile card
+    notificationPrefs: {     // local, client-triggered notifications — no Blaze/Cloud Functions needed for these
+      timerStop: true, taskComplete: true, reminders: true,
+      groupInvites: true, liveSessionStart: true, scheduleReminders: true
+    },
+    privacy: {                // drives the Reciprocity Engine once the Live-page rebuild lands; safe to configure now
+      visibility: 'all',      // 'all' | 'groups' | 'members' | 'none'
+      allowedGroupIds: [],
+      allowedMemberIds: []
+    },
+    blockedIds: {}            // { uid: true } — mutual: neither side can see the other once blocked
   };
 
   let selectedDate = new Date();
@@ -1433,7 +1635,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let groupUnsub = null;
 
   function isViewingSelf(){ return !viewingId || (me && viewingId === me.id); }
-  function activeData(){ return isViewingSelf() ? state : (friendCache[viewingId] || {subjects:[],weeklyTemplate:[],weeklyGoals:[],plans:[],dailyExtra:{},completion:{},sessions:{}}); }
+  function activeData(){ return isViewingSelf() ? state : (friendCache[viewingId] || {subjects:[],targets:[],plans:[],completion:{},sessions:{}}); }
   function isScheduleHiddenFor(uid){
     if(!activeGroupData || !activeGroupData.members) return false;
     const m = activeGroupData.members[uid];
@@ -1482,10 +1684,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const tb = Object.assign({}, remote.tombstones||{}, state.tombstones||{});
     state.tombstones = tb;
     state.subjects = mergeArraysById(state.subjects, remote.subjects, tb);
-    state.weeklyTemplate = mergeArraysById(state.weeklyTemplate, remote.weeklyTemplate, tb);
-    state.weeklyGoals = mergeArraysById(state.weeklyGoals, remote.weeklyGoals, tb);
+    state.targets = mergeArraysById(state.targets, remote.targets, tb);
     state.plans = mergeArraysById(state.plans, remote.plans, tb);
-    state.dailyExtra = mergeKeyedArrayMaps(state.dailyExtra, remote.dailyExtra, tb);
     state.sessions = mergeKeyedArrayMaps(state.sessions, remote.sessions, tb);
     // completion is a flat {key: 'done'|'missed'} map with no per-key timestamp;
     // union it so a tick on one device never un-ticks what another device set.
@@ -1513,9 +1713,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
       await setDoc(backupRef, { uid: me.id, tag, savedAt: Date.now(), value: state });
     }catch(e){ console.warn('backupNow(' + tag + ') failed', e); }
   }
-  const CURRENT_SCHEMA_VERSION = 2; // bump this, and add a new migration below, for any future structural change
+  const SCHEMA_V2_WEEK_TO_PLAN = 2;         // Week (recomputed date-bucket) → Plan (fixed-date record)
+  const SCHEMA_V3_TASK_TARGET_MERGE = 3;    // weeklyTemplate + weeklyGoals + dailyExtra → one unified `targets` array
+  const SCHEMA_V4_TARGET_SIMPLIFY = 4;      // drop aggregate hours/sessions/count goals; recurring day-rows → one row with days:[]
+  const CURRENT_SCHEMA_VERSION = SCHEMA_V4_TARGET_SIMPLIFY; // bump this, and add a new migration below, for any future structural change
   async function migrateLegacyWeeklyTemplate(fromFreshServerData){
-    if((state.schemaVersion||0) >= CURRENT_SCHEMA_VERSION) return; // already migrated — never re-run this against real data
+    if((state.schemaVersion||0) >= SCHEMA_V2_WEEK_TO_PLAN) return; // already migrated — never re-run this against real data
     let changed = false;
     if(state.weeklyTemplate && state.weeklyTemplate.length){
       const before = state.weeklyTemplate.length;
@@ -1526,7 +1729,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     (state.weeklyTemplate||[]).forEach(b=>{ if(b.weekStart && !b.planId) legacyStarts.add(b.weekStart); });
     (state.weeklyGoals||[]).forEach(g=>{ if(g.weekStart && !g.planId) legacyStarts.add(g.weekStart); });
     if(legacyStarts.size && fromFreshServerData){
-      await backupNow('premigration_v'+CURRENT_SCHEMA_VERSION); // snapshot the exact pre-transform data first
+      await backupNow('premigration_v'+SCHEMA_V2_WEEK_TO_PLAN); // snapshot the exact pre-transform data first
     }
     if(legacyStarts.size){
       state.plans = state.plans || [];
@@ -1534,7 +1737,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         const id = 'plan_'+ws;
         if(!state.plans.some(p=>p.id===id)){
           const end = new Date(ws+'T00:00:00'); end.setDate(end.getDate()+6);
-          state.plans.push({ id, startDate: ws, endDate: fmtDate(end), label: null, createdAt: Date.now() });
+          state.plans.push({ id, startDate: ws, endDate: fmtDate(end), label: null, category: 'other', createdAt: Date.now() });
         }
       });
       (state.weeklyTemplate||[]).forEach(b=>{ if(b.weekStart && !b.planId){ b.planId = 'plan_'+b.weekStart; delete b.weekStart; } });
@@ -1547,14 +1750,171 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!state.plans || !state.plans.length){
       const start = new Date(); start.setHours(0,0,0,0); start.setDate(start.getDate()-start.getDay());
       const end = new Date(start); end.setDate(end.getDate()+6);
-      state.plans = [{ id:'plan_'+Date.now(), startDate: fmtDate(start), endDate: fmtDate(end), label: null, createdAt: Date.now() }];
+      state.plans = [{ id:'plan_'+Date.now(), startDate: fmtDate(start), endDate: fmtDate(end), label: null, category: 'study', createdAt: Date.now() }];
       changed = true;
     }
     if(fromFreshServerData){
-      state.schemaVersion = CURRENT_SCHEMA_VERSION; // stamp so this never re-runs against this user's real data again
+      state.schemaVersion = SCHEMA_V2_WEEK_TO_PLAN; // stamp so this never re-runs against this user's real data again
       changed = true;
     }
     if(changed && fromFreshServerData) saveState();
+  }
+  // Task/Target merge (v2 → v3): weeklyTemplate (recurring blocks), weeklyGoals (flexible
+  // aggregate goals), and dailyExtra (one-off single-date tasks) collapse into one flat
+  // `targets` array. Every converted item KEEPS ITS ORIGINAL id, so completion keys
+  // ('YYYY-MM-DD|id') and session.linkedTaskId references need no rewriting at all — this is
+  // the same "reuse the existing id, don't invent a translation layer" approach used for
+  // weekStart→planId above, and is exactly why it's safe to do mechanically. Follows the
+  // same backupNow() + schemaVersion + tombstone-respecting pattern as the v2 migration —
+  // non-negotiable given this is precisely the shape of bug that caused data loss before.
+  async function migrateTaskTargetMerge(fromFreshServerData){
+    if((state.schemaVersion||0) >= SCHEMA_V3_TASK_TARGET_MERGE) return; // already migrated — never re-run against real data
+    const hasLegacy = (state.weeklyTemplate && state.weeklyTemplate.length)
+      || (state.weeklyGoals && state.weeklyGoals.length)
+      || (state.dailyExtra && Object.keys(state.dailyExtra).some(k=> (state.dailyExtra[k]||[]).length));
+    if(hasLegacy && fromFreshServerData){
+      await backupNow('premigration_v'+SCHEMA_V3_TASK_TARGET_MERGE); // snapshot the exact pre-transform data first
+    }
+    const tb = state.tombstones || {};
+    const converted = [];
+    (state.weeklyTemplate||[]).forEach(b=>{
+      if(tb[b.id]) return; // respect existing tombstones — a deleted block stays deleted through the merge
+      converted.push({
+        id: b.id, planId: b.planId||null, label: b.label||null, subject: b.subject, note: null,
+        linkedGoalId: b.linkedGoalId||null, kind:'recurring',
+        day: b.day, timing:'fixed', start: b.start||null, duration: b.duration||30,
+        unit:null, target:null, manualAdjust:0, date:null,
+        createdAt: b.createdAt || Date.now()
+      });
+    });
+    (state.weeklyGoals||[]).forEach(g=>{
+      if(tb[g.id]) return;
+      converted.push({
+        id: g.id, planId: g.planId||null, label: g.title||null, subject: g.subject, note: g.note||null,
+        linkedGoalId: null, kind:'flexible',
+        day:null, timing:null, start:null, duration:null,
+        unit: g.unit||'hours', target: g.target||1, manualAdjust: g.manualAdjust||0, date:null,
+        createdAt: g.createdAt || Date.now()
+      });
+    });
+    Object.keys(state.dailyExtra||{}).forEach(dateKey=>{
+      (state.dailyExtra[dateKey]||[]).forEach(item=>{
+        if(tb[item.id]) return;
+        converted.push({
+          id: item.id, planId: (planContainingDate(state, new Date(dateKey+'T00:00:00'))||{}).id || null,
+          label: item.label||null, subject: item.subject, note: null,
+          linkedGoalId: item.linkedGoalId||null, kind:'flexible',
+          day:null, timing:'fixed', start: item.start||null, duration: item.duration||30,
+          unit:'once', target:1, manualAdjust:0, date: dateKey,
+          createdAt: Date.now()
+        });
+      });
+    });
+    if(converted.length){
+      state.targets = mergeArraysById(state.targets||[], converted, tb); // preserves anything already saved under the new shape too
+    } else {
+      state.targets = state.targets || [];
+    }
+    delete state.weeklyTemplate;
+    delete state.weeklyGoals;
+    delete state.dailyExtra;
+    if(fromFreshServerData){
+      state.schemaVersion = SCHEMA_V3_TASK_TARGET_MERGE; // stamp so this never re-runs against this user's real data again
+      saveState();
+    }
+  }
+  // Target simplify (v3 → v4): drops the aggregate hours/sessions/count goal type entirely
+  // (folded into a 'once' task instead, target amount preserved in a note so nothing vanishes
+  // silently) and collapses recurring targets from one-row-per-weekday into one record holding
+  // days:[...] — this is what makes "each target its own row, never merged by label" possible.
+  // The one genuinely risky step is merging same-batch day-rows onto a single surviving id:
+  // completion history ('date|id') and session.linkedTaskId for every row we merge AWAY must be
+  // explicitly remapped onto the survivor, or that day's done/missed history goes dark. Rows are
+  // only ever merged if their ids share the exact 'tgt_<timestamp>_<day>' batch shape this app
+  // itself generates — anything else is treated as its own solo group, never guessed at.
+  async function migrateSimplifyTargets(fromFreshServerData){
+    if((state.schemaVersion||0) >= SCHEMA_V4_TARGET_SIMPLIFY) return;
+    const targets = state.targets || [];
+    const hasLegacy = targets.some(t=> t.kind==='flexible' || (t.kind==='recurring' && t.days===undefined));
+    if(hasLegacy && fromFreshServerData){
+      await backupNow('premigration_v'+SCHEMA_V4_TARGET_SIMPLIFY);
+    }
+    if(!hasLegacy){
+      if(fromFreshServerData){ state.schemaVersion = SCHEMA_V4_TARGET_SIMPLIFY; saveState(); }
+      return;
+    }
+    const idRemap = {}; // oldId -> survivingId, only for merged-away recurring day-rows
+
+    // 1) Merge same-batch recurring day-rows into one days:[] record.
+    const recurring = targets.filter(t=>t.kind==='recurring');
+    const batches = new Map();
+    recurring.forEach(t=>{
+      const m = /^(tgt|blk)_(\d+)_\d+$/.exec(t.id);
+      const batchKey = m ? (m[1]+'_'+m[2]) : ('solo_'+t.id);
+      if(!batches.has(batchKey)) batches.set(batchKey, []);
+      batches.get(batchKey).push(t);
+    });
+    const newRecurring = [];
+    batches.forEach(rows=>{
+      rows.sort((a,b)=> (a.day||0)-(b.day||0));
+      const survivor = rows[0];
+      const days = [...new Set(rows.map(r=>r.day).filter(d=>d!=null))];
+      rows.slice(1).forEach(r=>{ idRemap[r.id] = survivor.id; });
+      newRecurring.push({
+        id: survivor.id, planId: survivor.planId||null, subject: survivor.subject,
+        label: survivor.label||null, note: survivor.note||null, kind:'recurring',
+        timing: survivor.timing || (survivor.start ? 'fixed':'floating'),
+        start: survivor.start||null, duration: survivor.duration||30,
+        days, createdAt: survivor.createdAt || Date.now()
+      });
+    });
+
+    // 2) 'once' flexible tasks just drop the wrapper fields — id/date untouched, no remap needed.
+    const onceTasks = targets.filter(t=>t.kind==='flexible' && t.unit==='once').map(t=>({
+      id: t.id, planId: t.planId||null, subject: t.subject, label: t.label||null, note: t.note||null,
+      kind:'once', timing: t.timing || (t.start?'fixed':'floating'), start: t.start||null, duration: t.duration||30,
+      date: t.date, createdAt: t.createdAt || Date.now()
+    }));
+
+    // 3) old aggregate goals have no natural single date — anchor on the plan's start date (or
+    // today if no plan), preserving the original target amount in a note. Id kept unchanged.
+    const aggregateGoals = targets.filter(t=>t.kind==='flexible' && t.unit && t.unit!=='once');
+    const convertedGoals = aggregateGoals.map(g=>{
+      const plan = g.planId ? (state.plans||[]).find(p=>p.id===g.planId) : null;
+      const anchorDate = plan ? plan.startDate : fmtDate(new Date());
+      const goalNote = `migrated from a goal target of ${g.target||'?'} ${g.unit||''}`;
+      const note = g.note ? `${g.note} (${goalNote})` : `(${goalNote})`;
+      return {
+        id: g.id, planId: g.planId||null, subject: g.subject, label: g.label||null, note,
+        kind:'once', timing:'floating', start:null, duration:30, date: anchorDate, createdAt: g.createdAt||Date.now()
+      };
+    });
+
+    state.targets = [...newRecurring, ...onceTasks, ...convertedGoals];
+
+    // Remap completion + session links from every merged-away id onto its survivor.
+    if(Object.keys(idRemap).length){
+      const newCompletion = {};
+      Object.keys(state.completion||{}).forEach(key=>{
+        const sep = key.lastIndexOf('|');
+        const dateKey = key.slice(0, sep), oldId = key.slice(sep+1);
+        const newId = idRemap[oldId] || oldId;
+        const newKey = dateKey+'|'+newId;
+        const val = state.completion[key];
+        if(newCompletion[newKey]!=='done') newCompletion[newKey] = (val==='done') ? 'done' : (newCompletion[newKey] || val);
+      });
+      state.completion = newCompletion;
+      Object.keys(state.sessions||{}).forEach(dateKey=>{
+        (state.sessions[dateKey]||[]).forEach(s=>{
+          if(s.linkedTaskId && idRemap[s.linkedTaskId]) s.linkedTaskId = idRemap[s.linkedTaskId];
+        });
+      });
+    }
+
+    if(fromFreshServerData){
+      state.schemaVersion = SCHEMA_V4_TARGET_SIMPLIFY;
+      saveState();
+    }
   }
   function setSyncStatus(status){
     syncStatus = status;
@@ -1606,12 +1966,31 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   // ---------- persistence: my own private working copy ----------
   function showLoadBlocker(msg){
+    document.getElementById('loadBlockerSpinner').style.display = 'block';
+    document.getElementById('loadBlockerRetry').style.display = 'none';
     document.getElementById('loadBlockerMsg').textContent = msg;
     document.getElementById('loadBlocker').style.display = 'flex';
+    armLoadBlockerTimeout();
   }
   function hideLoadBlocker(){
     document.getElementById('loadBlocker').style.display = 'none';
+    clearTimeout(loadBlockerTimeoutHandle);
   }
+  function showLoadBlockerError(msg){
+    clearTimeout(loadBlockerTimeoutHandle);
+    document.getElementById('loadBlockerSpinner').style.display = 'none';
+    document.getElementById('loadBlockerMsg').textContent = msg;
+    document.getElementById('loadBlockerRetry').style.display = 'inline-block';
+    document.getElementById('loadBlocker').style.display = 'flex';
+  }
+  let loadBlockerTimeoutHandle = null;
+  function armLoadBlockerTimeout(){
+    clearTimeout(loadBlockerTimeoutHandle);
+    loadBlockerTimeoutHandle = setTimeout(()=>{
+      showLoadBlockerError("This is taking longer than it should. Check your connection, or the app may need a moment to reach the server.");
+    }, 12000);
+  }
+  document.getElementById('loadBlockerRetry').addEventListener('click', ()=> location.reload());
   function waitForOnline(){
     return new Promise((resolve)=>{
       if(navigator.onLine){ setTimeout(resolve, 1500); return; } // brief pause, then retry even if reported online (flaky network)
@@ -1655,6 +2034,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stateReadyToPersist = true;
     applyTheme();
     await migrateLegacyWeeklyTemplate(true);
+    await migrateTaskTargetMerge(true);
+    await migrateSimplifyTargets(true);
     pruneOldTombstones();
     maybeWriteDailyBackup();
     await loadUsersList();
@@ -1665,6 +2046,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTaskPinLabel();
     render();
     startLiveTimers();
+    startReminderScheduler();
     subscribeSelfLiveStatus();
     subscribeSelfNudges();
     subscribeOwnBoard();
@@ -1777,18 +2159,41 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   // ---------- auth: login / sign up / logout ----------
   let booted = false;
+  let anonSignInInFlight = false;
   const authScreen = document.getElementById('authScreen');
   const appRoot = document.getElementById('app');
   const authError = document.getElementById('authError');
-  function showAuth(){
-    authScreen.style.display = 'flex';
-    appRoot.style.display = 'none';
-  }
   function showApp(){
     authScreen.style.display = 'none';
     appRoot.style.display = 'flex';
   }
-  function setAuthError(msg){ authError.textContent = msg || ''; }
+  // The auth screen is now an on-demand overlay (opened from Settings), never a mandatory
+  // gate — the app itself is always reachable, guest or signed-in, per the "no barrier" model.
+  function openAuthOverlay(){
+    authScreen.style.display = 'flex';
+    document.getElementById('authClose').style.display = 'block';
+    setAuthError('');
+    const nativeGoogle = isNativeApp();
+    document.getElementById('authGoogle').style.display = nativeGoogle ? 'none' : 'flex';
+    document.getElementById('authDivider').style.display = nativeGoogle ? 'none' : 'flex';
+    document.getElementById('authNativeGoogleNote').style.display = nativeGoogle ? 'block' : 'none';
+  }
+  function closeAuthOverlay(){
+    authScreen.style.display = 'none';
+  }
+  document.getElementById('authClose').addEventListener('click', closeAuthOverlay);
+  function isNativeApp(){
+    try{ return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
+    catch(e){ return false; }
+  }
+  function setAuthError(msg){ authError.textContent = msg || ''; document.getElementById('authNote').style.display = 'none'; }
+  function showAuthNote(msg){
+    const el = document.getElementById('authNote');
+    el.textContent = msg;
+    el.style.display = 'block';
+    setAuthErrorOnly('');
+  }
+  function setAuthErrorOnly(msg){ authError.textContent = msg || ''; }
   const AUTH_ERROR_MESSAGES = {
     'auth/invalid-credential': 'Wrong email or password.',
     'auth/invalid-email': 'That email address doesn\'t look right.',
@@ -1798,12 +2203,95 @@ window.storage = storage; // keep the rest of the app's code unchanged
     'auth/network-request-failed': 'Network error — check your connection and try again.',
     'auth/user-disabled': 'This account has been disabled.',
     'auth/email-already-in-use': 'That email is already registered.',
-    'auth/weak-password': 'Password should be at least 6 characters.'
+    'auth/weak-password': 'Password should be at least 6 characters.',
+    'auth/popup-closed-by-user': 'Sign-in was closed before finishing.',
+    'auth/cancelled-popup-request': 'Sign-in was cancelled.',
+    'auth/popup-blocked': 'Your browser blocked the sign-in popup — allow popups for this site and try again.'
   };
   function friendlyAuthError(e){
     const match = /\(auth\/([a-z0-9-]+)\)/.exec(e && e.message || '');
     const code = match ? 'auth/'+match[1] : (e && e.code) || '';
     return AUTH_ERROR_MESSAGES[code] || (e && e.message ? e.message.replace('Firebase: ','') : 'Something went wrong. Please try again.');
+  }
+
+  // Handles both: (a) a genuinely fresh sign-in (new uid — anonymous boot, or switching to a
+  // different existing account), and (b) the first time we see a given uid on this browser.
+  // NOT used when linking a credential to the current guest session in place — that keeps the
+  // same uid and all already-loaded state, see upgradeGuestInPlace() below.
+  async function bootAsUser(user, opts){
+    opts = opts || {};
+    window.__meId = user.uid;
+    const res = await window.storage.get('study-board-profile', false).catch(()=>null);
+    if(res && res.value){
+      me = JSON.parse(res.value);
+      if(opts.name) me.name = opts.name;
+    } else {
+      me = { id: user.uid, name: opts.name || user.displayName || (user.isAnonymous ? 'Guest' : 'Student'), color: COLORS[Math.floor(Math.random()*COLORS.length)] };
+      await window.storage.set('study-board-profile', JSON.stringify(me), false);
+      await registerUser(me, true).catch(()=>{});
+    }
+    me.isAnon = !!user.isAnonymous;
+    me.email = user.email || null;
+    me.emailVerified = !!user.emailVerified;
+    booted = true;
+    closeAuthOverlay();
+    showApp();
+    await loadState();
+  }
+  // Upgrades the current guest session to a real account WITHOUT changing uid — all already-loaded
+  // state, boards, and history stay exactly as they are. This is the whole point of anonymous-auth
+  // account linking: guest progress becomes the permanent account, not a separate thing to migrate.
+  function upgradeGuestInPlace(user, name){
+    if(name) me.name = name;
+    me.isAnon = false;
+    me.email = user.email || null;
+    me.emailVerified = !!user.emailVerified;
+    window.storage.set('study-board-profile', JSON.stringify(me), false).catch(()=>{});
+    registerUser(me, true).catch(()=>{});
+    closeAuthOverlay();
+    renderHeaderAvatar();
+  }
+  // A soft, one-time nudge after a guest has logged a few real sessions — never a gate,
+  // just a gentle reminder at a natural moment that their progress isn't backed up yet.
+  function maybeNudgeGuestToSignIn(){
+    if(!me || !me.isAnon || state.guestNudgeShown) return;
+    const totalSessions = Object.values(state.sessions||{}).reduce((sum,arr)=>sum+arr.length, 0);
+    if(totalSessions < 3) return;
+    state.guestNudgeShown = true;
+    saveState();
+    showNudgeToast("Loving the momentum? Tap your profile (top right) to sign in and never lose this.");
+  }
+  // Shown when linking fails because the email/Google account is already a real, separate account
+  // elsewhere — we never silently merge two people's data. The person explicitly chooses to switch,
+  // understanding their guest activity on this device is left behind (it was never backed up anyway).
+  function offerAccountSwitch(email, password, googleCredential){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h3>This account already exists</h3>
+        <div style="font-size:13px; color:var(--chalk-dim); line-height:1.6; margin-bottom:18px;">
+          ${googleCredential ? 'That Google account' : 'That email'} already has its own saved progress under a separate account.
+          Switching to it will leave behind whatever you've done here as a guest — it won't be merged in.
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="switch-cancel">Cancel</button>
+          <button class="btn btn-primary" id="switch-confirm">Switch to that account</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('#switch-cancel').addEventListener('click', close);
+    backdrop.querySelector('#switch-confirm').addEventListener('click', async ()=>{
+      close();
+      try{
+        const cred = googleCredential
+          ? await signInWithCredential(auth, googleCredential)
+          : await signInWithEmailAndPassword(auth, email, password);
+        await bootAsUser(cred.user, {});
+      }catch(e){ setAuthError(friendlyAuthError(e)); }
+    });
   }
 
   let authMode = 'login'; // or 'signup'
@@ -1814,6 +2302,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('authTitle').textContent = authMode==='signup' ? 'Join the board' : 'Welcome back';
     document.getElementById('authToggle').textContent = authMode==='signup' ? 'Already have an account? Log in' : 'New here? Create an account';
     setAuthError('');
+  });
+  document.getElementById('authForgot').addEventListener('click', async ()=>{
+    const email = document.getElementById('authEmail').value.trim();
+    if(!email){ setAuthError('Enter your email above first, then tap Forgot password.'); return; }
+    setAuthError('');
+    try{
+      await sendPasswordResetEmail(auth, email);
+      showAuthNote('Password reset email sent to ' + email + '.');
+    }catch(e){ setAuthError(friendlyAuthError(e)); }
   });
 
   document.getElementById('authSubmit').addEventListener('click', async ()=>{
@@ -1827,27 +2324,57 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('authSubmit').disabled = true;
     try{
       if(authMode==='signup'){
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        booted = true;
-        window.__meId = cred.user.uid;
-        me = { id: cred.user.uid, name, color: COLORS[Math.floor(Math.random()*COLORS.length)] };
-        await window.storage.set('study-board-profile', JSON.stringify(me), false);
-        await registerUser(me, true);
-        showApp();
-        await loadState();
+        if(auth.currentUser && auth.currentUser.isAnonymous){
+          try{
+            const cred = await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(email, password));
+            upgradeGuestInPlace(cred.user, name);
+            try{ await sendEmailVerification(cred.user); showAuthNote('Account created! We sent a verification link to ' + email + '.'); }
+            catch(e){ showAuthNote('Account created!'); }
+          }catch(e){
+            if(e.code==='auth/email-already-in-use' || e.code==='auth/credential-already-in-use'){
+              offerAccountSwitch(email, password);
+            } else { throw e; }
+          }
+        } else {
+          const cred = await createUserWithEmailAndPassword(auth, email, password);
+          await bootAsUser(cred.user, { name });
+          try{ await sendEmailVerification(cred.user); }catch(e){}
+        }
       } else {
         const cred = await signInWithEmailAndPassword(auth, email, password);
-        booted = true;
-        window.__meId = cred.user.uid;
-        const res = await window.storage.get('study-board-profile', false);
-        me = res && res.value ? JSON.parse(res.value) : { id: cred.user.uid, name: 'Student', color: COLORS[0] };
-        showApp();
-        await loadState();
+        await bootAsUser(cred.user, {});
       }
     }catch(e){
       setAuthError(friendlyAuthError(e));
     }
     document.getElementById('authSubmit').disabled = false;
+  });
+
+  document.getElementById('authGoogle').addEventListener('click', async ()=>{
+    setAuthError('');
+    const provider = new GoogleAuthProvider();
+    const btn = document.getElementById('authGoogle');
+    btn.disabled = true;
+    try{
+      if(auth.currentUser && auth.currentUser.isAnonymous){
+        try{
+          const cred = await linkWithPopup(auth.currentUser, provider);
+          upgradeGuestInPlace(cred.user, cred.user.displayName);
+        }catch(e){
+          if(e.code==='auth/credential-already-in-use'){
+            offerAccountSwitch(null, null, GoogleAuthProvider.credentialFromError(e));
+          } else if(e.code!=='auth/popup-closed-by-user' && e.code!=='auth/cancelled-popup-request'){
+            throw e;
+          }
+        }
+      } else {
+        const cred = await signInWithPopup(auth, provider);
+        await bootAsUser(cred.user, { name: cred.user.displayName });
+      }
+    }catch(e){
+      setAuthError(friendlyAuthError(e));
+    }
+    btn.disabled = false;
   });
 
   async function doLogout(){
@@ -1865,6 +2392,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     try{ if(selfLiveUnsub){ selfLiveUnsub(); selfLiveUnsub = null; } }catch(e){ console.error('logout: selfLiveUnsub failed', e); }
     try{ if(boardUnsub){ boardUnsub(); boardUnsub = null; } }catch(e){ console.error('logout: boardUnsub failed', e); }
     try{ stopLiveTimers(); }catch(e){ console.error('logout: stopLiveTimers failed', e); }
+    try{ if(reminderScheduleHandle){ clearInterval(reminderScheduleHandle); reminderScheduleHandle = null; } remindedTaskKeys.clear(); }catch(e){}
     try{ if(friendBoardsPollHandle){ clearInterval(friendBoardsPollHandle); friendBoardsPollHandle = null; } }catch(e){}
     friendCache = {};
     liveCache = {};
@@ -1877,7 +2405,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
 
-  document.getElementById('acctBtn').addEventListener('click', openAccountModal);
+  document.getElementById('acctBtn').addEventListener('click', openSettingsHub);
   document.getElementById('bellBtn').addEventListener('click', openNotificationsModal);
 
   // ---------- account / profile ----------
@@ -1908,13 +2436,32 @@ window.storage = storage; // keep the rest of the app's code unchanged
       reader.readAsDataURL(file);
     });
   }
-  function openAccountModal(){
+  function openSettingsHub(){
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     backdrop.innerHTML = `
       <div class="modal">
         <button class="close-x">×</button>
-        <h3>Your account</h3>
+        <h3>Settings</h3>
+        ${me.isAnon ? `
+        <div class="guest-banner">
+          <div class="guest-banner-name">👤 Guest</div>
+          <div class="guest-banner-sub">Your progress is only saved on this device — sign in to back it up and never lose it.</div>
+          <button class="btn btn-primary" id="acct-signin" style="width:100%; margin-top:10px;">Sign in to save your progress</button>
+        </div>` : (!me.emailVerified && me.email ? `
+        <div class="guest-banner" style="background:var(--card); border-color:var(--card-line);">
+          <div class="guest-banner-sub">Verify ${escapeHtml(me.email)} to fully secure your account.</div>
+          <button class="btn btn-ghost" id="acct-resend-verify" style="width:100%; margin-top:10px;">Resend verification email</button>
+        </div>` : '')}
+        <div class="membership-row">
+          <div class="membership-left">
+            <div class="membership-plan">${me.isAnon ? 'Guest' : 'Free plan'}</div>
+            <div class="membership-sub">${me.isAnon ? 'Sign in to unlock membership' : 'Basic features, forever free'}</div>
+          </div>
+          <button class="btn btn-upgrade" id="acct-upgrade">✨ Upgrade</button>
+        </div>
+
+        <div class="section-divider"></div>
         <div class="acct-photo-row">
           <div class="acct-photo" id="acct-photo-preview">${me.photo ? `<img src="${me.photo}" alt="">` : escapeHtml((me.name||'?').slice(0,1).toUpperCase())}</div>
           <div class="acct-photo-actions">
@@ -1927,27 +2474,189 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <label>Name</label>
           <input type="text" id="acct-name" value="${escapeHtml(me.name)}">
         </div>
+        ${!me.isAnon ? `
+        <div class="field-row">
+          <label>Email</label>
+          <div class="field-readonly">${escapeHtml(me.email || '—')}</div>
+        </div>` : ''}
+        <div class="field-row">
+          <label>Phone <span style="opacity:.6; text-transform:none;">(optional)</span></label>
+          <input type="tel" id="acct-phone" value="${escapeHtml(me.phone || '')}" placeholder="Not set">
+        </div>
         <div class="field-row">
           <label>Avatar color</label>
           <div class="color-row" id="acct-colors">
             ${COLORS.map(c=>`<div class="swatch ${c===me.color?'sel':''}" data-color="${c}" style="background:${c}"></div>`).join('')}
           </div>
         </div>
+
         <div class="section-divider"></div>
-        <h4 class="modal-subhead">Appearance</h4>
+        <div class="settings-row" data-nav="appearance">
+          <div class="label"><span class="icon">🎨</span> Appearance</div><span class="chev">›</span>
+        </div>
+        <div class="settings-row" data-nav="goals">
+          <div class="label"><span class="icon">🎯</span> Study Goals</div><span class="chev">›</span>
+        </div>
+        <div class="settings-row" data-nav="camera">
+          <div class="label"><span class="icon">📷</span> Camera & Snapshots</div><span class="chev">›</span>
+        </div>
+        <div class="settings-row" data-nav="privacy">
+          <div class="label"><span class="icon">🔒</span> Privacy & Social</div><span class="chev">›</span>
+        </div>
+        <div class="settings-row" data-nav="notifications">
+          <div class="label"><span class="icon">🔔</span> Notifications</div><span class="chev">›</span>
+        </div>
+
+        <div class="section-divider"></div>
+        ${!me.isAnon ? `<button class="btn btn-danger" id="acct-logout" style="width:100%; margin-bottom:8px;">Log out</button>` : ''}
+        <button class="btn btn-ghost" id="acct-export" style="width:100%;">⬇ Export my data</button>
+
+        <div class="danger-zone">
+          <div class="dz-title">Danger zone</div>
+          <div class="dz-sub">Permanently deletes your account and all synced data. This can't be undone.</div>
+          <button class="btn btn-ghost" id="acct-delete" style="width:100%; color:var(--c1); border-color:var(--c1-dim);">Delete account</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    let pickedColor = me.color;
+    let pickedPhoto = me.photo || null;
+
+    // Everything in the top section auto-saves the moment the hub closes — no Save/Cancel buttons.
+    async function close(){
+      const newName = backdrop.querySelector('#acct-name').value.trim() || me.name;
+      const newPhone = backdrop.querySelector('#acct-phone').value.trim();
+      me.name = newName;
+      me.color = pickedColor;
+      me.photo = pickedPhoto;
+      me.phone = newPhone || null;
+      document.body.removeChild(backdrop);
+      try{ await window.storage.set('study-board-profile', JSON.stringify(me), false); }catch(e){}
+      await registerUser(me, true);
+      renderHeaderAvatar();
+      render();
+    }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    backdrop.querySelectorAll('#acct-colors .swatch').forEach(sw=>{
+      sw.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('#acct-colors .swatch').forEach(s=>s.classList.remove('sel'));
+        sw.classList.add('sel');
+        pickedColor = sw.dataset.color;
+      });
+    });
+    const fileInput = backdrop.querySelector('#acct-photo-input');
+    backdrop.querySelector('#acct-photo-pick').addEventListener('click', ()=> fileInput.click());
+    fileInput.addEventListener('change', async ()=>{
+      const file = fileInput.files[0];
+      if(!file) return;
+      try{
+        pickedPhoto = await resizeImageToDataUrl(file, 160);
+        backdrop.querySelector('#acct-photo-preview').innerHTML = `<img src="${pickedPhoto}" alt="">`;
+      }catch(e){ alert('Could not read that image — try a different file.'); }
+    });
+    const removeBtn = backdrop.querySelector('#acct-photo-remove');
+    if(removeBtn){
+      removeBtn.addEventListener('click', ()=>{
+        pickedPhoto = null;
+        const nm = backdrop.querySelector('#acct-name').value.trim() || me.name;
+        backdrop.querySelector('#acct-photo-preview').innerHTML = escapeHtml(nm.slice(0,1).toUpperCase());
+      });
+    }
+
+    backdrop.querySelectorAll('.settings-row[data-nav]').forEach(row=>{
+      row.addEventListener('click', async ()=>{
+        await close();
+        const dest = row.dataset.nav;
+        if(dest==='appearance') openAppearanceSettings();
+        else if(dest==='goals') openStudyGoalsSettings();
+        else if(dest==='camera') openCameraSettings();
+        else if(dest==='privacy') openPrivacySettings();
+        else if(dest==='notifications') openNotificationSettings();
+      });
+    });
+
+    const logoutBtn = backdrop.querySelector('#acct-logout');
+    if(logoutBtn) logoutBtn.addEventListener('click', async ()=>{ document.body.removeChild(backdrop); await doLogout(); });
+    const signinBtn = backdrop.querySelector('#acct-signin');
+    if(signinBtn) signinBtn.addEventListener('click', async ()=>{ await close(); openAuthOverlay(); });
+    const resendBtn = backdrop.querySelector('#acct-resend-verify');
+    if(resendBtn) resendBtn.addEventListener('click', async ()=>{
+      resendBtn.disabled = true;
+      try{ await sendEmailVerification(auth.currentUser); resendBtn.textContent = 'Sent!'; }
+      catch(e){ resendBtn.textContent = 'Could not send — try again later'; }
+      setTimeout(()=>{ resendBtn.disabled = false; }, 3000);
+    });
+    backdrop.querySelector('#acct-upgrade').addEventListener('click', async ()=>{
+      if(me.isAnon){ await close(); openAuthOverlay(); return; }
+      showNudgeToast('Premium membership is coming soon ✨');
+    });
+    backdrop.querySelector('#acct-export').addEventListener('click', exportUserData);
+    backdrop.querySelector('#acct-delete').addEventListener('click', async ()=>{
+      document.body.removeChild(backdrop);
+      openDeleteAccountConfirm();
+    });
+  }
+
+  // ---------- Appearance sub-page ----------
+  function openAppearanceSettings(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <div class="settings-sub-header">
+          <button class="settings-back" id="ss-back">‹</button>
+          <h3>Appearance</h3>
+        </div>
         <div class="field-row">
-          <div class="appearance-row">
-            <div class="seg-row" id="acct-theme-mode">
-              <button type="button" class="seg-btn ${(state.themeMode||'dark')==='dark'?'sel':''}" data-mode="dark" title="Dark">●</button>
-              <button type="button" class="seg-btn ${state.themeMode==='light'?'sel':''}" data-mode="light" title="Light">☀</button>
-            </div>
-            <div class="color-row" id="acct-palette">
-              ${PALETTES.map(p=>`<div class="swatch ${p.id===(state.themePalette||'cyan')?'sel':''}" data-palette="${p.id}" style="background:${p.accent}" title="${p.id}"></div>`).join('')}
-            </div>
+          <label>Theme</label>
+          <div class="seg-row" id="acct-theme-mode">
+            <button type="button" class="seg-btn ${(state.themeMode||'dark')==='dark'?'sel':''}" data-mode="dark">● Dark</button>
+            <button type="button" class="seg-btn ${state.themeMode==='light'?'sel':''}" data-mode="light">☀ Light</button>
           </div>
         </div>
-        <div class="section-divider"></div>
-        <h4 style="margin:0 0 10px; font-family:'Kalam'; font-size:14px; color:var(--chalk-dim); font-weight:400;">Study goals</h4>
+        <div class="field-row">
+          <label>Accent color</label>
+          <div class="color-row" id="acct-palette">
+            ${PALETTES.map(p=>`<div class="swatch ${p.id===(state.themePalette||'cyan')?'sel':''}" data-palette="${p.id}" style="background:${p.accent}" title="${p.id}"></div>`).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); openSettingsHub(); }
+    backdrop.querySelector('#ss-back').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    // Theme changes apply the instant you tap — a live preview like this is more useful auto-saved
+    // immediately than deferred to "on exit", so both are effectively the same for the person.
+    backdrop.querySelectorAll('#acct-theme-mode .seg-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('#acct-theme-mode .seg-btn').forEach(b=>b.classList.remove('sel'));
+        btn.classList.add('sel');
+        setThemeMode(btn.dataset.mode);
+      });
+    });
+    backdrop.querySelectorAll('#acct-palette .swatch').forEach(sw=>{
+      sw.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('#acct-palette .swatch').forEach(s=>s.classList.remove('sel'));
+        sw.classList.add('sel');
+        setThemePalette(sw.dataset.palette);
+      });
+    });
+  }
+
+  // ---------- Study Goals sub-page ----------
+  function openStudyGoalsSettings(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <div class="settings-sub-header">
+          <button class="settings-back" id="ss-back">‹</button>
+          <h3>Study Goals</h3>
+        </div>
         <div class="field-row">
           <label>Daily goal (hours, 0 = off)</label>
           <input type="number" id="acct-goal-daily" value="${(state.goals&&state.goals.dailyMin)? (state.goals.dailyMin/60) : 0}" min="0" step="0.5">
@@ -1956,8 +2665,32 @@ window.storage = storage; // keep the rest of the app's code unchanged
           <label>Weekly goal (hours, 0 = off)</label>
           <input type="number" id="acct-goal-weekly" value="${(state.goals&&state.goals.weeklyMin)? (state.goals.weeklyMin/60) : 0}" min="0" step="0.5">
         </div>
-        <div class="section-divider"></div>
-        <h4 class="modal-subhead">Camera & Snapshots</h4>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    async function close(){
+      const dailyMin = Math.max(0, Math.round(parseFloat(backdrop.querySelector('#acct-goal-daily').value||'0') * 60));
+      const weeklyMin = Math.max(0, Math.round(parseFloat(backdrop.querySelector('#acct-goal-weekly').value||'0') * 60));
+      state.goals = { dailyMin, weeklyMin };
+      document.body.removeChild(backdrop);
+      await flushStateNow();
+      render();
+      openSettingsHub();
+    }
+    backdrop.querySelector('#ss-back').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+  }
+
+  // ---------- Camera & Snapshots sub-page ----------
+  function openCameraSettings(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <div class="settings-sub-header">
+          <button class="settings-back" id="ss-back">‹</button>
+          <h3>Camera & Snapshots</h3>
+        </div>
         <div class="field-row" style="flex-direction:row; align-items:center; justify-content:space-between;">
           <label style="margin:0;">Share live snapshots while studying</label>
           <label class="switch"><input type="checkbox" id="acct-snap-enabled" ${snapSettings.enabled?'checked':''}><span class="switch-slider"></span></label>
@@ -1979,45 +2712,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
           </select>
         </div>
         <div style="font-size:11px; color:var(--chalk-faint); margin:-4px 0 4px;">Only visible to friends you're studying with. Off by default. The camera turns on only for a moment to take each snapshot, then turns off again — it's never left running.</div>
-        <div class="section-divider"></div>
-        <button class="btn btn-ghost" id="acct-manage" style="width:100%; margin-bottom:10px;">👥 My Groups</button>
-        <button class="btn btn-danger" id="acct-logout" style="width:100%;">Log out</button>
-        <div class="modal-actions">
-          <button class="btn btn-ghost" id="acct-cancel">Cancel</button>
-          <button class="btn btn-primary" id="acct-save">Save</button>
-        </div>
       </div>
     `;
     document.body.appendChild(backdrop);
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.querySelector('#acct-cancel').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-
-    let pickedColor = me.color;
-    backdrop.querySelectorAll('#acct-colors .swatch').forEach(sw=>{
-      sw.addEventListener('click', ()=>{
-        backdrop.querySelectorAll('#acct-colors .swatch').forEach(s=>s.classList.remove('sel'));
-        sw.classList.add('sel');
-        pickedColor = sw.dataset.color;
-      });
-    });
-
-    backdrop.querySelectorAll('#acct-theme-mode .seg-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        backdrop.querySelectorAll('#acct-theme-mode .seg-btn').forEach(b=>b.classList.remove('sel'));
-        btn.classList.add('sel');
-        setThemeMode(btn.dataset.mode);
-      });
-    });
-    backdrop.querySelectorAll('#acct-palette .swatch').forEach(sw=>{
-      sw.addEventListener('click', ()=>{
-        backdrop.querySelectorAll('#acct-palette .swatch').forEach(s=>s.classList.remove('sel'));
-        sw.classList.add('sel');
-        setThemePalette(sw.dataset.palette);
-      });
-    });
-
     let pickedFacing = snapSettings.facing;
     backdrop.querySelectorAll('#acct-snap-facing .seg-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
@@ -2026,63 +2723,251 @@ window.storage = storage; // keep the rest of the app's code unchanged
         pickedFacing = btn.dataset.facing;
       });
     });
-
-    let pickedPhoto = me.photo || null;
-    const fileInput = backdrop.querySelector('#acct-photo-input');
-    backdrop.querySelector('#acct-photo-pick').addEventListener('click', ()=> fileInput.click());
-    fileInput.addEventListener('change', async ()=>{
-      const file = fileInput.files[0];
-      if(!file) return;
-      try{
-        pickedPhoto = await resizeImageToDataUrl(file, 160);
-        backdrop.querySelector('#acct-photo-preview').innerHTML = `<img src="${pickedPhoto}" alt="">`;
-      }catch(e){ alert('Could not read that image — try a different file.'); }
-    });
-    const removeBtn = backdrop.querySelector('#acct-photo-remove');
-    if(removeBtn){
-      removeBtn.addEventListener('click', ()=>{
-        pickedPhoto = null;
-        const nm = backdrop.querySelector('#acct-name').value.trim() || me.name;
-        backdrop.querySelector('#acct-photo-preview').innerHTML = escapeHtml(nm.slice(0,1).toUpperCase());
-      });
-    }
-
-    backdrop.querySelector('#acct-manage').addEventListener('click', ()=>{ close(); openGroupsModal(); });
-    backdrop.querySelector('#acct-logout').addEventListener('click', async ()=>{ close(); await doLogout(); });
-
-    backdrop.querySelector('#acct-save').addEventListener('click', async ()=>{
-      const newName = backdrop.querySelector('#acct-name').value.trim() || me.name;
-      me.name = newName;
-      me.color = pickedColor;
-      me.photo = pickedPhoto;
-      try{ await window.storage.set('study-board-profile', JSON.stringify(me), false); }catch(e){}
-      await registerUser(me, true);
-
-      const dailyMin = Math.max(0, Math.round(parseFloat(backdrop.querySelector('#acct-goal-daily').value||'0') * 60));
-      const weeklyMin = Math.max(0, Math.round(parseFloat(backdrop.querySelector('#acct-goal-weekly').value||'0') * 60));
-      state.goals = { dailyMin, weeklyMin };
-      await flushStateNow();
-
+    async function close(){
       const wasEnabled = snapSettings.enabled;
       snapSettings.enabled = backdrop.querySelector('#acct-snap-enabled').checked;
       snapSettings.facing = pickedFacing;
       snapSettings.freqMs = parseInt(backdrop.querySelector('#acct-snap-freq').value, 10) || 60000;
       saveSnapSettings(snapSettings);
+      document.body.removeChild(backdrop);
       if(!snapSettings.enabled){
         stopSnapshotScheduler();
         if(wasEnabled) setLiveStatus({ snapshot:null, snapshotAt:null });
       } else if(camCaptureIntervalHandle){
-        // frequency may have changed — reschedule with the new interval
         stopSnapshotScheduler();
         startSnapshotScheduler();
       } else if(timerRunning){
         startSnapshotScheduler();
       }
       renderSnapRow();
+      openSettingsHub();
+    }
+    backdrop.querySelector('#ss-back').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+  }
 
-      renderHeaderAvatar();
-      render();
-      close();
+  // ---------- Privacy & Social sub-page (Reciprocity Engine settings + Blocked Users) ----------
+  function openPrivacySettings(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const priv = state.privacy || { visibility:'all', allowedGroupIds:[], allowedMemberIds:[] };
+    const TIERS = [
+      { id:'all', name:'All', desc:'Anyone you share a group with can see your study details and comments.' },
+      { id:'groups', name:'Selected Groups Only', desc:'Only members of groups you choose.' },
+      { id:'members', name:'Selected Members Only', desc:'Only specific people you pick.' },
+      { id:'none', name:'None (Strictly Private)', desc:"Nobody can see you — and you won't be able to see anyone else's profile either." }
+    ];
+    const blockedList = Object.keys(state.blockedIds||{});
+    backdrop.innerHTML = `
+      <div class="modal">
+        <div class="settings-sub-header">
+          <button class="settings-back" id="ss-back">‹</button>
+          <h3>Privacy & Social</h3>
+        </div>
+        <div style="font-size:11.5px; color:var(--chalk-faint); margin-bottom:12px; line-height:1.5;">
+          Governs who can see your study details and comments on the Live page. Visibility is mutual — someone can only see you if you also allow seeing them.
+        </div>
+        <div id="priv-tiers">
+          ${TIERS.map(t=>`
+            <div class="priv-option ${priv.visibility===t.id?'sel':''}" data-tier="${t.id}">
+              <div>
+                <div class="name">${t.name}</div>
+                <div class="desc">${t.desc}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="section-divider"></div>
+        <h4 class="modal-subhead">Blocked users (${blockedList.length})</h4>
+        <div id="priv-blocked">
+          ${blockedList.length ? blockedList.map(uid=>{
+            const u = (allProfiles||[]).find(x=>x.id===uid);
+            return `<div class="blocked-row"><span>${escapeHtml(u?u.name:'Unknown user')}</span><button class="btn btn-ghost" data-unblock="${uid}" style="padding:4px 10px; font-size:11px;">Unblock</button></div>`;
+          }).join('') : `<div style="font-size:12px; color:var(--chalk-faint);">Nobody blocked.</div>`}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); openSettingsHub(); }
+    backdrop.querySelector('#ss-back').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    backdrop.querySelectorAll('.priv-option[data-tier]').forEach(opt=>{
+      opt.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('.priv-option').forEach(o=>o.classList.remove('sel'));
+        opt.classList.add('sel');
+        state.privacy = state.privacy || {};
+        state.privacy.visibility = opt.dataset.tier;
+        saveState();
+      });
+    });
+    backdrop.querySelectorAll('[data-unblock]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        delete state.blockedIds[btn.dataset.unblock];
+        saveState();
+        btn.closest('.blocked-row').remove();
+      });
+    });
+  }
+
+  // ---------- Notifications sub-page ----------
+  function openNotificationSettings(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const np = Object.assign({ timerStop:true, taskComplete:true, reminders:true, groupInvites:true, liveSessionStart:true, scheduleReminders:true }, state.notificationPrefs||{});
+    const ROWS = [
+      ['timerStop', 'Focus timer stops', 'When your timer ends or is stopped'],
+      ['taskComplete', 'Task completed', "When a linked task is auto-marked done"],
+      ['reminders', 'Task reminders', 'A heads-up before a scheduled task starts (while the app is open)'],
+      ['groupInvites', 'Group invites', 'When someone invites you to a group'],
+      ['liveSessionStart', 'Friends starting a session', 'When someone in your groups starts studying'],
+      ['scheduleReminders', 'Daily schedule reminder', "A nudge if you haven't started your day's plan"]
+    ];
+    backdrop.innerHTML = `
+      <div class="modal">
+        <div class="settings-sub-header">
+          <button class="settings-back" id="ss-back">‹</button>
+          <h3>Notifications</h3>
+        </div>
+        ${ROWS.map(([key,label,sub])=>`
+          <div class="field-row" style="flex-direction:row; align-items:center; justify-content:space-between;">
+            <div>
+              <label style="margin:0;">${label}</label>
+              <div style="font-size:11px; color:var(--chalk-faint); margin-top:2px;">${sub}</div>
+            </div>
+            <label class="switch"><input type="checkbox" data-np="${key}" ${np[key]?'checked':''}><span class="switch-slider"></span></label>
+          </div>
+        `).join('')}
+        <div style="font-size:11px; color:var(--chalk-faint); margin-top:6px; line-height:1.5;">
+          These alerts fire on this device while Study Board is open (or just backgrounded). True background delivery when the app is fully closed needs a paid server tier — planned for later.
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    async function close(){
+      const updated = {};
+      ROWS.forEach(([key])=>{ updated[key] = backdrop.querySelector(`[data-np="${key}"]`).checked; });
+      state.notificationPrefs = updated;
+      document.body.removeChild(backdrop);
+      if(Object.values(updated).some(Boolean)) await ensureNotificationPermission();
+      await flushStateNow();
+      openSettingsHub();
+    }
+    backdrop.querySelector('#ss-back').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+  }
+
+  // ---------- Export data ----------
+  function exportUserData(){
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      profile: { name: me.name, email: me.email||null },
+      subjects: state.subjects, sessions: state.sessions,
+      targets: state.targets, plans: state.plans,
+      completion: state.completion, goals: state.goals
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `study-board-export-${fmtDate(new Date())}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 4000);
+  }
+
+  // ---------- Delete account ----------
+  function openDeleteAccountConfirm(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h3 style="color:var(--c1);">Delete your account</h3>
+        <div style="font-size:13px; color:var(--chalk-dim); line-height:1.6; margin-bottom:14px;">
+          This permanently deletes your account and everything synced to it — schedule, sessions, plans, history.
+          There's no undo. Type <b>DELETE</b> below to confirm.
+        </div>
+        <input type="text" id="del-confirm-input" placeholder="Type DELETE" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px 12px; font-family:'Inter'; font-size:14px; margin-bottom:14px;">
+        <div class="auth-error" id="del-error"></div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="del-cancel">Cancel</button>
+          <button class="btn btn-danger" id="del-confirm">Delete forever</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('#del-cancel').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    backdrop.querySelector('#del-confirm').addEventListener('click', async ()=>{
+      const errEl = backdrop.querySelector('#del-error');
+      if(backdrop.querySelector('#del-confirm-input').value.trim() !== 'DELETE'){
+        errEl.textContent = 'Type DELETE exactly, in capitals, to confirm.';
+        return;
+      }
+      const btn = backdrop.querySelector('#del-confirm');
+      btn.disabled = true;
+      try{
+        const uid = me.id;
+        try{ await deleteDoc(doc(db, 'boards', uid)); }catch(e){ console.warn('board delete failed', e); }
+        await deleteUser(auth.currentUser);
+        close();
+      }catch(e){
+        if(e.code === 'auth/requires-recent-login'){
+          errEl.textContent = "For your security, please log out and back in, then try deleting again right away.";
+        } else {
+          errEl.textContent = friendlyAuthError(e);
+        }
+        btn.disabled = false;
+      }
+    });
+  }
+
+  // ---------- local, client-triggered notifications (no Blaze/Cloud Functions needed) ----------
+  async function ensureNotificationPermission(){
+    if(!('Notification' in window)) return false;
+    if(Notification.permission === 'granted') return true;
+    if(Notification.permission === 'denied') return false;
+    try{ const perm = await Notification.requestPermission(); return perm === 'granted'; }
+    catch(e){ return false; }
+  }
+  function localNotify(prefKey, title, body){
+    const np = state.notificationPrefs || {};
+    if(prefKey && np[prefKey] === false) return; // default-on unless explicitly turned off
+    if(!('Notification' in window) || Notification.permission !== 'granted') return;
+    try{
+      if(swRegistration) swRegistration.showNotification(title, { body, icon:'./icons/icon-192.png' });
+      else new Notification(title, { body, icon:'./icons/icon-192.png' });
+    }catch(e){ console.warn('local notify failed', e); }
+  }
+  // Foreground reminder scheduler — checks upcoming tasks once a minute while the app is open.
+  // NOTE: this cannot fire once the app/tab is fully closed. Real background delivery on a closed
+  // app requires a scheduled Cloud Function sending via FCM, which needs the Blaze plan — the
+  // notificationPrefs/reminders architecture here is ready for that to slot in later without
+  // any client-side changes.
+  let reminderScheduleHandle = null;
+  const remindedTaskKeys = new Set();
+  function startReminderScheduler(){
+    if(reminderScheduleHandle) return;
+    reminderScheduleHandle = setInterval(checkUpcomingReminders, 60000);
+    checkUpcomingReminders();
+  }
+  function checkUpcomingReminders(){
+    if(!me || !state.notificationPrefs || state.notificationPrefs.reminders === false) return;
+    const now = new Date();
+    const todayKey = fmtDate(now);
+    const blocks = blocksForDateIn(state, now);
+    blocks.forEach(b=>{
+      if(!b.start) return;
+      const remindKey = todayKey + '|' + b.id;
+      if(remindedTaskKeys.has(remindKey)) return;
+      const [h,m] = b.start.split(':').map(Number);
+      const startTs = new Date(now); startTs.setHours(h, m, 0, 0);
+      const minsUntil = (startTs.getTime() - now.getTime()) / 60000;
+      if(minsUntil > 0 && minsUntil <= 10){
+        remindedTaskKeys.add(remindKey);
+        localNotify('reminders', 'Starting soon', `${b.label || subjectNameIn(b.subject, state)} at ${b.start}`);
+      }
     });
   }
 
@@ -2461,21 +3346,34 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(jumpToGroupId){ drawDetail(jumpToGroupId); } else { drawList(); }
   }
 
+  armLoadBlockerTimeout(); // covers the window before the very first onAuthStateChanged fires
   onAuthStateChanged(auth, async (user)=>{
     if(user && !booted){
-      booted = true;
-      window.__meId = user.uid;
       try{
-        const res = await window.storage.get('study-board-profile', false);
-        me = res && res.value ? JSON.parse(res.value) : { id: user.uid, name: 'Student', color: COLORS[0] };
-      }catch(e){ me = { id: user.uid, name: 'Student', color: COLORS[0] }; }
-      showApp();
-      await loadState();
-    } else if(!user){
+        await bootAsUser(user, {});
+      }catch(e){
+        console.error('boot failed', e);
+        booted = false;
+        showLoadBlockerError("Couldn't load your data: " + (e && e.message ? e.message.replace('Firebase: ','') : 'unknown error'));
+      }
+    } else if(!user && !anonSignInInFlight){
+      // No session at all (first launch, or just logged out) — drop straight into a guest
+      // session rather than showing a login wall. Signing in for real is an opt-in action
+      // from Settings, never a barrier to using the app.
       booted = false;
       me = null;
       window.__meId = null;
-      showAuth();
+      anonSignInInFlight = true;
+      try{ await signInAnonymously(auth); }
+      catch(e){
+        console.error('anonymous sign-in failed', e);
+        if(e.code === 'auth/admin-restricted-operation' || e.code === 'auth/operation-not-allowed'){
+          showLoadBlockerError("Guest access isn't turned on for this app yet (Anonymous sign-in needs to be enabled in Firebase). Tap Retry once that's fixed.");
+        } else {
+          showLoadBlockerError("Couldn't connect: " + (e && e.message ? e.message.replace('Firebase: ','') : 'unknown error'));
+        }
+      }
+      anonSignInInFlight = false;
     }
   });
   async function loadUsersList(){
@@ -2602,15 +3500,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   function pushSharedBoard(){
     if(!me) return;
-    const shared = { subjects: state.subjects, weeklyTemplate: state.weeklyTemplate, weeklyGoals: state.weeklyGoals, plans: state.plans, dailyExtra: state.dailyExtra, completion: state.completion, sessions: state.sessions, goals: state.goals };
+    const shared = { subjects: state.subjects, targets: state.targets, plans: state.plans, completion: state.completion, sessions: state.sessions, goals: state.goals };
     window.storage.set('board:'+me.id, JSON.stringify(shared), true).catch(e=>console.error('share failed', e));
   }
   async function fetchFriendBoard(id){
     try{
       const res = await window.storage.get('board:'+id, true);
-      friendCache[id] = res && res.value ? JSON.parse(res.value) : {subjects:[],weeklyTemplate:[],weeklyGoals:[],plans:[],dailyExtra:{},completion:{},sessions:{}};
+      friendCache[id] = res && res.value ? JSON.parse(res.value) : {subjects:[],targets:[],plans:[],completion:{},sessions:{}};
     }catch(e){
-      friendCache[id] = {subjects:[],weeklyTemplate:[],weeklyGoals:[],plans:[],dailyExtra:{},completion:{},sessions:{}};
+      friendCache[id] = {subjects:[],targets:[],plans:[],completion:{},sessions:{}};
     }
   }
 
@@ -2761,12 +3659,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return `${pad(Math.floor(total/60))}:${pad(total%60)}`;
   }
   function timeRangeLabel(start, duration){
-    if(!start) return '';
+    if(!start) return `~${duration||30}m`;
     const end = addMinutesToHHMM(start, duration||30);
     return `${fmt12(start)} – ${fmt12(end)}`;
   }
   function timeColHtml(start, duration){
-    if(!start) return '';
+    if(!start) return `<span style="opacity:.7;">〰️</span><div class="end">~${duration||30}m</div>`;
     const end = addMinutesToHHMM(start, duration||30);
     return `${fmt12(start)}<div class="end"><span class="arrow">↓</span> ${fmt12(end)}</div>`;
   }
@@ -2803,6 +3701,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const key = fmtDate(date);
     return (data.plans||[]).find(p=> key>=p.startDate && key<=p.endDate) || null;
   }
+  // A date can be covered by more than one plan at once — different categories are allowed to
+  // overlap by design (only same-category plans are blocked from overlapping). Anywhere a target
+  // needs to resolve "which plan(s) is this date part of", use this, not the singular version.
+  function plansContainingDate(data, date){
+    const key = fmtDate(date);
+    return (data.plans||[]).filter(p=> key>=p.startDate && key<=p.endDate);
+  }
   function planDates(plan){
     const dates = [];
     if(!plan) return dates;
@@ -2818,22 +3723,29 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const d = new Date(start); d.setDate(d.getDate()+diff);
     return d;
   }
-  function blocksForDate(date){
-    const data = activeData();
-    const key = fmtDate(date);
-    const dow = date.getDay();
-    const plan = planContainingDate(data, date);
-    const templ = plan ? data.weeklyTemplate.filter(b=>b.day===dow && b.planId===plan.id).map(b=>({...b, source:'template'})) : [];
-    const extra = (data.dailyExtra[key]||[]).map(b=>({...b, source:'extra'}));
-    return [...templ, ...extra].sort((a,b)=> (a.start||'').localeCompare(b.start||''));
+  // Legacy fallback only: expands an old weekday-pattern ('days') target into the explicit
+  // date list it's equivalent to within a given plan. New saves never write 'days' again.
+  function datesForDaysInPlan(plan, days){
+    if(!plan || !days || !days.length) return [];
+    return planDates(plan).filter(d=>days.includes(d.getDay())).map(fmtDate);
   }
+  function blocksForDate(date){ return blocksForDateIn(activeData(), date); }
   function blocksForDateIn(data, date){
     const key = fmtDate(date);
     const dow = date.getDay();
-    const plan = planContainingDate(data, date);
-    const templ = plan ? (data.weeklyTemplate||[]).filter(b=>b.day===dow && b.planId===plan.id).map(b=>({...b, source:'template'})) : [];
-    const extra = ((data.dailyExtra||{})[key]||[]).map(b=>({...b, source:'extra'}));
-    return [...templ, ...extra].sort((a,b)=> (a.start||'').localeCompare(b.start||''));
+    const coveringPlanIds = new Set(plansContainingDate(data, date).map(p=>p.id));
+    const targets = data.targets || [];
+    // 'source' is kept on the returned shape purely so existing UI code can tell a
+    // recurring occurrence from a one-off at a glance, the same way it always did.
+    // 'dates' (explicit list) is the current format; 'days' (weekday pattern) is only read
+    // as a fallback for targets saved before the calendar-based picker existed.
+    const recurring = targets.filter(t=>{
+      if(t.kind!=='recurring' || !coveringPlanIds.has(t.planId)) return false;
+      if(t.dates) return t.dates.includes(key);
+      return (t.days||[]).includes(dow);
+    }).map(t=>({...t, source:'template'}));
+    const once = targets.filter(t=> t.kind==='once' && t.date===key).map(t=>({...t, source:'extra'}));
+    return [...recurring, ...once].sort((a,b)=> (a.start||'').localeCompare(b.start||''));
   }
 
   // ---------- shared "together" tasks (visible + tickable by everyone) ----------
@@ -2863,6 +3775,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       if(currentScreen==='history' && !document.getElementById('historyDate').value){
         document.getElementById('historyDate').value = fmtDate(new Date());
       }
+      const titles = {timer:['Now','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
       document.getElementById('headerTitle').textContent = titles[currentScreen][0];
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
       setSessionLogExpanded(false); // collapses again every time you land on/leave the Now tab
@@ -3389,6 +4302,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
       state.sessions[key].push(justLoggedSession);
       saveState();
       renderTaskList();
+      maybeNudgeGuestToSignIn();
+      localNotify('timerStop', 'Focus session ended', `${fmtHM(durationMin)} of ${subjectNameIn(subjectId, state)} logged.`);
       const dailyGoalMin = (state.goals && state.goals.dailyMin) || 0;
       if(dailyGoalMin > 0){
         const totalAfter = totalBefore + durationMin;
@@ -4049,15 +4964,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     // scroll the active chip into view so jumping to a far-off date is visibly obvious, not just silently applied
     const activeChip = el.querySelector('.day-chip.active');
     if(activeChip) activeChip.scrollIntoView({ block:'nearest', inline:'center' });
+    const jumpInput = document.getElementById('jumpToDateInput');
+    if(jumpInput) jumpInput.value = fmtDate(selectedDate); // keeps the native picker anchored on the current selection
   }
   const jumpBtn = document.getElementById('jumpToDateBtn');
   if(!jumpBtn.dataset.wired){
     jumpBtn.dataset.wired = '1';
-    jumpBtn.addEventListener('click', ()=>{
-      const input = document.getElementById('jumpToDateInput');
-      input.value = fmtDate(selectedDate);
-      if(input.showPicker){ input.showPicker(); } else { input.click(); }
-    });
     document.getElementById('jumpToDateInput').addEventListener('change', (e)=>{
       if(!e.target.value) return;
       const [y,m,d] = e.target.value.split('-').map(Number);
@@ -4096,6 +5008,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
                 state.completion[compKey] = 'done';
                 saveState();
                 checkInner = '✓';
+                localNotify('taskComplete', 'Task completed 🎉', b.label || subjectNameIn(b.subject, state));
               }
             }
           }
@@ -4112,7 +5025,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
                   ${pct>0 && status!=='done' ? `<span class="name-pct">${pct}%</span>` : ''}
                 </div>
                 <div class="meta"><span class="dot" style="background:${subjColor}"></span>${subjectNameIn(b.subject, state)} · ${b.duration||30} min${lockedByTimer ? ' · ⏱ timer running' : ''}</div>
-                ${b.linkedGoalId ? `<div class="link-pill">🔗 ${escapeHtml(goalTitleFor(b.linkedGoalId, state))}</div>` : ''}
+                ${b.note ? `<div class="link-pill">📝 ${escapeHtml(b.note)}</div>` : ''}
               </div>
               <div class="task-menu-wrap">
                 <button type="button" class="task-menu-btn" data-menu-id="${b.id}">⋮</button>
@@ -4240,33 +5153,21 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
     el.querySelectorAll('.task-edit[data-id]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
-        const id = btn.dataset.id, source = btn.dataset.source;
-        const dateKeyNow = fmtDate(selectedDate);
-        const block = source==='template'
-          ? state.weeklyTemplate.find(b=>b.id===id)
-          : (state.dailyExtra[dateKeyNow]||[]).find(b=>b.id===id);
-        if(block) openAddModal(source==='template' ? 'template' : 'extra', block);
+        const block = state.targets.find(b=>b.id===btn.dataset.id);
+        if(block) openTargetModal(block);
       });
     });
     el.querySelectorAll('.task-move[data-id]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const id = btn.dataset.id, source = btn.dataset.source;
-        const dateKeyNow = fmtDate(selectedDate);
-        const block = source==='template'
-          ? state.weeklyTemplate.find(b=>b.id===id)
-          : (state.dailyExtra[dateKeyNow]||[]).find(b=>b.id===id);
+        const block = state.targets.find(b=>b.id===id);
         if(block) openMoveTaskModal(block, source);
       });
     });
     el.querySelectorAll('.task-del[data-id]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
-        const id = btn.dataset.id, source = btn.dataset.source;
-        if(source==='template'){
-          state.weeklyTemplate = state.weeklyTemplate.filter(b=>b.id!==id);
-        } else {
-          const key = fmtDate(selectedDate);
-          state.dailyExtra[key] = (state.dailyExtra[key]||[]).filter(b=>b.id!==id);
-        }
+        const id = btn.dataset.id;
+        state.targets = state.targets.filter(b=>b.id!==id);
         tombstone(id);
         saveState();
         renderTaskList();
@@ -4340,49 +5241,33 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
 
   // ---------- weekly goal progress (per Plan) ----------
-  function linkedDoneItemsForGoal(data, goalId, plan){
-    const items = [];
-    planDates(plan).forEach(d=>{
-      const dateKey = fmtDate(d);
-      blocksForDateIn(data, d).forEach(b=>{
-        if(b.linkedGoalId === goalId){
-          const status = (data.completion||{})[dateKey+'|'+b.id];
-          if(status==='done') items.push({ date:d, dateKey, block:b });
-        }
-      });
+  // dueDays/doneDays are this target's own weekdays (drives the 7-dot weekday strip);
+  // totalDue/totalDone count actual day-instances across the whole plan span, so a 14-day
+  // plan correctly shows e.g. "3 / 4 days". Each target is its own record now — no more
+  // grouping multiple rows by label, so this operates on one target directly.
+  function recurringTargetStatus(data, target, plan){
+    const dates = (target.dates || datesForDaysInPlan(plan, target.days||[])).slice().sort();
+    const doneDates = [];
+    const totalDue = dates.length;
+    let totalDone = 0;
+    dates.forEach(dateKey=>{
+      if((data.completion||{})[dateKey+'|'+target.id] === 'done'){ totalDone++; doneDates.push(dateKey); }
     });
-    return items;
-  }
-  function weeklyGoalProgress(data, goal, plan){
-    const items = linkedDoneItemsForGoal(data, goal.id, plan);
-    const logged = goal.unit==='hours' ? items.reduce((s,it)=> s+(it.block.duration||0)/60, 0) : items.length;
-    return { progress: Math.max(0, logged + (goal.manualAdjust||0)), items };
-  }
-  function recurringGroupsFor(data, plan){
-    const map = {};
-    (data.weeklyTemplate||[]).filter(b=>b.planId===plan.id).forEach(b=>{
-      const key = b.subject + '|' + (b.label||'');
-      if(!map[key]) map[key] = { key, subject:b.subject, label:b.label, blocks:[] };
-      map[key].blocks.push(b);
-    });
-    return Object.values(map);
-  }
-  // dueDays/doneDays are the unique weekdays this block repeats on (drives the
-  // 7-dot weekday strip); totalDue/totalDone count actual day-instances across
-  // the whole plan span, so a 14-day plan correctly shows e.g. "3 / 4 days".
-  function recurringGroupStatus(data, group, plan){
-    const dueDays = [...new Set(group.blocks.map(b=>b.day))].sort((a,b)=>a-b);
+    // Weekday summary, purely for the little 7-dot strip — "due" means at least one selected
+    // date falls on that weekday, "done" means every selected date on that weekday is done.
+    const dueDays = [...new Set(dates.map(dk=> new Date(dk+'T00:00:00').getDay()))].sort((a,b)=>a-b);
     const doneDaySet = new Set();
-    let totalDue = 0, totalDone = 0;
-    planDates(plan).forEach(d=>{
-      const dow = d.getDay();
-      const blocksThatDay = group.blocks.filter(b=>b.day===dow);
-      if(!blocksThatDay.length) return;
-      totalDue++;
-      const dateKey = fmtDate(d);
-      if(blocksThatDay.some(b => (data.completion||{})[dateKey+'|'+b.id] === 'done')){ totalDone++; doneDaySet.add(dow); }
+    dueDays.forEach(dow=>{
+      const datesThisDow = dates.filter(dk=> new Date(dk+'T00:00:00').getDay()===dow);
+      if(datesThisDow.length && datesThisDow.every(dk=>doneDates.includes(dk))) doneDaySet.add(dow);
     });
-    return { dueDays, doneDays:[...doneDaySet], totalDue, totalDone };
+    return { dates, doneDates, dueDays, doneDays:[...doneDaySet], totalDue, totalDone };
+  }
+  // Once targets (single-checkbox one-off tasks) that belong to this plan — shown as a
+  // simple checklist alongside the recurring targets.
+  function onceTargetsForPlan(data, plan){
+    return (data.targets||[]).filter(t=> t.kind==='once' && t.planId===plan.id)
+      .sort((a,b)=> (a.date||'').localeCompare(b.date||''));
   }
   function donutSvg(pct, colorCss){
     const r = 20, c = 2*Math.PI*r;
@@ -4393,119 +5278,92 @@ window.storage = storage; // keep the rest of the app's code unchanged
     </svg>`;
   }
   function fmtGoalAmt(n){ return Math.round(n*10)/10; }
-  function goalTitleFor(goalId, data){
-    const g = (data.weeklyGoals||[]).find(x=>x.id===goalId);
-    return g ? g.title : 'goal';
+  function fmtDaysList(days){
+    const d = [...new Set(days||[])].sort((a,b)=>a-b);
+    if(d.length===7) return 'Every day';
+    return d.map(x=>DAY_NAMES[x]).join(', ');
   }
 
   let openGoalCardId = null;
-  // ---------- Plan-card body (recurring + flexible target list for one plan) ----------
+  // ---------- Plan-card body (recurring targets + one-off tasks for one plan) ----------
   function planCardBodyHtml(data, plan, editable, allowMove){
-    const flexGoals = (data.weeklyGoals||[]).filter(g=>g.planId===plan.id);
-    const groups = recurringGroupsFor(data, plan);
+    const recurringTargets = (data.targets||[]).filter(t=>t.kind==='recurring' && t.planId===plan.id)
+      .sort((a,b)=> (a.createdAt||0)-(b.createdAt||0));
+    const onceTasks = onceTargetsForPlan(data, plan);
 
-    if(groups.length===0 && flexGoals.length===0){
+    if(recurringTargets.length===0 && onceTasks.length===0){
       return `<div class="wgoal-empty" style="padding:14px 4px;">No targets in this plan yet${editable ? ' — tap “＋” to add one' : ''}.</div>`;
     }
 
     let html = '';
 
-    groups.forEach(g=>{
-      const { dueDays, doneDays, totalDue, totalDone } = recurringGroupStatus(data, g, plan);
+    // Every recurring target is its own row now — nothing is merged by label anymore, even
+    // if two separate targets happen to share one.
+    recurringTargets.forEach(t=>{
+      const { dueDays, doneDays, totalDue, totalDone, dates } = recurringTargetStatus(data, t, plan);
       const pct = totalDue ? Math.round((totalDone/totalDue)*100) : 0;
-      const cardId = 'rec_'+plan.id+'_'+g.key.replace(/[^a-z0-9]/gi,'_');
-      const isOpen = openGoalCardId === cardId;
-      const title = g.label || subjectNameIn(g.subject, data);
+      const isOpen = openGoalCardId === t.id;
+      const title = t.label || subjectNameIn(t.subject, data);
+      const timingTag = t.timing==='floating' ? '〰️ Floating' : '🕐 Fixed';
       const dayDots = `<div class="day-dots">${[0,1,2,3,4,5,6].map(d=>{
         const due = dueDays.includes(d);
         const done = doneDays.includes(d);
         return `<div class="day-dot ${due?'due':''} ${done?'done':''}">${DAY_NAMES[d][0]}</div>`;
       }).join('')}</div>`;
-      const linkedRows = planDates(plan).flatMap(d=>{
-        const dow = d.getDay();
-        const blocksThatDay = g.blocks.filter(b=>b.day===dow);
-        if(blocksThatDay.length===0) return [];
-        const dateKey = fmtDate(d);
-        return blocksThatDay.map(b=>{
-          const done = (data.completion||{})[dateKey+'|'+b.id]==='done';
-          return `
+      const linkedRows = dates.map(dateKey=>{
+        const d = new Date(dateKey+'T00:00:00');
+        const done = (data.completion||{})[dateKey+'|'+t.id]==='done';
+        return `
           <div class="linked-item">
-            <span><span class="lday">${DAY_NAMES[dow]} ${d.getDate()}</span><span class="lname">${escapeHtml(title)}</span></span>
+            <span><span class="lday">${DAY_NAMES[d.getDay()]} ${d.getDate()}</span><span class="lname">${escapeHtml(title)}</span></span>
             <span class="lamt">${done?'✓ done':'—'}</span>
           </div>
         `;
-        });
-      }).join('') || `<div class="linked-empty">No due days in this plan.</div>`;
+      }).join('') || `<div class="linked-empty">No dates selected.</div>`;
       html += `
-        <div class="wgoal-card ${isOpen?'open':''}" data-card="${cardId}">
-          <div class="wgoal-top" data-toggle="${cardId}">
-            <div class="donut-wrap">${donutSvg(pct, subjectColorIn(g.subject, data))}<div class="donut-pct">${pct}%</div></div>
+        <div class="wgoal-card ${isOpen?'open':''}" data-card="${t.id}">
+          <div class="wgoal-top" data-toggle="${t.id}">
+            <div class="donut-wrap">${donutSvg(pct, subjectColorIn(t.subject, data))}<div class="donut-pct">${pct}%</div></div>
             <div class="wgoal-info">
               <div class="wgoal-title-row">
                 <span class="wgoal-title">${escapeHtml(title)}</span>
-                <span class="type-chip recurring">recurring</span>
+                <span class="type-chip recurring">${timingTag}</span>
               </div>
-              <div class="wgoal-frac"><b>${totalDone}</b> / ${totalDue} days this plan</div>
+              <div class="wgoal-frac"><b>${totalDone}</b> / ${totalDue} days · ${escapeHtml(fmtDaysList(t.days))}</div>
+              ${t.note ? `<div class="wgoal-note">${escapeHtml(t.note)}</div>` : ''}
             </div>
             <div class="chevron">▾</div>
           </div>
           ${dayDots}
           <div class="wgoal-expand">
+            ${t.note ? `<div class="wgoal-note-full">📝 ${escapeHtml(t.note)}</div>` : ''}
             ${linkedRows}
-            ${editable ? `<button type="button" class="edit rec-edit-group" data-rec-key="${g.key}" data-rec-plan="${plan.id}" style="margin-top:10px;">✏️ Edit this recurring block</button>` : ''}
-            ${editable && allowMove ? `<button type="button" class="move-to-next" data-move-rec="${g.key}" data-move-plan="${plan.id}">➡️ Move to next plan</button>` : ''}
+            ${editable ? `<button type="button" class="edit tgt-edit-recurring" data-tgt-id="${t.id}" style="margin-top:10px;">✏️ Edit target</button>` : ''}
+            ${editable ? `<button type="button" class="del tgt-del-recurring" data-tgt-id="${t.id}">🗑 Delete target</button>` : ''}
+            ${editable && allowMove ? `<button type="button" class="move-to-next" data-move-rec="${t.id}">➡️ Move to next plan</button>` : ''}
           </div>
         </div>
       `;
     });
 
-    flexGoals.forEach(g=>{
-      const { progress, items } = weeklyGoalProgress(data, g, plan);
-      const pct = g.target ? Math.round(Math.min(100, (progress/g.target)*100)) : 0;
-      const isOpen = openGoalCardId === g.id;
-      const noun = g.unit==='hours' ? 'h' : (g.unit==='count' ? '' : (g.target===1?' session':' sessions'));
-      const fracLabel = g.unit==='hours' ? `<b>${fmtGoalAmt(progress)}</b> / ${g.target}h` : `<b>${Math.round(progress)}</b> / ${g.target}${noun}`;
-      const linkedRows = items.length ? items.map(it=>`
-        <div class="linked-item">
-          <span><span class="lday">${DAY_NAMES[it.date.getDay()]}</span><span class="lname">${escapeHtml(it.block.label || subjectNameIn(it.block.subject, data))}</span></span>
-          <span class="lamt">${g.unit==='hours' ? fmtGoalAmt((it.block.duration||0)/60)+'h' : '1'}</span>
-        </div>
-      `).join('') : `<div class="linked-empty">No daily tasks linked yet in this plan.</div>`;
-      html += `
-        <div class="wgoal-card ${isOpen?'open':''}" data-card="${g.id}">
-          <div class="wgoal-top" data-toggle="${g.id}">
-            <div class="donut-wrap">${donutSvg(pct, subjectColorIn(g.subject, data))}<div class="donut-pct">${pct}%</div></div>
-            <div class="wgoal-info">
-              <div class="wgoal-title-row">
-                <span class="wgoal-title">${escapeHtml(g.title)}</span>
-                <span class="type-chip flexible">goal</span>
-              </div>
-              <div class="wgoal-frac">${fracLabel}</div>
-              ${g.note ? `<div class="wgoal-note">${escapeHtml(g.note)}</div>` : ''}
-            </div>
-            <div class="chevron">▾</div>
+    if(onceTasks.length){
+      html += `<h4 style="margin:14px 0 6px; font-family:'Kalam'; font-size:14px; color:var(--chalk-dim); font-weight:400;">One-off tasks</h4>`;
+      html += onceTasks.map(t=>{
+        const compKey = t.date+'|'+t.id;
+        const status = (data.completion||{})[compKey];
+        const d = new Date(t.date+'T00:00:00');
+        return `
+          <div class="linked-item" data-once-row="${t.id}">
+            <span style="display:flex; align-items:center; gap:8px;">
+              ${editable ? `<span class="check ${status||''}" data-once-check="${t.id}" style="width:18px; height:18px; font-size:11px;">${status==='done'?'✓':(status==='missed'?'✕':'')}</span>` : ''}
+              <span class="lday">${DAY_NAMES[d.getDay()]} ${d.getDate()}</span>
+              <span class="lname">${escapeHtml(t.label || subjectNameIn(t.subject, data))}</span>
+            </span>
+            ${editable ? `<button type="button" class="edit" data-edit-once="${t.id}" style="font-size:11px;">✏️</button>` : `<span class="lamt">${status==='done'?'✓ done':'—'}</span>`}
           </div>
-          <div class="wgoal-expand">
-            ${g.note ? `<div class="wgoal-note-full">📝 ${escapeHtml(g.note)}</div>` : ''}
-            ${linkedRows}
-            ${editable ? `
-            <div class="adjust-row">
-              <span class="adjust-label">Manual adjust</span>
-              <div class="stepper">
-                <button type="button" class="step-btn" data-adjust="-1" data-id="${g.id}">−</button>
-                <span class="step-val">${(g.manualAdjust||0) >= 0 ? '+' : ''}${g.manualAdjust||0}</span>
-                <button type="button" class="step-btn" data-adjust="1" data-id="${g.id}">+</button>
-              </div>
-            </div>
-            <div class="wgoal-actions">
-              <button type="button" class="edit" data-edit="${g.id}">Edit goal</button>
-              <button type="button" class="del" data-del="${g.id}">Delete</button>
-            </div>
-            ${allowMove ? `<button type="button" class="move-to-next" data-move-goal="${g.id}">➡️ Move to next plan</button>` : ''}` : ''}
-          </div>
-        </div>
-      `;
-    });
+        `;
+      }).join('');
+    }
 
     return html;
   }
@@ -4517,45 +5375,133 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const after = plans.filter(p=>p.id!==cur.id && p.startDate > cur.endDate).sort((a,b)=>a.startDate.localeCompare(b.startDate));
     return after.length ? after[0] : null;
   }
-  function moveGoalToNextPlan(goalId){
-    const g = (state.weeklyGoals||[]).find(x=>x.id===goalId);
-    if(!g) return;
-    const next = nextPlanAfter(g.planId);
+  // Used when a target's calendar-picked dates spill past the current plan's end date: finds
+  // (or creates) the plan those overflow dates should actually belong to. Same category as the
+  // current plan, starting the day after it ends. If a next plan already exists but doesn't
+  // stretch far enough to cover the latest overflow date, it's extended to fit.
+  function resolveOrCreateNextPlan(currentPlan, neededEndDate){
+    let next = nextPlanAfter(currentPlan.id);
+    if(!next){
+      const start = new Date(currentPlan.endDate+'T00:00:00'); start.setDate(start.getDate()+1);
+      const startDate = fmtDate(start);
+      next = { id:'plan_'+Date.now(), startDate, endDate: (neededEndDate>startDate?neededEndDate:startDate), category: currentPlan.category, createdAt: Date.now() };
+      state.plans = state.plans || [];
+      state.plans.push(next);
+    } else if(neededEndDate > next.endDate){
+      next.endDate = neededEndDate;
+    }
+    return next;
+  }
+  function moveTargetToNextPlan(targetId){
+    const t = (state.targets||[]).find(x=>x.id===targetId);
+    if(!t) return;
+    const next = nextPlanAfter(t.planId);
     if(!next){ alert('No upcoming plan yet — create one first, then move this target.'); return; }
-    g.planId = next.id;
+    t.planId = next.id;
     saveState();
     openGoalCardId = null;
     renderWeeklyGoalsList();
     notifyOthers(`${me.name} moved a target to the next plan`);
   }
-  function moveRecurringGroupToNextPlan(planId, key){
-    const plan = (state.plans||[]).find(p=>p.id===planId);
-    if(!plan) return;
-    const group = recurringGroupsFor(state, plan).find(g=>g.key===key);
-    if(!group) return;
-    const next = nextPlanAfter(planId);
-    if(!next){ alert('No upcoming plan yet — create one first, then move this block.'); return; }
-    group.blocks.forEach(b=>{
-      const blk = state.weeklyTemplate.find(x=>x.id===b.id);
-      if(blk) blk.planId = next.id;
+  // Multi-select calendar for hand-picking exact dates for a recurring target — reached via
+  // the 📅 icon beside "Days this repeats". Dates outside the plan's own range are allowed but
+  // require confirmation, since they'll end up on a different (possibly auto-created) plan.
+  function openTargetDatesCalendarModal(plan, initialSelected, initialOverflow, onApply){
+    const selected = new Set(initialSelected);
+    const overflow = new Set(initialOverflow);
+    let viewMonth = new Date(plan.startDate+'T00:00:00'); viewMonth.setDate(1);
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <button class="close-x">×</button>
+        <h3>Pick exact dates</h3>
+        <div id="tdc-cal"></div>
+        <div class="pcal-hint">Tap dates to select. Dates outside this plan (${fmtPlanRange(plan.startDate, plan.endDate)}) are allowed but will move to the next plan.</div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="tdc-cancel">Cancel</button>
+          <button class="btn btn-primary" id="tdc-apply">Apply</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.querySelector('#tdc-cancel').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    function paint(){
+      const cal = backdrop.querySelector('#tdc-cal');
+      const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
+      const first = new Date(y,m,1);
+      const startPad = first.getDay();
+      const daysInMonth = new Date(y,m+1,0).getDate();
+      let cells = '';
+      for(let i=0;i<startPad;i++) cells += `<div class="pcal-cell empty"></div>`;
+      for(let day=1; day<=daysInMonth; day++){
+        const d = new Date(y,m,day);
+        const key = fmtDate(d);
+        const inPlanRange = key>=plan.startDate && key<=plan.endDate;
+        const isSel = selected.has(key);
+        const isOverflow = overflow.has(key);
+        cells += `<div class="pcal-cell ${isSel?'selected':''} ${isOverflow?'overflow':''}" data-date="${key}" style="${inPlanRange?'':'opacity:.6;'}">${day}</div>`;
+      }
+      cal.innerHTML = `
+        <div class="pcal-nav">
+          <button type="button" class="week-nav-arrow" data-tdc-prev>‹</button>
+          <div class="pcal-nav-label">${PLAN_MONTHS[m]} ${y}</div>
+          <button type="button" class="week-nav-arrow" data-tdc-next>›</button>
+        </div>
+        <div class="pcal-dow-row">${DAY_NAMES.map(n=>`<div class="pcal-dow">${n}</div>`).join('')}</div>
+        <div class="pcal-grid">${cells}</div>
+      `;
+      cal.querySelector('[data-tdc-prev]').addEventListener('click', ()=>{ viewMonth.setMonth(viewMonth.getMonth()-1); paint(); });
+      cal.querySelector('[data-tdc-next]').addEventListener('click', ()=>{ viewMonth.setMonth(viewMonth.getMonth()+1); paint(); });
+      cal.querySelectorAll('.pcal-cell[data-date]').forEach(cell=>{
+        cell.addEventListener('click', ()=>{
+          const key = cell.dataset.date;
+          if(selected.has(key)){ selected.delete(key); paint(); return; }
+          if(overflow.has(key)){ overflow.delete(key); paint(); return; }
+          const inPlanRange = key>=plan.startDate && key<=plan.endDate;
+          if(!inPlanRange){
+            if(!confirm(`${fmtPlanDateShort(key)} is outside this plan (${fmtPlanRange(plan.startDate, plan.endDate)}). Continuing will place it on the next plan (one will be created if needed). Continue?`)) return;
+            overflow.add(key);
+          } else {
+            selected.add(key);
+          }
+          paint();
+        });
+      });
+    }
+    paint();
+    backdrop.querySelector('#tdc-apply').addEventListener('click', ()=>{
+      close();
+      onApply(selected, overflow);
     });
-    saveState();
-    openGoalCardId = null;
-    renderWeeklyGoalsList();
-    notifyOthers(`${me.name} moved a recurring block to the next plan`);
   }
 
   // ---------- PLAN SCREEN (History / Ongoing / Upcoming subtabs) ----------
   let planSubtab = 'ongoing';
   const PLAN_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Single "day month" date format used everywhere a plan's range is shown (Daily + Plan
+  // pages) — e.g. "9 Sep – 16 Sep" — so it reads the same no matter where it appears.
+  function fmtPlanDateShort(dateStr){
+    const d = new Date(dateStr+'T00:00:00');
+    return `${d.getDate()} ${PLAN_MONTHS[d.getMonth()]}`;
+  }
+  function fmtPlanRange(startDate, endDate){
+    return `${fmtPlanDateShort(startDate)} – ${fmtPlanDateShort(endDate)}`;
+  }
   function planHeaderHtml(plan, editable, showEditPencil){
-    const s = new Date(plan.startDate+'T00:00:00'), e = new Date(plan.endDate+'T00:00:00');
-    const dateStr = `${PLAN_MONTHS[s.getMonth()]} ${s.getDate()} – ${PLAN_MONTHS[e.getMonth()]} ${e.getDate()}`;
+    const dateStr = fmtPlanRange(plan.startDate, plan.endDate);
+    // Manual plan titles are gone — the date range itself is the heading. A small
+    // category chip sits beside it so the plan's category is always visible at a glance.
+    const cat = categoryFor(plan);
     return `
       <div class="plan-card-head">
         <div>
-          <div class="plan-card-title">${plan.label ? escapeHtml(plan.label) : 'Plan'}</div>
-          <div class="plan-card-dates">${dateStr}</div>
+          <div class="plan-card-title">${dateStr}</div>
+          <div class="plan-card-dates"><span class="cat-chip"><span class="cat-dot" style="background:${cat.color}"></span>${cat.name}</span></div>
         </div>
         <div class="plan-card-actions">
           ${editable && showEditPencil ? `<button type="button" data-edit-plan="${plan.id}" title="Edit plan">✏️</button>` : ''}
@@ -4606,17 +5552,18 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const past = allPlans.filter(p=> p.endDate < todayKey).slice().reverse();
       if(!past.length){ container.innerHTML = `<div class="wgoal-empty">No past plans yet.</div>`; return; }
       container.innerHTML = past.map(p=>{
-        const flexGoals = (data.weeklyGoals||[]).filter(g=>g.planId===p.id);
-        const groups = recurringGroupsFor(data, p);
-        const goalHits = flexGoals.filter(g=> weeklyGoalProgress(data,g,p).progress >= g.target).length;
+        const recurringTargets = (data.targets||[]).filter(t=>t.kind==='recurring' && t.planId===p.id);
+        const onceTasks = onceTargetsForPlan(data, p);
+        const onceDone = onceTasks.filter(t=> (data.completion||{})[t.date+'|'+t.id]==='done').length;
         let recDue=0, recDone=0;
-        groups.forEach(g=>{ const st = recurringGroupStatus(data,g,p); recDue+=st.totalDue; recDone+=st.totalDone; });
-        const statsBits = [`${goalHits}/${flexGoals.length} goals hit`];
-        if(groups.length) statsBits.push(`${recDone}/${recDue} recurring days done`);
+        recurringTargets.forEach(t=>{ const st = recurringTargetStatus(data,t,p); recDue+=st.totalDue; recDone+=st.totalDone; });
+        const statsBits = [];
+        if(recurringTargets.length) statsBits.push(`${recDone}/${recDue} recurring days done`);
+        if(onceTasks.length) statsBits.push(`${onceDone}/${onceTasks.length} one-off tasks done`);
         return `
           <div class="plan-card" data-plan-card="${p.id}">
             ${planHeaderHtml(p, false, false)}
-            <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:8px;">${statsBits.join(' · ')}</div>
+            <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:8px;">${statsBits.join(' · ') || 'No targets in this plan.'}</div>
             ${planCardBodyHtml(data, p, false, false)}
           </div>
         `;
@@ -4634,46 +5581,47 @@ window.storage = storage; // keep the rest of the app's code unchanged
       btn.addEventListener('click', (e)=>{ e.stopPropagation(); const p = allPlans.find(x=>x.id===btn.dataset.editPlan); if(p) openEditPlanModal(p); });
     });
     container.querySelectorAll('[data-add-target]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{ e.stopPropagation(); const p = allPlans.find(x=>x.id===btn.dataset.addTarget); if(p) openWeekGoalTypeChooser(p); });
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); const p = allPlans.find(x=>x.id===btn.dataset.addTarget); if(p) openTargetModal(null, { plan: p }); });
     });
     if(!editable) return;
-    container.querySelectorAll('[data-adjust]').forEach(btn=>{
+    container.querySelectorAll('.tgt-edit-recurring').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const g = state.weeklyGoals.find(x=>x.id===btn.dataset.id);
-        if(g){ g.manualAdjust = (g.manualAdjust||0) + Number(btn.dataset.adjust); saveState(); renderWeeklyGoalsList(); }
+        const t = state.targets.find(x=>x.id===btn.dataset.tgtId);
+        if(t) openTargetModal(t);
       });
     });
-    container.querySelectorAll('[data-edit]').forEach(btn=>{
+    container.querySelectorAll('.tgt-del-recurring').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const g = state.weeklyGoals.find(x=>x.id===btn.dataset.edit);
-        if(g) openGoalModal(g);
-      });
-    });
-    container.querySelectorAll('[data-del]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        state.weeklyGoals = state.weeklyGoals.filter(g=>g.id!==btn.dataset.del);
-        tombstone(btn.dataset.del);
+        state.targets = state.targets.filter(x=>x.id!==btn.dataset.tgtId);
+        tombstone(btn.dataset.tgtId);
         openGoalCardId = null;
         saveState();
         renderWeeklyGoalsList();
       });
     });
-    container.querySelectorAll('.rec-edit-group').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{
+    container.querySelectorAll('[data-move-rec]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); moveTargetToNextPlan(btn.dataset.moveRec); });
+    });
+    container.querySelectorAll('[data-once-check]').forEach(chip=>{
+      chip.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const p = allPlans.find(x=>x.id===btn.dataset.recPlan);
-        const group = p ? recurringGroupsFor(data, p).find(g=>g.key===btn.dataset.recKey) : null;
-        if(group && p) openEditRecurringGroupModal(group, p);
+        const t = state.targets.find(x=>x.id===chip.dataset.onceCheck);
+        if(!t) return;
+        const key = t.date+'|'+t.id;
+        state.completion[key] = nextStatus(state.completion[key]);
+        saveState();
+        renderWeeklyGoalsList();
+        if(currentScreen==='today') renderTaskList();
       });
     });
-    container.querySelectorAll('[data-move-goal]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{ e.stopPropagation(); moveGoalToNextPlan(btn.dataset.moveGoal); });
-    });
-    container.querySelectorAll('[data-move-rec]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{ e.stopPropagation(); moveRecurringGroupToNextPlan(btn.dataset.movePlan, btn.dataset.moveRec); });
+    container.querySelectorAll('[data-edit-once]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const t = state.targets.find(x=>x.id===btn.dataset.editOnce);
+        if(t) openTargetModal(t);
+      });
     });
   }
   document.querySelectorAll('.plan-subtab').forEach(btn=>{
@@ -4685,195 +5633,575 @@ window.storage = storage; // keep the rest of the app's code unchanged
   });
 
 
-  function openEditRecurringGroupModal(group, plan){
+  // Quick add/edit-subject modal — reachable via the "+" beside the Subject dropdown in the
+  // Target modal, so a person never has to leave the flow they're in to make a new subject.
+  function openQuickSubjectModal(editSubjectId, onSaved){
+    const existing = editSubjectId ? state.subjects.find(s=>s.id===editSubjectId) : null;
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
-    const firstBlock = group.blocks[0];
-    const dueDaysSet = new Set(group.blocks.map(b=>b.day));
+    const defaultColor = existing ? existing.color : COLORS[Math.floor(Math.random()*COLORS.length)];
     backdrop.innerHTML = `
       <div class="modal">
         <button class="close-x">×</button>
-        <h3>Edit recurring block</h3>
+        <h3>${existing ? 'Edit subject' : 'Add subject'}</h3>
         <div class="field-row">
-          <label>Label</label>
-          <input type="text" id="rg-label" value="${escapeHtml(group.label||'')}" placeholder="e.g. CSAT">
+          <label>Name</label>
+          <input type="text" id="qs-name" value="${escapeHtml(existing?existing.name:'')}" placeholder="e.g. Chemistry">
         </div>
         <div class="field-row">
-          <label>Subject</label>
-          <select id="rg-subject"></select>
-        </div>
-        <div class="field-row">
-          <label>Start time</label>
-          <div id="rg-start-wheel"></div>
-        </div>
-        <div class="field-row">
-          <label>Duration</label>
-          <div id="rg-duration-wheel"></div>
-        </div>
-        <div class="field-row">
-          <label>Days this repeats</label>
-          <div class="day-toggle-row" id="rg-days">
-            ${DAY_NAMES.map((n,i)=>`<div class="day-toggle ${dueDaysSet.has(i)?'sel':''}" data-day="${i}">${n}</div>`).join('')}
+          <label>Color</label>
+          <div class="color-row" id="qs-colors">
+            ${COLORS.map(c=>`<div class="swatch ${defaultColor===c?'sel':''}" data-color="${c}" style="background:${c}"></div>`).join('')}
           </div>
         </div>
         <div class="modal-actions">
-          <button class="btn btn-ghost" id="rg-cancel">Cancel</button>
-          <button class="btn btn-primary" id="rg-save">Save changes</button>
+          <button class="btn btn-ghost" id="qs-cancel">Cancel</button>
+          <button class="btn btn-primary" id="qs-save">${existing?'Save':'Add'}</button>
         </div>
-        <button class="btn btn-danger" id="rg-delete-all" style="width:100%; margin-top:10px;">Delete entire recurring block</button>
       </div>
     `;
     document.body.appendChild(backdrop);
-    renderSubjectOptions(backdrop.querySelector('#rg-subject'), firstBlock.subject);
-    const startWheel = createTimeWheel(backdrop.querySelector('#rg-start-wheel'), firstBlock.start || '16:00');
-    const durationWheel = createDurationStepper(backdrop.querySelector('#rg-duration-wheel'), firstBlock.duration || 30);
-
-    const selectedDays = new Set(dueDaysSet);
-    backdrop.querySelectorAll('#rg-days .day-toggle').forEach(d=>{
-      d.addEventListener('click', ()=>{
-        const day = parseInt(d.dataset.day,10);
-        if(selectedDays.has(day)){ selectedDays.delete(day); d.classList.remove('sel'); }
-        else { selectedDays.add(day); d.classList.add('sel'); }
+    let pickedColor = defaultColor;
+    backdrop.querySelectorAll('#qs-colors .swatch').forEach(sw=>{
+      sw.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('#qs-colors .swatch').forEach(s=>s.classList.remove('sel'));
+        sw.classList.add('sel');
+        pickedColor = sw.dataset.color;
       });
     });
-
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.querySelector('#rg-cancel').addEventListener('click', close);
+    backdrop.querySelector('#qs-cancel').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-
-    backdrop.querySelector('#rg-save').addEventListener('click', ()=>{
-      if(selectedDays.size===0){ alert('Pick at least one day.'); return; }
-      const label = backdrop.querySelector('#rg-label').value.trim();
-      const subject = backdrop.querySelector('#rg-subject').value;
-      const start = startWheel.getValue();
-      const duration = durationWheel.getValue();
-
-      const existingByDay = {};
-      group.blocks.forEach(b=> existingByDay[b.day] = b);
-
-      group.blocks.forEach(b=>{
-        if(!selectedDays.has(b.day)){ state.weeklyTemplate = state.weeklyTemplate.filter(x=>x.id!==b.id); tombstone(b.id); }
-      });
-      selectedDays.forEach(day=>{
-        const existing = existingByDay[day];
-        if(existing){
-          existing.subject = subject; existing.start = start; existing.duration = duration; existing.label = label || null;
-        } else {
-          state.weeklyTemplate.push({ id:'blk_'+Date.now()+'_'+day, day, subject, start, duration, label: label||null, planId: plan.id });
-        }
-      });
+    backdrop.querySelector('#qs-save').addEventListener('click', ()=>{
+      const name = backdrop.querySelector('#qs-name').value.trim();
+      if(!name){ alert('Enter a name.'); return; }
+      let subjectId;
+      if(existing){ existing.name = name; existing.color = pickedColor; subjectId = existing.id; }
+      else { subjectId = 'sub_'+Date.now(); state.subjects.push({ id: subjectId, name, color: pickedColor }); }
       saveState();
-      openGoalCardId = null;
-      renderWeeklyGoalsList();
       close();
-    });
-
-    backdrop.querySelector('#rg-delete-all').addEventListener('click', ()=>{
-      group.blocks.forEach(b=>{ state.weeklyTemplate = state.weeklyTemplate.filter(x=>x.id!==b.id); tombstone(b.id); });
-      saveState();
-      openGoalCardId = null;
-      renderWeeklyGoalsList();
-      close();
+      if(onSaved) onSaved(subjectId);
     });
   }
 
-  function openWeekGoalTypeChooser(forcedPlan){
-    const plan = forcedPlan || resolveActivePlan();
-    if(!plan){ openNewPlanModal(); return; }
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    backdrop.innerHTML = `
-      <div class="modal" style="text-align:center;">
-        <button class="close-x">×</button>
-        <h3>What kind of target?</h3>
-        <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:16px;">
-          Recurring is a fixed day+time block that repeats through this plan (e.g. "CSAT every evening").<br>
-          Flexible is an hours/sessions/count goal you chip away at from Today, any day you like.
-        </div>
-        <button class="btn btn-primary" id="chooser-recurring" style="width:100%; margin-bottom:10px;">📅 Recurring</button>
-        <button class="btn btn-ghost" id="chooser-flexible" style="width:100%;">🎯 Flexible</button>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-    backdrop.querySelector('#chooser-recurring').addEventListener('click', ()=>{ close(); openAddModal('template', null, null, plan); });
-    backdrop.querySelector('#chooser-flexible').addEventListener('click', ()=>{ close(); openGoalModal(null, plan); });
+  // Full subject manager — reachable via the "+" beside the Subject dropdown in the Target
+  // modal. Lists every subject with edit/delete, plus "add new". A subject can't be deleted
+  // while anything still references it (targets or logged sessions) or if it's the only one
+  // left — either would leave dangling subject ids behind.
+  function subjectInUse(subjectId){
+    if((state.targets||[]).some(t=>t.subject===subjectId)) return true;
+    return Object.values(state.sessions||{}).some(list=>(list||[]).some(s=>s.subject===subjectId));
   }
-
-  function openGoalModal(existingGoal, forcedPlan){
-    const isEdit = !!existingGoal;
-    const plan = isEdit ? (state.plans||[]).find(p=>p.id===existingGoal.planId) : (forcedPlan || resolveActivePlan());
-    if(!plan){ openNewPlanModal(); return; }
+  function openSubjectManagerModal(currentSubjectId, onChange){
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     backdrop.innerHTML = `
       <div class="modal">
         <button class="close-x">×</button>
-        <h3>${isEdit ? 'Edit goal' : 'Add goal'}</h3>
-        <div class="field-row">
-          <label>Title</label>
-          <input type="text" id="g-title" placeholder="e.g. Modern History" value="${escapeHtml(existingGoal?.title||'')}">
-        </div>
-        <div class="field-row">
-          <label>Subject</label>
-          <select id="g-subject"></select>
-        </div>
-        <div class="field-row">
-          <label>Progress counted in</label>
-          <select id="g-unit">
-            <option value="hours">Hours</option>
-            <option value="sessions">Sessions</option>
-            <option value="count">Custom count</option>
-          </select>
-        </div>
-        <div class="field-row">
-          <label>Target for this plan</label>
-          <input type="number" id="g-target" min="0.5" step="0.5" value="${existingGoal?.target ?? 5}">
-        </div>
-        <div class="field-row">
-          <label>Note <span style="opacity:.6; text-transform:none;">(optional — what to focus on)</span></label>
-          <textarea id="g-note" rows="2" placeholder="e.g. Focus on map-based questions" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;">${escapeHtml(existingGoal?.note||'')}</textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-ghost" id="g-cancel">Cancel</button>
-          <button class="btn btn-primary" id="g-save">${isEdit?'Save changes':'Save goal'}</button>
-        </div>
+        <h3>Subjects</h3>
+        <div id="sm-list"></div>
+        <button type="button" class="btn btn-primary" id="sm-add" style="width:100%; margin-top:10px;">＋ Add subject</button>
       </div>
     `;
     document.body.appendChild(backdrop);
-    renderSubjectOptions(backdrop.querySelector('#g-subject'), existingGoal?.subject || state.subjects[0].id);
-    const unitSel = backdrop.querySelector('#g-unit');
-    unitSel.value = existingGoal?.unit || 'hours';
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    function refresh(){
+      backdrop.querySelector('#sm-list').innerHTML = state.subjects.map(s=>`
+        <div class="grp-list-item" style="cursor:default;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="cat-dot" style="width:14px; height:14px; background:${s.color}"></span>
+            <span class="name">${escapeHtml(s.name)}</span>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="task-edit" data-sm-edit="${s.id}">✏️</button>
+            <button type="button" class="task-del" data-sm-del="${s.id}">🗑</button>
+          </div>
+        </div>
+      `).join('');
+      backdrop.querySelectorAll('[data-sm-edit]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          openQuickSubjectModal(btn.dataset.smEdit, (id)=>{ refresh(); if(onChange) onChange(id); });
+        });
+      });
+      backdrop.querySelectorAll('[data-sm-del]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const id = btn.dataset.smDel;
+          if(state.subjects.length<=1){ alert("You need at least one subject."); return; }
+          if(subjectInUse(id)){ alert("This subject is used by an existing target or logged session — it can't be deleted while in use."); return; }
+          const s = state.subjects.find(x=>x.id===id);
+          if(!confirm(`Delete "${s.name}"?`)) return;
+          state.subjects = state.subjects.filter(x=>x.id!==id);
+          saveState();
+          refresh();
+          if(onChange) onChange(state.subjects[0].id);
+        });
+      });
+    }
+    refresh();
+    backdrop.querySelector('#sm-add').addEventListener('click', ()=>{
+      openQuickSubjectModal(null, (id)=>{ refresh(); if(onChange) onChange(id); });
+    });
+  }
+
+  // Global "+" on the Plan page: with more than one plan around, ask which one a new target
+  // belongs to before opening the Target modal — a specific plan card's own "+" skips this
+  // since the plan is already known. History plans are never offered here (they're read-only),
+  // and the list is further narrowed to match whichever subtab the person is currently on —
+  // clicking + while looking at Ongoing only offers ongoing plans, same for Upcoming.
+  function openPlanPickerForTarget(){
+    const todayKey = fmtDate(new Date());
+    const allPlans = sortedPlans(state);
+    let plans;
+    if(planSubtab==='ongoing') plans = allPlans.filter(p=> todayKey>=p.startDate && todayKey<=p.endDate);
+    else if(planSubtab==='upcoming') plans = allPlans.filter(p=> p.startDate > todayKey);
+    else plans = allPlans.filter(p=> p.endDate >= todayKey); // history tab (or anywhere else): ongoing + upcoming, never history
+    if(!plans.length){ openNewPlanModal(); return; }
+    if(plans.length===1){ openTargetModal(null, { plan: plans[0] }); return; }
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `<div class="modal"><button class="close-x">×</button><h3>Add to which plan?</h3><div id="pp-list"></div></div>`;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    backdrop.querySelector('#pp-list').innerHTML = plans.map(p=>{
+      const cat = categoryFor(p);
+      return `<div class="grp-list-item" data-pid="${p.id}">
+        <div>
+          <div class="name"><span class="cat-dot" style="background:${cat.color}"></span> ${cat.name}</div>
+          <div class="meta">${fmtPlanRange(p.startDate, p.endDate)}</div>
+        </div>
+        <div style="color:var(--chalk-faint);">›</div>
+      </div>`;
+    }).join('');
+    backdrop.querySelectorAll('[data-pid]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const plan = plans.find(p=>p.id===el.dataset.pid);
+        close();
+        if(plan) openTargetModal(null, { plan });
+      });
+    });
+  }
+
+  // ---------- The one unified Target modal ----------
+  // Handles create + edit for both kinds:
+  //  - kind:'recurring' — always used from the Plan page (day-selection is always shown there);
+  //    on the Daily page it only appears if the Repeat toggle is switched on.
+  //  - kind:'once' — the default on the Daily page (Repeat off), and how existing once-tasks
+  //    are edited from the Plan page's one-off list.
+  // opts: { plan, fromDaily, date }
+  //  - opts.plan: plan already resolved by the caller (Plan-page entry points always pass this;
+  //    Daily-page entry points leave it undefined so the destination picker below resolves it,
+  //    since a single date can be covered by more than one plan of a different category).
+  //  - opts.fromDaily: true only for a brand-new target opened from the Daily page's "+".
+  //  - opts.date: the anchor date (defaults to the currently selected Daily-page date).
+  function openTargetModal(existingTarget, opts){
+    opts = opts || {};
+    const isEdit = !!existingTarget;
+    const fromDaily = !!opts.fromDaily && !isEdit;
+    const anchorDate = opts.date || fmtDate(selectedDate);
+    const anchorDateObj = new Date(anchorDate+'T00:00:00');
+
+    const planCandidates = fromDaily ? plansContainingDate(state, anchorDateObj) : [];
+    let chosenPlan = opts.plan
+      || (isEdit && existingTarget.planId ? (state.plans||[]).find(p=>p.id===existingTarget.planId) : null)
+      || (planCandidates[0] || null);
+
+    let kind = isEdit ? existingTarget.kind : (fromDaily ? 'once' : 'recurring');
+    let timing = (isEdit && existingTarget.timing) || 'fixed';
+    // Dates are stored explicitly now (not a weekday pattern) — this is what lets a 30-day
+    // plan show "3/4 Mondays selected" instead of one ambiguous date. Editing an older target
+    // that still only has `days` computes its equivalent date list from its own plan once,
+    // on open; every save from here on writes `dates` directly.
+    let selectedDates = new Set();
+    let pendingOverflowDates = new Set(); // dates picked via the calendar that fall outside the current plan
+    if(isEdit && existingTarget.kind==='recurring'){
+      selectedDates = new Set(existingTarget.dates || datesForDaysInPlan(chosenPlan, existingTarget.days||[]));
+    } else if(!isEdit && kind==='recurring'){
+      selectedDates.add(anchorDate);
+    }
+
+    let destHtml = '';
+    if(fromDaily){
+      if(planCandidates.length){
+        destHtml = `
+          <div class="field-row">
+            <label>Add to</label>
+            <select id="tgt-dest">${planCandidates.map(p=>{ const c=categoryFor(p); return `<option value="${p.id}">${c.name} · ${fmtPlanRange(p.startDate, p.endDate)}</option>`; }).join('')}</select>
+          </div>`;
+      } else {
+        destHtml = `<div class="dest-readonly">No plan covers ${anchorDate} — this will be a standalone one-off task.</div>`;
+      }
+    } else if(chosenPlan){
+      const cat = categoryFor(chosenPlan);
+      destHtml = `<div class="dest-readonly"><span class="cat-chip"><span class="cat-dot" style="background:${cat.color}"></span>${cat.name}</span> &nbsp; ${fmtPlanRange(chosenPlan.startDate, chosenPlan.endDate)}</div>`;
+    }
+
+    const initialTitle = isEdit ? 'Edit target' : (kind==='recurring' ? 'New recurring target' : `New task for ${DAY_NAMES[anchorDateObj.getDay()]} ${anchorDateObj.getDate()}`);
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <button class="close-x">×</button>
+        <h3 id="tgt-title">${initialTitle}</h3>
+        ${destHtml}
+        <div class="field-row">
+          <label>Label</label>
+          <input type="text" id="tgt-label" value="${escapeHtml(existingTarget?.label||'')}" placeholder="e.g. Organic Chem — Ch.4">
+        </div>
+        <div class="field-row">
+          <label>Subject</label>
+          <div class="subject-row">
+            <select id="tgt-subject"></select>
+            <button type="button" class="subject-add-btn" id="tgt-subject-add" title="Manage subjects">＋</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <label>Timing</label>
+          <div class="seg-row" id="tgt-timing">
+            <button type="button" class="seg-btn ${timing==='fixed'?'sel':''}" data-timing="fixed">🕐 Fixed time</button>
+            <button type="button" class="seg-btn ${timing==='floating'?'sel':''}" data-timing="floating">〰️ Floating</button>
+          </div>
+        </div>
+        <div class="field-row" id="tgt-start-row">
+          <label>Start time</label>
+          <div id="tgt-start-wheel"></div>
+        </div>
+        <div class="field-row">
+          <label>Duration</label>
+          <div id="tgt-duration-wheel"></div>
+        </div>
+        ${fromDaily ? `
+        <div class="field-row" style="flex-direction:row; align-items:center; justify-content:space-between;">
+          <label style="margin:0;">Repeat</label>
+          <label class="switch"><input type="checkbox" id="tgt-repeat"><span class="switch-slider"></span></label>
+        </div>` : ''}
+        ${isEdit && kind==='once' ? `
+        <div class="field-row" id="tgt-date-row">
+          <label>Date</label>
+          <input type="date" id="tgt-date" value="${existingTarget.date||anchorDate}">
+        </div>` : ''}
+        <div class="field-row" id="tgt-days-row" style="display:none;">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <label style="margin:0;">Days this repeats</label>
+            <button type="button" class="subject-add-btn" id="tgt-days-calendar" title="Pick exact dates on a calendar" style="width:36px;">📅</button>
+          </div>
+          <div class="day-toggle-row" id="tgt-days"></div>
+        </div>
+        <div class="field-row">
+          <label>Note <span style="opacity:.6; text-transform:none;">(optional)</span></label>
+          <textarea id="tgt-note" rows="2" placeholder="Optional notes" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;">${escapeHtml(existingTarget?.note||'')}</textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="tgt-cancel">Cancel</button>
+          <button class="btn btn-primary" id="tgt-save">${isEdit?'Save changes':'Save'}</button>
+        </div>
+        ${isEdit ? `<button class="btn btn-danger" id="tgt-delete" style="width:100%; margin-top:10px;">Delete target</button>` : ''}
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    renderSubjectOptions(backdrop.querySelector('#tgt-subject'), existingTarget?.subject || state.subjects[0].id);
+    const startWheel = createTimeWheel(backdrop.querySelector('#tgt-start-wheel'), (isEdit && existingTarget.start) || '16:00');
+    const durationWheel = createDurationStepper(backdrop.querySelector('#tgt-duration-wheel'), (isEdit && existingTarget.duration) || 30);
+
+    function paintTiming(){
+      backdrop.querySelector('#tgt-start-row').style.display = timing==='fixed' ? 'block' : 'none';
+    }
+    paintTiming();
+    backdrop.querySelectorAll('#tgt-timing .seg-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('#tgt-timing .seg-btn').forEach(b=>b.classList.remove('sel'));
+        btn.classList.add('sel');
+        timing = btn.dataset.timing;
+        paintTiming();
+      });
+    });
+
+    backdrop.querySelector('#tgt-subject-add').addEventListener('click', ()=>{
+      openSubjectManagerModal(backdrop.querySelector('#tgt-subject').value, (newSubjectId)=>{
+        renderSubjectOptions(backdrop.querySelector('#tgt-subject'), newSubjectId);
+      });
+    });
+
+    function currentPlanForDays(){
+      if(fromDaily){
+        const destSel = backdrop.querySelector('#tgt-dest');
+        return destSel ? ((state.plans||[]).find(p=>p.id===destSel.value) || null) : null;
+      }
+      return chosenPlan;
+    }
+    function buildDaysUI(){
+      const plan = currentPlanForDays();
+      const wrap = backdrop.querySelector('#tgt-days');
+      const existingNote = backdrop.querySelector('#tgt-overflow-note');
+      if(existingNote) existingNote.remove();
+      if(!plan){ wrap.innerHTML = `<div style="font-size:12px; color:var(--chalk-faint);">No plan selected.</div>`; return; }
+      const allPlanDates = planDates(plan).map(fmtDate);
+      const allSelected = allPlanDates.length>0 && allPlanDates.every(d=>selectedDates.has(d));
+      let html = `<div class="day-toggle ${allSelected?'sel':''}" data-allday="1">All day</div>`;
+      [0,1,2,3,4,5,6].forEach(dow=>{
+        const datesForDow = allPlanDates.filter(dk=> new Date(dk+'T00:00:00').getDay()===dow);
+        const selCount = datesForDow.filter(dk=>selectedDates.has(dk)).length;
+        const fullySel = datesForDow.length>0 && selCount===datesForDow.length;
+        const partial = selCount>0 && !fullySel;
+        const sub = datesForDow.length===0 ? '' : (datesForDow.length>1 ? `${selCount}/${datesForDow.length}` : fmtPlanDateShort(datesForDow[0]).split(' ')[0]);
+        html += `<div class="day-toggle ${fullySel?'sel':''} ${partial?'partial':''}" data-dow="${dow}">${DAY_NAMES[dow]}${sub?`<span class="dsub">${sub}</span>`:''}</div>`;
+      });
+      wrap.innerHTML = html;
+      wrap.querySelector('[data-allday]').addEventListener('click', ()=>{
+        const allNow = allPlanDates.length>0 && allPlanDates.every(d=>selectedDates.has(d));
+        if(allNow) selectedDates.clear(); else allPlanDates.forEach(d=>selectedDates.add(d));
+        buildDaysUI();
+      });
+      wrap.querySelectorAll('[data-dow]').forEach(el=>{
+        el.addEventListener('click', ()=>{
+          const dow = parseInt(el.dataset.dow,10);
+          const datesForDow = allPlanDates.filter(dk=> new Date(dk+'T00:00:00').getDay()===dow);
+          const fullySel = datesForDow.length>0 && datesForDow.every(dk=>selectedDates.has(dk));
+          if(fullySel) datesForDow.forEach(dk=>selectedDates.delete(dk));
+          else datesForDow.forEach(dk=>selectedDates.add(dk));
+          buildDaysUI();
+        });
+      });
+      if(pendingOverflowDates.size){
+        wrap.insertAdjacentHTML('afterend', `<div class="pcal-hint" id="tgt-overflow-note">+${pendingOverflowDates.size} date${pendingOverflowDates.size===1?'':'s'} picked outside this plan — will move to the next plan on save.</div>`);
+      }
+    }
+    function paintKind(){
+      const showDays = kind==='recurring';
+      backdrop.querySelector('#tgt-days-row').style.display = showDays ? 'block' : 'none';
+      if(showDays) buildDaysUI();
+    }
+    paintKind();
+
+    backdrop.querySelector('#tgt-days-calendar').addEventListener('click', ()=>{
+      const plan = currentPlanForDays();
+      if(!plan){ alert('Pick a plan first.'); return; }
+      openTargetDatesCalendarModal(plan, selectedDates, pendingOverflowDates, (sel, overflow)=>{
+        selectedDates = sel;
+        pendingOverflowDates = overflow;
+        buildDaysUI();
+      });
+    });
+
+    const repeatToggle = backdrop.querySelector('#tgt-repeat');
+    if(repeatToggle){
+      repeatToggle.addEventListener('change', ()=>{
+        if(repeatToggle.checked){
+          const plan = currentPlanForDays();
+          if(!plan){
+            repeatToggle.checked = false;
+            if(confirm("You need a plan covering this date before you can make a repeating target. Create one now?")){ close(); openNewPlanModal(); }
+            return;
+          }
+          kind = 'recurring';
+          if(selectedDates.size===0) selectedDates.add(anchorDate);
+          backdrop.querySelector('#tgt-title').textContent = 'New recurring target';
+        } else {
+          kind = 'once';
+          backdrop.querySelector('#tgt-title').textContent = `New task for ${DAY_NAMES[anchorDateObj.getDay()]} ${anchorDateObj.getDate()}`;
+        }
+        paintKind();
+      });
+    }
+    const destSelEl = backdrop.querySelector('#tgt-dest');
+    if(destSelEl) destSelEl.addEventListener('change', ()=>{ if(kind==='recurring') buildDaysUI(); });
 
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.querySelector('#g-cancel').addEventListener('click', close);
+    backdrop.querySelector('#tgt-cancel').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
 
-    backdrop.querySelector('#g-save').addEventListener('click', ()=>{
-      const title = backdrop.querySelector('#g-title').value.trim() || 'Untitled goal';
-      const subject = backdrop.querySelector('#g-subject').value;
-      const unit = unitSel.value;
-      const target = Math.max(0.5, parseFloat(backdrop.querySelector('#g-target').value)||1);
-      const note = backdrop.querySelector('#g-note').value.trim();
-      if(isEdit){
-        const g = state.weeklyGoals.find(x=>x.id===existingGoal.id);
-        if(g){ g.title=title; g.subject=subject; g.type='flexible'; g.unit=unit; g.target=target; g.note=note||null; }
+    backdrop.querySelector('#tgt-save').addEventListener('click', ()=>{
+      const label = backdrop.querySelector('#tgt-label').value.trim();
+      const subject = backdrop.querySelector('#tgt-subject').value;
+      const note = backdrop.querySelector('#tgt-note').value.trim();
+      const start = timing==='fixed' ? startWheel.getValue() : null;
+      const duration = durationWheel.getValue();
+
+      if(kind==='recurring'){
+        if(selectedDates.size===0 && pendingOverflowDates.size===0){ alert('Pick at least one date.'); return; }
+        const plan = currentPlanForDays();
+        if(!plan){ alert('Pick a plan first.'); return; }
+        if(selectedDates.size){
+          const payload = {
+            planId: plan.id, subject, label: label||null, note: note||null, kind:'recurring',
+            timing, start, duration, dates:[...selectedDates].sort()
+          };
+          if(isEdit){
+            const t = state.targets.find(x=>x.id===existingTarget.id);
+            if(t) Object.assign(t, payload);
+            notifyOthers(`${me.name} updated a recurring target`);
+          } else {
+            state.targets.push(Object.assign({ id:'tgt_'+Date.now(), createdAt: Date.now() }, payload));
+            notifyOthers(`${me.name} added a recurring target: ${label || subjectName(subject)}`);
+          }
+        } else if(isEdit){
+          // every in-range date was removed in favor of overflow-only — this target no longer belongs here
+          state.targets = state.targets.filter(x=>x.id!==existingTarget.id);
+          tombstone(existingTarget.id);
+        }
+        // Overflow dates (picked beyond this plan's range) become their own target on
+        // whichever plan actually covers them, auto-creating/extending one if needed.
+        if(pendingOverflowDates.size){
+          const overflowSorted = [...pendingOverflowDates].sort();
+          const nextPlan = resolveOrCreateNextPlan(plan, overflowSorted[overflowSorted.length-1]);
+          state.targets.push({
+            id:'tgt_'+Date.now()+'_of', planId: nextPlan.id, subject, label: label||null, note: note||null,
+            kind:'recurring', timing, start, duration, dates: overflowSorted, createdAt: Date.now()
+          });
+          notifyOthers(`${me.name} added a recurring target spanning into the next plan`);
+        }
       } else {
-        state.weeklyGoals.push({
-          id:'wg_'+Date.now(), title, subject, type:'flexible', unit, target,
-          planId: plan.id, note: note||null, manualAdjust:0, createdAt: Date.now()
-        });
-        notifyOthers(`${me.name} set a new goal: ${title}`);
+        let date;
+        if(isEdit){
+          const dateInput = backdrop.querySelector('#tgt-date');
+          date = dateInput ? dateInput.value : existingTarget.date;
+        } else {
+          date = anchorDate;
+        }
+        if(!date){ alert('Pick a date.'); return; }
+        const destSel = backdrop.querySelector('#tgt-dest');
+        const planForOnce = destSel ? (state.plans||[]).find(p=>p.id===destSel.value) : (planContainingDate(state, new Date(date+'T00:00:00')) || chosenPlan);
+        const payload = {
+          planId: planForOnce ? planForOnce.id : null, subject, label: label||null, note: note||null,
+          kind:'once', timing, start, duration, date
+        };
+        if(isEdit){
+          const t = state.targets.find(x=>x.id===existingTarget.id);
+          if(t) Object.assign(t, payload);
+          notifyOthers(`${me.name} updated a task`);
+        } else {
+          state.targets.push(Object.assign({ id:'tgt_'+Date.now(), createdAt: Date.now() }, payload));
+          notifyOthers(`${me.name} added a task: ${label || subjectName(subject)}`);
+        }
       }
       saveState();
-      openGoalCardId = isEdit ? existingGoal.id : null;
+      openGoalCardId = isEdit ? existingTarget.id : null;
+      render();
       renderWeeklyGoalsList();
       close();
     });
+
+    const deleteBtn = backdrop.querySelector('#tgt-delete');
+    if(deleteBtn) deleteBtn.addEventListener('click', ()=>{
+      state.targets = state.targets.filter(x=>x.id!==existingTarget.id);
+      tombstone(existingTarget.id);
+      openGoalCardId = null;
+      saveState();
+      render();
+      renderWeeklyGoalsList();
+      close();
+    });
+  }
+
+
+  // ---------- Plan date-range calendar picker: category-aware. Occupied dates are
+  // color-coded per category (dots), dates already covered by a same-category plan are
+  // struck through and unpickable as a range anchor, and a running conflict message +
+  // hasConflict() gate the Save button so a same-category overlap can never be saved —
+  // different categories are always allowed to share dates. Recomputed fresh on every
+  // paint (never cached), so switching category or month always reflects live state.
+  function createPlanRangePicker(container, opts){
+    opts = opts || {};
+    const todayKey = fmtDate(new Date());
+    let selStart = opts.initialStart || todayKey;
+    let selEnd = opts.initialEnd || selStart;
+    let viewMonth = new Date(selStart+'T00:00:00'); viewMonth.setDate(1);
+    let phase = 'start'; // 'start' = next tap sets a fresh anchor; 'end' = next tap completes the range
+    let currentCategory = opts.getCategory ? opts.getCategory() : 'other';
+
+    function dayPlansFor(dateKey){
+      return (state.plans||[]).filter(p=> p.id!==opts.excludePlanId && dateKey>=p.startDate && dateKey<=p.endDate);
+    }
+    function rangeLoHi(){ return selStart<=selEnd ? [selStart,selEnd] : [selEnd,selStart]; }
+
+    function paint(){
+      const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
+      const first = new Date(y,m,1);
+      const startPad = first.getDay();
+      const daysInMonth = new Date(y,m+1,0).getDate();
+      const [lo,hi] = rangeLoHi();
+      let cells = '';
+      for(let i=0;i<startPad;i++) cells += `<div class="pcal-cell empty"></div>`;
+      for(let day=1; day<=daysInMonth; day++){
+        const d = new Date(y,m,day);
+        const key = fmtDate(d);
+        const cats = [...new Set(dayPlansFor(key).map(p=> p.category||'other'))];
+        const blockedSame = cats.includes(currentCategory);
+        const isPast = key < todayKey;
+        const isAnchor = (key===selStart || key===selEnd);
+        const inRange = key>=lo && key<=hi;
+        const dots = cats.slice(0,3).map(cid=>{
+          const c = PLAN_CATEGORIES.find(x=>x.id===cid) || PLAN_CATEGORIES[PLAN_CATEGORIES.length-1];
+          return `<i style="background:${c.color}"></i>`;
+        }).join('');
+        cells += `<div class="pcal-cell ${isPast?'past':''} ${(blockedSame && !isAnchor)?'blocked':''} ${inRange?'in-range':''} ${isAnchor?'range-end':''}" data-date="${key}">
+          ${day}
+          ${dots ? `<div class="pcal-dots">${dots}</div>` : ''}
+        </div>`;
+      }
+      container.innerHTML = `
+        <div class="pcal-nav">
+          <button type="button" class="week-nav-arrow" data-pcal-prev>‹</button>
+          <div class="pcal-nav-label">${PLAN_MONTHS[m]} ${y}</div>
+          <button type="button" class="week-nav-arrow" data-pcal-next>›</button>
+        </div>
+        <div class="pcal-dow-row">${DAY_NAMES.map(n=>`<div class="pcal-dow">${n}</div>`).join('')}</div>
+        <div class="pcal-grid">${cells}</div>
+        <div class="pcal-legend">${PLAN_CATEGORIES.map(c=>`<span><span class="cat-dot" style="background:${c.color}"></span>${c.name}</span>`).join('')}</div>
+        <div class="pcal-hint">Tap a start date, then an end date. Struck-through dates already belong to another ${escapeHtml(categoryFor({category:currentCategory}).name.toLowerCase())} plan.</div>
+        <div id="pcal-conflict-slot"></div>
+      `;
+      container.querySelector('[data-pcal-prev]').addEventListener('click', ()=>{ viewMonth.setMonth(viewMonth.getMonth()-1); paint(); });
+      container.querySelector('[data-pcal-next]').addEventListener('click', ()=>{ viewMonth.setMonth(viewMonth.getMonth()+1); paint(); });
+      container.querySelectorAll('.pcal-cell[data-date]').forEach(cell=>{
+        cell.addEventListener('click', ()=>{
+          const key = cell.dataset.date;
+          if(cell.classList.contains('past')) return;
+          if(cell.classList.contains('blocked')){
+            const occupying = dayPlansFor(key).find(p=>(p.category||'other')===currentCategory);
+            showOccupiedDateMessage(occupying ? categoryFor(occupying).name : categoryFor({category:currentCategory}).name);
+            return; // occupied by this same category — can't anchor a range here
+          }
+          if(phase==='start'){ selStart = key; selEnd = key; phase = 'end'; }
+          else { if(key >= selStart){ selEnd = key; } else { selStart = key; } phase = 'start'; }
+          paint();
+          if(opts.onChange) opts.onChange(rangeLoHi()[0], rangeLoHi()[1]);
+        });
+      });
+      renderConflictMessage();
+    }
+    function showOccupiedDateMessage(categoryName){
+      const slot = container.querySelector('#pcal-conflict-slot');
+      if(!slot) return;
+      slot.innerHTML = `<div class="pcal-conflict">📅 Date occupied under "${escapeHtml(categoryName)}"</div>`;
+    }
+    function renderConflictMessage(){
+      const slot = container.querySelector('#pcal-conflict-slot');
+      if(!slot) return;
+      const [lo,hi] = rangeLoHi();
+      const { sameCategory } = findPlanConflicts(state, currentCategory, lo, hi, opts.excludePlanId);
+      slot.innerHTML = sameCategory.length
+        ? `<div class="pcal-conflict">⚠️ Overlaps ${sameCategory.length} existing ${escapeHtml(categoryFor({category:currentCategory}).name.toLowerCase())} plan${sameCategory.length===1?'':'s'} — same-category plans can't share dates. Pick a different range or category.</div>`
+        : '';
+    }
+    paint();
+    return {
+      getStart(){ return rangeLoHi()[0]; },
+      getEnd(){ return rangeLoHi()[1]; },
+      setRange(s,e){ selStart=s; selEnd=e; phase='start'; paint(); },
+      setCategory(catId){ currentCategory = catId; paint(); },
+      hasConflict(){
+        const [lo,hi] = rangeLoHi();
+        return findPlanConflicts(state, currentCategory, lo, hi, opts.excludePlanId).sameCategory.length>0;
+      }
+    };
   }
 
   // ---------- NEW PLAN (with "bring forward unfinished goals") ----------
@@ -4887,7 +6215,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
       <div class="modal">
         <button class="close-x">×</button>
         <h3>New plan</h3>
-        <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:10px;">Pick a fixed date range. Once created, these dates never change — starting a new plan later never re-files anything in this one.</div>
+        <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:10px;">Pick a category and a fixed date range. Once created, these dates never change — starting a new plan later never re-files anything in this one.</div>
+        <div class="field-row">
+          <label>Category</label>
+          <select id="np-category">${categoryOptionsHtml('study')}</select>
+        </div>
         <div class="field-row">
           <label>Length</label>
           <div class="day-toggle-row" id="np-presets">
@@ -4898,16 +6230,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
           </div>
         </div>
         <div class="field-row">
-          <label>Start date</label>
-          <input type="date" id="np-start" value="${defaultStart}">
-        </div>
-        <div class="field-row">
-          <label>End date</label>
-          <input type="date" id="np-end" value="${defaultStart}">
-        </div>
-        <div class="field-row">
-          <label>Label <span style="opacity:.6; text-transform:none;">(optional — e.g. "Exam crunch")</span></label>
-          <input type="text" id="np-label" placeholder="Optional label">
+          <label>Dates</label>
+          <div id="np-calendar"></div>
         </div>
         <div id="np-carry-wrap"></div>
         <div class="modal-actions">
@@ -4917,21 +6241,24 @@ window.storage = storage; // keep the rest of the app's code unchanged
       </div>
     `;
     document.body.appendChild(backdrop);
-    const startInput = backdrop.querySelector('#np-start');
-    const endInput = backdrop.querySelector('#np-end');
-    const carryWrap = backdrop.querySelector('#np-carry-wrap');
+    const categorySel = backdrop.querySelector('#np-category');
+    const picker = createPlanRangePicker(backdrop.querySelector('#np-calendar'), {
+      initialStart: defaultStart, initialEnd: defaultStart,
+      getCategory: ()=> categorySel.value,
+    });
+    categorySel.addEventListener('change', ()=> picker.setCategory(categorySel.value));
 
     function applyPreset(days){
-      const s = new Date(startInput.value+'T00:00:00');
+      const s = new Date(picker.getStart()+'T00:00:00');
       if(isNaN(s)) return;
       const e = new Date(s); e.setDate(e.getDate()+days-1);
-      endInput.value = fmtDate(e);
+      picker.setRange(picker.getStart(), fmtDate(e));
     }
     function applyMonthPreset(){
-      const s = new Date(startInput.value+'T00:00:00');
+      const s = new Date(picker.getStart()+'T00:00:00');
       if(isNaN(s)) return;
       const e = new Date(s); e.setMonth(e.getMonth()+1); e.setDate(e.getDate()-1);
-      endInput.value = fmtDate(e);
+      picker.setRange(picker.getStart(), fmtDate(e));
     }
     backdrop.querySelectorAll('#np-presets .day-toggle').forEach(btn=>{
       btn.addEventListener('click', ()=>{
@@ -4943,53 +6270,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
         else if(preset==='month') applyMonthPreset();
       });
     });
-    startInput.addEventListener('change', ()=>{
-      const activePreset = backdrop.querySelector('#np-presets .day-toggle.sel');
-      if(activePreset){
-        if(activePreset.dataset.preset==='month') applyMonthPreset();
-        else if(activePreset.dataset.preset!=='custom') applyPreset(parseInt(activePreset.dataset.preset,10));
-      }
-      renderCarryForward();
-    });
-
-    // "Bring forward unfinished goals": look at the plan immediately before
-    // the chosen start date and list its incomplete flexible goals, unchecked
-    // by default — nothing auto-rolls silently.
-    function findPrevPlan(){
-      const startVal = startInput.value;
-      const before = plans.filter(p=>p.startDate < startVal).sort((a,b)=> b.startDate.localeCompare(a.startDate));
-      return before.length ? before[0] : (lastPlan || null);
-    }
-    function renderCarryForward(){
-      const prev = findPrevPlan();
-      if(!prev){ carryWrap.innerHTML = ''; return; }
-      const prevGoals = (state.weeklyGoals||[]).filter(g=>g.planId===prev.id);
-      const incomplete = prevGoals.map(g=>({ g, progress: weeklyGoalProgress(state, g, prev).progress }))
-        .filter(({g, progress})=> g.target ? progress < g.target : false);
-      if(!incomplete.length){ carryWrap.innerHTML = ''; return; }
-      carryWrap.innerHTML = `
-        <div class="field-row">
-          <label>Bring forward unfinished goals <span style="opacity:.6; text-transform:none;">from your previous plan</span></label>
-          ${incomplete.map(({g, progress})=>`
-            <div class="linked-item" style="cursor:pointer;" data-carry-row="${g.id}">
-              <span style="display:flex; align-items:center; gap:8px;">
-                <input type="checkbox" id="carry-${g.id}" data-carry-check="${g.id}">
-                <span class="lname">${escapeHtml(g.title)}</span>
-              </span>
-              <span class="lamt">${fmtGoalAmt(progress)}/${g.target}${g.unit==='hours'?'h':''} so far</span>
-            </div>
-          `).join('')}
-        </div>
-      `;
-      carryWrap.querySelectorAll('[data-carry-row]').forEach(row=>{
-        row.addEventListener('click', (e)=>{
-          if(e.target.tagName==='INPUT') return;
-          const cb = row.querySelector('input[type=checkbox]');
-          cb.checked = !cb.checked;
-        });
-      });
-    }
-    renderCarryForward();
 
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
@@ -4997,28 +6277,19 @@ window.storage = storage; // keep the rest of the app's code unchanged
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
 
     backdrop.querySelector('#np-save').addEventListener('click', ()=>{
-      const startDate = startInput.value;
-      const endDate = endInput.value;
+      const startDate = picker.getStart();
+      const endDate = picker.getEnd();
       if(!startDate || !endDate || endDate < startDate){ alert('Pick a valid date range.'); return; }
-      const label = backdrop.querySelector('#np-label').value.trim();
-      const newPlan = { id:'plan_'+Date.now(), startDate, endDate, label: label||null, createdAt: Date.now() };
+      const category = categorySel.value;
+      if(picker.hasConflict()){ alert("This range overlaps another plan in the same category. Same-category plans can't share dates — pick a different range or category."); return; }
+      const newPlan = { id:'plan_'+Date.now(), startDate, endDate, category, createdAt: Date.now() };
       state.plans = state.plans || [];
       state.plans.push(newPlan);
-
-      const checked = Array.from(carryWrap.querySelectorAll('[data-carry-check]:checked')).map(cb=>cb.dataset.carryCheck);
-      checked.forEach(goalId=>{
-        const g = (state.weeklyGoals||[]).find(x=>x.id===goalId);
-        if(!g) return;
-        state.weeklyGoals.push({
-          id:'wg_'+Date.now()+'_'+goalId, title:g.title, subject:g.subject, type:'flexible',
-          unit:g.unit, target:g.target, planId:newPlan.id, note:g.note||null, manualAdjust:0, createdAt: Date.now()
-        });
-      });
 
       saveState();
       activePlanId = newPlan.id;
       openGoalCardId = null;
-      notifyOthers(`${me.name} started a new plan${label?': '+label:''}`);
+      notifyOthers(`${me.name} started a new ${categoryFor(newPlan).name.toLowerCase()} plan`);
       renderWeeklyGoalsList();
       close();
     });
@@ -5033,18 +6304,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
         <button class="close-x">×</button>
         <h3>Edit plan</h3>
         <div class="field-row">
-          <label>Start date</label>
-          <input type="date" id="ep-start" value="${plan.startDate}">
+          <label>Category</label>
+          <select id="ep-category">${categoryOptionsHtml(plan.category||'other')}</select>
         </div>
         <div class="field-row">
-          <label>End date</label>
-          <input type="date" id="ep-end" value="${plan.endDate}">
+          <label>Dates</label>
+          <div id="ep-calendar"></div>
         </div>
-        <div class="field-row">
-          <label>Label <span style="opacity:.6; text-transform:none;">(optional)</span></label>
-          <input type="text" id="ep-label" placeholder="Optional label" value="${escapeHtml(plan.label||'')}">
-        </div>
-        <div style="font-size:11.5px; color:var(--chalk-faint); margin:2px 0 10px;">Changing the dates only affects this plan's own record — goals and recurring blocks stay linked to it either way.</div>
+        <div style="font-size:11.5px; color:var(--chalk-faint); margin:2px 0 10px;">Changing the dates or category only affects this plan's own record — goals and recurring blocks stay linked to it either way.</div>
         <div class="modal-actions">
           <button class="btn btn-ghost" id="ep-delete" style="color:var(--c1);">Delete plan</button>
           <button class="btn btn-primary" id="ep-save">Save changes</button>
@@ -5052,30 +6319,39 @@ window.storage = storage; // keep the rest of the app's code unchanged
       </div>
     `;
     document.body.appendChild(backdrop);
+    const categorySel = backdrop.querySelector('#ep-category');
+    const picker = createPlanRangePicker(backdrop.querySelector('#ep-calendar'), {
+      initialStart: plan.startDate, initialEnd: plan.endDate,
+      excludePlanId: plan.id,
+      getCategory: ()=> categorySel.value
+    });
+    categorySel.addEventListener('change', ()=> picker.setCategory(categorySel.value));
+
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
 
     backdrop.querySelector('#ep-save').addEventListener('click', ()=>{
-      const startDate = backdrop.querySelector('#ep-start').value;
-      const endDate = backdrop.querySelector('#ep-end').value;
+      const startDate = picker.getStart();
+      const endDate = picker.getEnd();
       if(!startDate || !endDate || endDate < startDate){ alert('Pick a valid date range.'); return; }
-      const label = backdrop.querySelector('#ep-label').value.trim();
+      if(picker.hasConflict()){ alert("This range overlaps another plan in the same category. Same-category plans can't share dates — pick a different range or category."); return; }
       const p = state.plans.find(x=>x.id===plan.id);
-      if(p){ p.startDate = startDate; p.endDate = endDate; p.label = label || null; }
+      if(p){ p.startDate = startDate; p.endDate = endDate; p.category = categorySel.value; }
       saveState();
       renderWeeklyGoalsList();
       close();
     });
 
     backdrop.querySelector('#ep-delete').addEventListener('click', ()=>{
-      const goalCount = (state.weeklyGoals||[]).filter(g=>g.planId===plan.id).length;
-      const blockCount = (state.weeklyTemplate||[]).filter(b=>b.planId===plan.id).length;
-      const extra = (goalCount||blockCount) ? ` This also removes ${goalCount} goal${goalCount===1?'':'s'} and ${blockCount} recurring block${blockCount===1?'':'s'} linked to it.` : '';
-      if(!confirm(`Delete this plan (${plan.startDate} – ${plan.endDate})?${extra} This can't be undone.`)) return;
+      const linked = (state.targets||[]).filter(t=>t.planId===plan.id);
+      const onceCount = linked.filter(t=>t.kind==='once').length;
+      const recurringCount = linked.filter(t=>t.kind==='recurring').length;
+      const extra = (onceCount||recurringCount) ? ` This also removes ${onceCount} one-off task${onceCount===1?'':'s'} and ${recurringCount} recurring target${recurringCount===1?'':'s'} linked to it.` : '';
+      if(!confirm(`Delete this plan (${fmtPlanRange(plan.startDate, plan.endDate)})?${extra} This can't be undone.`)) return;
       state.plans = (state.plans||[]).filter(p=>p.id!==plan.id);
-      state.weeklyGoals = (state.weeklyGoals||[]).filter(g=>g.planId!==plan.id);
-      state.weeklyTemplate = (state.weeklyTemplate||[]).filter(b=>b.planId!==plan.id);
+      linked.forEach(t=> tombstone(t.id));
+      state.targets = (state.targets||[]).filter(t=>t.planId!==plan.id);
       if(activePlanId===plan.id) activePlanId = null;
       saveState();
       openGoalCardId = null;
@@ -5086,8 +6362,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   // ---------- ADD MODAL ----------
   document.getElementById('fabAdd').addEventListener('click', ()=>{
-    if(currentScreen==='today') openAddModal('extra');
-    else if(currentScreen==='week' && isViewingSelf()) openWeekGoalTypeChooser();
+    if(currentScreen==='today') openTargetModal(null, { fromDaily:true, date: fmtDate(selectedDate) });
+    else if(currentScreen==='week' && isViewingSelf()) openPlanPickerForTarget();
+    else if(currentScreen==='live') openGroupsModal();
   });
 
   // ---------- wheel / dial picker (no manual typing) ----------
@@ -5224,18 +6501,18 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const toKey = backdrop.querySelector('#mv-date').value;
       if(!toKey || toKey===fromKey){ close(); return; }
       if(source==='extra'){
-        state.dailyExtra[fromKey] = (state.dailyExtra[fromKey]||[]).filter(x=>x.id!==block.id);
-        state.dailyExtra[toKey] = state.dailyExtra[toKey] || [];
-        state.dailyExtra[toKey].push({ ...block });
-        delete block.source;
+        const t = state.targets.find(x=>x.id===block.id);
+        if(t) t.date = toKey;
       } else {
-        // recurring occurrence: leave the recurring block as-is (it still repeats
-        // on its weekday) but clone this one occurrence onto the new date, and
-        // mark the original occurrence 'moved' so it's not left dangling as due.
-        state.dailyExtra[toKey] = state.dailyExtra[toKey] || [];
-        state.dailyExtra[toKey].push({
-          id:'extra_'+Date.now(), subject: block.subject, start: block.start,
-          duration: block.duration, label: block.label||null, linkedGoalId: block.linkedGoalId||null
+        // recurring occurrence: leave the recurring target as-is (it still repeats
+        // on its weekday) but clone this one occurrence onto the new date as a
+        // one-off target, and mark the original occurrence 'moved' so it's not
+        // left dangling as due.
+        state.targets.push({
+          id:'tgt_'+Date.now(), planId: (planContainingDate(state, new Date(toKey+'T00:00:00'))||{}).id || null,
+          kind:'once', date: toKey,
+          subject: block.subject, timing: block.timing||'fixed', start: block.start||null, duration: block.duration,
+          label: block.label||null, note: block.note||null, createdAt: Date.now()
         });
         state.completion[fromKey+'|'+block.id] = 'moved';
       }
@@ -5246,204 +6523,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
   }
 
-  function openAddModal(kind, existingBlock, forcedDateKey, forcedPlan){
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    const isTemplate = kind==='template';
-    const isEdit = !!existingBlock;
-    const dateKeyForExtra = forcedDateKey || fmtDate(selectedDate);
-    const modalPlan = isTemplate ? (existingBlock ? (state.plans||[]).find(p=>p.id===existingBlock.planId) : (forcedPlan || resolveActivePlan())) : null;
-    if(isTemplate && !modalPlan){ openNewPlanModal(); return; }
-    backdrop.innerHTML = `
-      <div class="modal" style="position:relative;">
-        <button class="close-x">×</button>
-        <h3>${isEdit ? (isTemplate?'Edit recurring block':'Edit task') : (isTemplate ? 'Add recurring block' : 'Add task for '+DAY_NAMES[selectedDate.getDay()]+' '+selectedDate.getDate())}</h3>
-        ${isTemplate ? `<p class="modal-subhead">For this plan (${(()=>{const s=new Date(modalPlan.startDate+'T00:00:00'); const e=new Date(modalPlan.endDate+'T00:00:00'); const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return `${M[s.getMonth()]} ${s.getDate()}–${M[e.getMonth()]} ${e.getDate()}`;})()})</p>` : ''}
-
-        <div class="field-row">
-          <label>Label</label>
-          <input type="text" id="m-label" placeholder="e.g. Organic Chem — Ch.4" value="${escapeHtml(existingBlock?.label || '')}">
-        </div>
-
-        <div class="field-row">
-          <label>Subject</label>
-          <select id="m-subject"></select>
-        </div>
-
-        ${(!isTemplate && !isEdit) ? `
-        <div class="field-row" id="m-link-goal-row">
-          <label>Link to weekly goal <span style="opacity:.6; text-transform:none;">(optional, one click)</span></label>
-          <select id="m-link-goal"><option value="">— none —</option></select>
-        </div>` : ''}
-
-        ${isTemplate && !isEdit ? `
-        <div class="field-row">
-          <label>Day(s)</label>
-          <div class="day-toggle-row" id="m-days">
-            ${DAY_NAMES.map((n,i)=>`<div class="day-toggle" data-day="${i}">${n}</div>`).join('')}
-          </div>
-        </div>` : ''}
-
-        <div class="field-row">
-          <label>Start time</label>
-          <div id="m-start-wheel"></div>
-        </div>
-
-        <div class="field-row">
-          <label>Duration</label>
-          <div id="m-duration-wheel"></div>
-        </div>
-
-        ${!isEdit ? `
-        <div class="field-row">
-          <div class="together-toggle" id="m-together">
-            <span class="check" id="m-together-check"></span>
-            <span>We're doing this together</span>
-          </div>
-        </div>` : ''}
-
-        <div class="field-row">
-          <label>New subject color (optional — add a new subject)</label>
-          <input type="text" id="m-new-subject" placeholder="New subject name">
-          <div class="color-row" id="m-colors">
-            ${COLORS.map(c=>`<div class="swatch" data-color="${c}" style="background:${c}"></div>`).join('')}
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn btn-ghost" id="m-cancel">Cancel</button>
-          <button class="btn btn-primary" id="m-save">${isEdit ? 'Save changes' : 'Save'}</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    renderSubjectOptions(backdrop.querySelector('#m-subject'), existingBlock?.subject || state.subjects[0].id);
-    const startWheel = createTimeWheel(backdrop.querySelector('#m-start-wheel'), existingBlock?.start || '16:00');
-    const durationWheel = createDurationStepper(backdrop.querySelector('#m-duration-wheel'), existingBlock?.duration || 30);
-    const linkGoalSel = backdrop.querySelector('#m-link-goal');
-    if(linkGoalSel){
-      const dayPlan = planContainingDate(state, selectedDate);
-      const dayPlanGoals = dayPlan ? (state.weeklyGoals||[]).filter(g=>g.planId===dayPlan.id) : [];
-      linkGoalSel.innerHTML = '<option value="">— none —</option>' +
-        dayPlanGoals.map(g=>`<option value="${g.id}">${escapeHtml(g.title)}</option>`).join('');
-    }
-
-    let pickedColor = COLORS[0];
-    let selectedDays = (isTemplate && !isEdit) ? new Set([selectedDate.getDay()]) : null;
-    if(isTemplate && !isEdit){
-      const dayEls = backdrop.querySelectorAll('.day-toggle');
-      dayEls.forEach(d=>{
-        if(parseInt(d.dataset.day)===selectedDate.getDay()) d.classList.add('sel');
-        d.addEventListener('click', ()=>{
-          const day = parseInt(d.dataset.day);
-          if(selectedDays.has(day)){ selectedDays.delete(day); d.classList.remove('sel'); }
-          else { selectedDays.add(day); d.classList.add('sel'); }
-        });
-      });
-    }
-    backdrop.querySelectorAll('.swatch').forEach(sw=>{
-      sw.addEventListener('click', ()=>{
-        backdrop.querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));
-        sw.classList.add('sel');
-        pickedColor = sw.dataset.color;
-      });
-    });
-
-    let together = false;
-    const togetherEl = backdrop.querySelector('#m-together');
-    if(togetherEl){
-      togetherEl.addEventListener('click', ()=>{
-        together = !together;
-        togetherEl.classList.toggle('sel', together);
-        backdrop.querySelector('#m-together-check').textContent = together ? '✓' : '';
-      });
-    }
-
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.querySelector('#m-cancel').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-
-    backdrop.querySelector('#m-save').addEventListener('click', async ()=>{
-      const label = backdrop.querySelector('#m-label').value.trim();
-      const start = startWheel.getValue();
-      const duration = durationWheel.getValue();
-      const newSubjectName = backdrop.querySelector('#m-new-subject').value.trim();
-      let subjectId = backdrop.querySelector('#m-subject').value;
-
-      if(newSubjectName){
-        subjectId = 'sub_'+Date.now();
-        state.subjects.push({id:subjectId, name:newSubjectName, color:pickedColor});
-      }
-
-      const taskName = label || subjectName(subjectId);
-
-      if(isEdit){
-        if(isTemplate){
-          const blk = state.weeklyTemplate.find(b=>b.id===existingBlock.id);
-          if(blk){ blk.subject = subjectId; blk.start = start; blk.duration = duration; blk.label = label; }
-        } else {
-          const list = state.dailyExtra[dateKeyForExtra] || [];
-          const blk = list.find(b=>b.id===existingBlock.id);
-          if(blk){ blk.subject = subjectId; blk.start = start; blk.duration = duration; blk.label = label; }
-        }
-        saveState();
-        render();
-        renderWeeklyGoalsList();
-        close();
-        return;
-      }
-
-      if(isTemplate){
-        if(selectedDays.size===0){ selectedDays.add(selectedDate.getDay()); }
-        if(together){
-          for(const day of selectedDays){
-            const d = firstDateForWeekday(modalPlan, day);
-            const dateKey = fmtDate(d);
-            const list = await loadSharedTasks(dateKey);
-            list.push({
-              id:'shr_'+Date.now()+'_'+day, start, duration, label,
-              createdBy: me.id, createdByName: me.name,
-              completions: {}
-            });
-            await saveSharedTasks(dateKey, list);
-          }
-          notifyOthers(`${me.name} added a shared recurring block: ${taskName}`);
-        } else {
-          selectedDays.forEach(day=>{
-            state.weeklyTemplate.push({
-              id:'blk_'+Date.now()+'_'+day,
-              day, subject:subjectId, start, duration, label, planId: modalPlan.id
-            });
-          });
-          saveState();
-          notifyOthers(`${me.name} added a recurring study block: ${taskName}`);
-        }
-      } else if(together){
-        const dateKey = fmtDate(selectedDate);
-        const list = await loadSharedTasks(dateKey);
-        list.push({
-          id:'shr_'+Date.now(), start, duration, label,
-          createdBy: me.id, createdByName: me.name,
-          completions: {}
-        });
-        await saveSharedTasks(dateKey, list);
-        notifyOthers(`${me.name} added a shared task: ${label || 'Untitled'}`);
-      } else {
-        const key = fmtDate(selectedDate);
-        if(!state.dailyExtra[key]) state.dailyExtra[key] = [];
-        const linkGoalId = linkGoalSel ? (linkGoalSel.value || null) : null;
-        state.dailyExtra[key].push({
-          id:'ext_'+Date.now(), subject:subjectId, start, duration, label,
-          linkedGoalId: linkGoalId
-        });
-        saveState();
-        notifyOthers(`${me.name} added a task: ${taskName}`);
-      }
-      render();
-      close();
-    });
-  }
 
   // ---------- master render ----------
   function render(){
@@ -5459,7 +6538,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
 
     const fab = document.getElementById('fabAdd');
-    fab.style.display = (currentScreen==='today' || (currentScreen==='week' && isViewingSelf())) ? 'flex' : 'none';
+    fab.style.display = (currentScreen==='today' || (currentScreen==='week' && isViewingSelf()) || currentScreen==='live') ? 'flex' : 'none';
 
     document.getElementById('timerControlsWrap').style.display = isViewingSelf() ? 'block' : 'none';
     document.getElementById('friendTimerBanner').style.display = isViewingSelf() ? 'none' : 'block';
