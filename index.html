@@ -1036,6 +1036,46 @@
   .lmt-digits{ font-family:'JetBrains Mono'; font-size:20px; font-weight:700; color:var(--chalk); flex:0 0 auto; }
   .lmt-controls{ display:flex; gap:8px; }
   .lmt-controls button{ padding:8px 14px; font-size:12px; width:auto; margin-top:0; }
+
+  /* ---------- Live page: own status card, group tabs, 3-across member grid ---------- */
+  .live-self-card{
+    background:var(--card); border:1px solid var(--card-line); border-radius:18px; padding:18px; margin:0 0 16px; text-align:center;
+  }
+  .live-self-digits{ font-family:'JetBrains Mono'; font-size:30px; font-weight:700; color:var(--chalk); }
+  .live-self-status{ font-size:11.5px; color:var(--chalk-faint); margin-top:2px; letter-spacing:0.3px; }
+  .live-self-controls{ display:flex; gap:10px; justify-content:center; margin-top:12px; }
+  .live-self-controls button{ flex:0 1 140px; }
+  .live-self-total{ font-size:11.5px; color:var(--chalk-dim); margin-top:12px; }
+  .live-group-tabs{ display:flex; gap:8px; overflow-x:auto; padding:0 0 14px; scrollbar-width:none; -ms-overflow-style:none; }
+  .live-group-tabs::-webkit-scrollbar{ display:none; }
+  .live-group-tab{
+    flex:0 0 auto; padding:8px 16px; border-radius:20px; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;
+  }
+  .live-group-tab.active{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
+  .live-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:14px 10px; padding-bottom:16px; }
+  .live-cell{ position:relative; display:flex; flex-direction:column; align-items:center; }
+  .live-cell .lc-circle-wrap{ position:relative; width:72px; height:72px; margin-bottom:8px; }
+  .live-cell .lc-circle{
+    width:72px; height:72px; border-radius:50%; overflow:hidden; cursor:pointer;
+    background:var(--board-2); border:1px solid var(--card-line);
+    display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; color:var(--chalk-faint);
+  }
+  .live-cell .lc-circle img{ width:100%; height:100%; object-fit:cover; }
+  .live-cell .lc-circle.pulsing{
+    box-shadow: 0 0 0 2px var(--board), 0 0 0 3px var(--c1), 0 0 10px 2px rgba(var(--c1-rgb),0.55);
+    animation: redPulse 1.6s ease-in-out infinite;
+  }
+  .live-cell .lc-circle.stale{ opacity:0.45; filter:grayscale(0.6); }
+  .live-cell .lc-box{
+    width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:7px 4px; text-align:center;
+  }
+  .live-cell .lc-name{ font-size:11px; font-weight:700; color:var(--chalk); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .live-cell .lc-total{ font-family:'JetBrains Mono'; font-size:10px; color:var(--chalk-dim); margin-top:2px; }
+  .live-cell .lc-streak{ font-size:9.5px; color:var(--c1); font-weight:700; margin-top:2px; }
+  .live-cell .lc-status{ font-size:8.5px; color:var(--chalk-faint); margin-top:2px; }
+  .live-cell .task-menu-btn{ position:absolute; top:-4px; right:6px; }
+  .live-cell .task-menu{ right:0; left:auto; top:20px; }
   .live-member-row{
     display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--card-line);
     border-radius:16px; padding:12px 14px; margin-bottom:10px;
@@ -1239,11 +1279,6 @@
     <button class="group-chip-info" id="groupBarInfo" title="Group details, QR & invite">⋯</button>
   </div>
 
-  <div class="shared-people-wrap" id="sharedPeopleWrap">
-    <div class="people-row" id="peopleRow"></div>
-    <button type="button" class="people-collapse-btn" id="peopleCollapseBtn" title="Collapse people"></button>
-  </div>
-
   <button type="button" class="focus-exit-btn" id="focusExitBtn" style="display:none;">✕ Exit focus</button>
 
   <main>
@@ -1336,14 +1371,17 @@
 
     <!-- LIVE SCREEN -->
     <section class="screen" id="screen-live">
-      <div class="live-mini-timer" id="liveMiniTimer">
-        <div class="lmt-digits" id="liveMiniDigits">00:00:00</div>
-        <div class="lmt-controls">
+      <div class="live-self-card" id="liveSelfCard">
+        <div class="live-self-digits" id="liveSelfDigits">00:00:00</div>
+        <div class="live-self-status" id="liveSelfStatus">ready</div>
+        <div class="live-self-controls">
           <button type="button" class="btn btn-ghost" id="liveMiniReset">Reset/Stop</button>
           <button type="button" class="btn btn-primary" id="liveMiniStart">Start</button>
         </div>
+        <div class="live-self-total" id="liveSelfTotal"></div>
       </div>
-      <div id="snapRow" class="snap-row"></div>
+      <div class="live-group-tabs" id="liveGroupTabs"></div>
+      <div class="live-grid" id="liveGrid"></div>
     </section>
 
     <!-- HISTORY / ANALYSE SCREEN -->
@@ -1633,8 +1671,19 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let activeGroupId = null;   // which group's roster is currently driving usersList/people-row/snap-row
   let activeGroupData = null; // full doc of the active group
   let groupUnsub = null;
+  let myGroupsCache = {};     // groupId -> group doc, for every group I'm in — powers the Live page's group tab row
+  async function loadMyGroupsCache(){
+    for(const gid of myGroupIds){
+      try{ const snap = await getDoc(doc(db,'groups',gid)); if(snap.exists()) myGroupsCache[gid] = snap.data(); }catch(e){}
+    }
+    Object.keys(myGroupsCache).forEach(gid=>{ if(!myGroupIds.includes(gid)) delete myGroupsCache[gid]; });
+  }
 
-  function isViewingSelf(){ return !viewingId || (me && viewingId === me.id); }
+  // Now/Daily/Plan/History are fully solo — friend-viewing lives only in the Live page's
+  // Member Profile now. `viewingId` is kept (always null) purely so the many `isViewingSelf() ? …`
+  // branches throughout this file harmlessly fall through to their "self" side rather than
+  // needing every one individually rewritten.
+  function isViewingSelf(){ return true; }
   function activeData(){ return isViewingSelf() ? state : (friendCache[viewingId] || {subjects:[],targets:[],plans:[],completion:{},sessions:{}}); }
   function isScheduleHiddenFor(uid){
     if(!activeGroupData || !activeGroupData.members) return false;
@@ -2040,6 +2089,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     maybeWriteDailyBackup();
     await loadUsersList();
     await loadMyGroupIds();
+    await loadMyGroupsCache();
     await subscribeActiveGroup();
     await loadMyReads();
     renderHeaderAvatar();
@@ -3089,8 +3139,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     label.innerHTML = `📍 ${escapeHtml(activeGroupData.name)}${deadlineTag}`;
   }
   function updateGroupBarVisibility(){
+    // Retired: the Live page's own horizontally-swipeable group-tab row now handles switching
+    // groups directly, so the old single dropdown trigger would just be redundant UI here.
+    // Group details/QR/invite are still reachable via the Live page's "＋" → group list → tap a group.
     const wrap = document.getElementById('groupBarWrap');
-    if(wrap) wrap.style.display = (currentScreen==='live') ? 'flex' : 'none';
+    if(wrap) wrap.style.display = 'none';
   }
   document.getElementById('groupBar').addEventListener('click', ()=> openGroupsModal());
   document.getElementById('groupBarInfo').addEventListener('click', ()=>{
@@ -3430,6 +3483,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!activeGroupId){ activeGroupData = null; deriveUsersList(); renderGroupBar(); renderPeopleRow(); renderSnapRow(); return; }
     groupUnsub = onSnapshot(doc(db, 'groups', activeGroupId), (snap)=>{
       activeGroupData = snap.exists() ? snap.data() : null;
+      if(activeGroupData) myGroupsCache[activeGroupId] = activeGroupData;
       deriveUsersList();
       renderGroupBar();
       renderPeopleRow();
@@ -3460,6 +3514,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setDoc(doc(db,'groupInvites',inviteCode), { groupId });
     if(!myGroupIds.includes(groupId)) myGroupIds.push(groupId);
     await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
+    myGroupsCache[groupId] = groupDoc;
     await setActiveGroup(groupId);
     return groupDoc;
   }
@@ -3476,6 +3531,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await setDoc(doc(db,'groups',groupId), { members: { [me.id]: { joinedAt: Date.now(), hideSchedule:false } } }, { merge:true });
     if(!myGroupIds.includes(groupId)) myGroupIds.push(groupId);
     await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: groupId }, { merge:true });
+    myGroupsCache[groupId] = g;
     await setActiveGroup(groupId);
     const existingMemberIds = Object.keys(g.members||{}).filter(id=>id!==me.id);
     for(const id of existingMemberIds){ await pushNotification(id, `${me.name} joined "${g.name}"`); }
@@ -3484,6 +3540,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   async function leaveGroup(groupId){
     try{ await setDoc(doc(db,'groups',groupId), { members: { [me.id]: deleteField() } }, { merge:true }); }catch(e){}
     myGroupIds = myGroupIds.filter(id=>id!==groupId);
+    delete myGroupsCache[groupId];
     const nextActive = activeGroupId===groupId ? (myGroupIds[0] || null) : activeGroupId;
     await setDoc(doc(db,'groupMemberships', me.id), { groupIds: myGroupIds, activeGroupId: nextActive }, { merge:true });
     await setActiveGroup(nextActive);
@@ -3500,7 +3557,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   function pushSharedBoard(){
     if(!me) return;
-    const shared = { subjects: state.subjects, targets: state.targets, plans: state.plans, completion: state.completion, sessions: state.sessions, goals: state.goals };
+    // privacy + blockedIds are published here too (each person's own settings, describing who
+    // THEY allow) so other clients can compute the mutual reciprocity gate locally — see permits().
+    const shared = {
+      subjects: state.subjects, targets: state.targets, plans: state.plans, completion: state.completion,
+      sessions: state.sessions, goals: state.goals,
+      privacy: state.privacy || { visibility:'all', allowedGroupIds:[], allowedMemberIds:[] },
+      blockedIds: state.blockedIds || {}
+    };
     window.storage.set('board:'+me.id, JSON.stringify(shared), true).catch(e=>console.error('share failed', e));
   }
   async function fetchFriendBoard(id){
@@ -3512,75 +3576,225 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
   }
 
-  let sharedPeopleCollapsed = false;
-  function renderPeopleRow(){
-    const wrap = document.getElementById('sharedPeopleWrap');
-    const el = document.getElementById('peopleRow');
-    if(wrap) wrap.style.display = (currentScreen==='live') ? 'none' : 'flex';
-    if(wrap) wrap.classList.toggle('collapsed', sharedPeopleCollapsed);
-    if(!me){ el.innerHTML=''; return; }
-    const others = usersList.filter(u=>u.id!==me.id);
-    const chips = [{id:me.id, name:'You', color:me.color, photo:me.photo}, ...others.map(u=>({id:u.id, name:u.name, color:u.color, photo:u.photo}))];
-    el.innerHTML = chips.map(c=>{
-      const st = liveCache[c.id];
-      const studying = !!(st && st.studying);
-      const mins = liveMinutesFor(st);
-      const streak = c.id===me.id ? computeStreak() : computeStreakFor(friendCache[c.id] || {});
-      const avatarInner = c.photo ? `<img src="${c.photo}" alt="">` : c.name.slice(0,1).toUpperCase();
-      return `
-        <div class="person-chip ${ (c.id===me.id && isViewingSelf()) || (c.id===viewingId) ? 'active':''} ${studying?'studying':''}" data-id="${c.id}">
-          <span class="avatar" style="background:${c.color}">${avatarInner}</span>
-          <span class="p-meta">
-            <span>${escapeHtml(c.name)}${streak>0 ? ` <span class="p-streak">🔥${streak}</span>` : ''}</span>
-            <span class="p-today">${fmtHM(mins)} today</span>
-          </span>
+  // ---------- Reciprocity gate ----------
+  // "Does ownerId's own privacy settings let viewerId see ownerId?" Reads ownerId's own
+  // privacy/blockedIds — from `state` if ownerId is me, otherwise from friendCache (populated by
+  // fetchFriendBoard, which now carries privacy+blockedIds too). Computed fresh every call —
+  // never cached — so a block or a tier change takes effect immediately, not on some stale timer.
+  function personPermitsViewer(ownerId, viewerId){
+    if(ownerId===viewerId) return true;
+    const ownerData = (me && ownerId===me.id) ? state : (friendCache[ownerId] || {});
+    if((ownerData.blockedIds||{})[viewerId]) return false;
+    const priv = ownerData.privacy || { visibility:'all' };
+    if(priv.visibility==='none') return false;
+    if(priv.visibility==='all') return true;
+    if(priv.visibility==='groups') return (priv.allowedGroupIds||[]).includes(activeGroupId);
+    if(priv.visibility==='members') return (priv.allowedMemberIds||[]).includes(viewerId);
+    return false;
+  }
+  // Mutual AND: both sides must permit each other, or neither can see the other.
+  function permits(a, b){
+    return personPermitsViewer(a, b) && personPermitsViewer(b, a);
+  }
+  function canISee(otherId){
+    if(!me) return false;
+    return permits(me.id, otherId);
+  }
+
+  // Retired: the person-switcher row that used to live here is gone — Now/Daily/Plan/History
+  // are solo now, and viewing someone else happens only through the Live page's Member Profile.
+  // Kept as a no-op (rather than removing its ~15 call sites) since those calls are otherwise
+  // harmless and removing them one by one would be pure extra risk for zero behavior change.
+  function renderPeopleRow(){}
+
+  // ---------- Read-only Member Profile (opened by tapping a member's circle on the Live grid) ----------
+  async function openMemberProfileModal(friendId){
+    await fetchFriendBoard(friendId);
+    const prof = profileFor(friendId);
+    const fb = friendCache[friendId] || {};
+    let activeTab = 'sessions';
+    let profileDate = new Date();
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal" style="max-height:88vh; display:flex; flex-direction:column;">
+        <button class="close-x">×</button>
+        <div style="text-align:center; margin-bottom:10px;">
+          <div class="acct-photo" style="margin:0 auto 8px; ${prof.photo?'':'background:'+prof.color+';'}">${prof.photo?`<img src="${prof.photo}" alt="">`:escapeHtml((prof.name||'?').slice(0,1).toUpperCase())}</div>
+          <div style="font-family:'Kalam'; font-size:18px; color:var(--chalk);">${escapeHtml(prof.name)}</div>
         </div>
-      `;
-    }).join('');
-    el.querySelectorAll('.person-chip').forEach(chip=>{
-      chip.addEventListener('click', async ()=>{
-        const id = chip.dataset.id;
-        if(id === me.id){ viewingId = null; render(); return; }
-        viewingId = id;
-        await fetchFriendBoard(id);
-        render();
+        <div class="goal-card" style="margin:0 0 14px; display:block;">
+          <div class="row1"><div class="streak">🔥 <b id="mp-streak">0</b> day streak</div></div>
+        </div>
+        <div class="plan-subtabs" id="mp-tabs">
+          <button type="button" class="plan-subtab sel" data-tab="sessions">Sessions</button>
+          <button type="button" class="plan-subtab" data-tab="daily">Daily</button>
+          <button type="button" class="plan-subtab" data-tab="plan">Plan</button>
+          <button type="button" class="plan-subtab" data-tab="analysis">Analysis</button>
+        </div>
+        <div id="mp-datenav" class="hcal-nav" style="display:none;">
+          <button class="week-nav-arrow" id="mp-prev">‹</button>
+          <div class="hcal-nav-label" id="mp-date-label">Today</div>
+          <button class="week-nav-arrow" id="mp-next">›</button>
+        </div>
+        <div id="mp-content" style="flex:1; overflow-y:auto;"></div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    backdrop.querySelector('#mp-streak').textContent = computeStreakFor(fb);
+
+    function paintDateNav(){
+      const nav = backdrop.querySelector('#mp-datenav');
+      nav.style.display = (activeTab==='sessions'||activeTab==='daily') ? 'flex' : 'none';
+      const key = fmtDate(profileDate);
+      const todayKey = fmtDate(new Date());
+      backdrop.querySelector('#mp-date-label').textContent = key===todayKey ? 'Today' : `${DAY_NAMES[profileDate.getDay()]} ${fmtPlanDateShort(key)}`;
+    }
+
+    function renderTabContent(){
+      const el = backdrop.querySelector('#mp-content');
+      paintDateNav();
+      const key = fmtDate(profileDate);
+      if(activeTab==='sessions'){
+        const list = (fb.sessions && fb.sessions[key]) || [];
+        el.innerHTML = list.length ? list.map(s=>`
+          <div class="session-item2">
+            <div class="row1">
+              <span class="subj"><span class="dot" style="background:${subjectColorIn(s.subject, fb)}"></span>${escapeHtml(subjectNameIn(s.subject, fb))}</span>
+              <span class="dur-badge">${fmtHM(s.duration)}</span>
+            </div>
+            ${s.note ? `<div class="session-note">📝 ${escapeHtml(s.note)}</div>` : ''}
+          </div>
+        `).join('') : `<div class="empty" style="padding:24px 0;"><div class="big">No sessions</div>nothing logged this day</div>`;
+      } else if(activeTab==='daily'){
+        if(isScheduleHiddenFor(friendId)){
+          el.innerHTML = `<div class="wgoal-empty">🙈 ${escapeHtml(prof.name)} has chosen to keep their schedule private.</div>`;
+          return;
+        }
+        const blocks = blocksForDateIn(fb, profileDate);
+        el.innerHTML = blocks.length ? blocks.map(b=>{
+          const status = (fb.completion||{})[key+'|'+b.id];
+          return `
+            <div class="task-card readonly ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
+              <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
+              <div class="check ${status||''}" style="pointer-events:none;">${status==='done'?'✓':(status==='missed'?'✕':'')}</div>
+              <div class="body">
+                <div class="name ${status==='done'?'strike':''}">${escapeHtml(b.label || subjectNameIn(b.subject, fb))}</div>
+                <div class="meta"><span class="dot" style="background:${subjectColorIn(b.subject, fb)}"></span>${escapeHtml(subjectNameIn(b.subject, fb))} · ${b.duration||30} min</div>
+              </div>
+            </div>
+          `;
+        }).join('') : `<div class="empty" style="padding:24px 0;"><div class="big">Nothing scheduled</div></div>`;
+      } else if(activeTab==='plan'){
+        if(isScheduleHiddenFor(friendId)){
+          el.innerHTML = `<div class="wgoal-empty">🙈 ${escapeHtml(prof.name)} has chosen to keep their schedule private.</div>`;
+          return;
+        }
+        const todayKey = fmtDate(new Date());
+        const ongoing = (fb.plans||[]).filter(p=> todayKey>=p.startDate && todayKey<=p.endDate);
+        el.innerHTML = ongoing.length ? ongoing.map(p=>`
+          <div class="plan-card">
+            ${planHeaderHtml(p, false, false)}
+            ${planCardBodyHtml(fb, p, false, false)}
+          </div>
+        `).join('') : `<div class="wgoal-empty">No ongoing plan right now.</div>`;
+      } else if(activeTab==='analysis'){
+        const today = new Date();
+        let rows = '';
+        for(let i=6;i>=0;i--){
+          const d = new Date(today); d.setDate(d.getDate()-i);
+          rows += `<div class="linked-item"><span class="lname">${DAY_NAMES[d.getDay()]} ${d.getDate()}</span><span class="lamt">${fmtHM(minutesOnDateIn(fb, d))}</span></div>`;
+        }
+        el.innerHTML = `<div class="wgoal-note-full" style="margin-bottom:10px;">This week: <b>${fmtHM(weekTotalMinutesIn(fb))}</b></div>${rows}`;
+      }
+    }
+
+    backdrop.querySelectorAll('#mp-tabs .plan-subtab').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        backdrop.querySelectorAll('#mp-tabs .plan-subtab').forEach(b=>b.classList.remove('sel'));
+        btn.classList.add('sel');
+        activeTab = btn.dataset.tab;
+        renderTabContent();
       });
     });
+    backdrop.querySelector('#mp-prev').addEventListener('click', ()=>{ profileDate.setDate(profileDate.getDate()-1); renderTabContent(); });
+    backdrop.querySelector('#mp-next').addEventListener('click', ()=>{ profileDate.setDate(profileDate.getDate()+1); renderTabContent(); });
+
+    renderTabContent();
   }
 
   function renderSnapRow(){
-    const el = document.getElementById('snapRow');
-    if(!el || !me) return;
-    if(currentScreen!=='live'){ el.style.display = 'none'; return; }
-    el.style.display = '';
-    const others = usersList.filter(u=>u.id!==me.id);
-    const people = [{id:me.id, name:'You', mine:true}, ...others.map(u=>({id:u.id, name:u.name, mine:false}))];
-    el.innerHTML = people.map(p=>{
+    const tabsEl = document.getElementById('liveGroupTabs');
+    const gridEl = document.getElementById('liveGrid');
+    if(!tabsEl || !gridEl || !me) return;
+    if(currentScreen!=='live') return;
+
+    if(!myGroupIds.length){
+      tabsEl.innerHTML = '';
+      gridEl.innerHTML = `<div class="wgoal-empty">You're not in any groups yet — tap ＋ to create or join one.</div>`;
+      return;
+    }
+
+    tabsEl.innerHTML = myGroupIds.map(gid=>{
+      const g = myGroupsCache[gid];
+      return `<div class="live-group-tab ${gid===activeGroupId?'active':''}" data-gid="${gid}">${escapeHtml(g ? g.name : '…')}</div>`;
+    }).join('');
+    tabsEl.querySelectorAll('[data-gid]').forEach(tab=>{
+      tab.addEventListener('click', ()=>{
+        if(tab.dataset.gid!==activeGroupId) setActiveGroup(tab.dataset.gid);
+      });
+    });
+
+    const group = activeGroupData;
+    if(!group){ gridEl.innerHTML = `<div class="wgoal-empty">Loading group…</div>`; return; }
+    const isAdmin = group.ownerId===me.id;
+    const memberIds = Object.keys(group.members||{});
+    // Reciprocity gate applied here: always show yourself; everyone else only if visibility
+    // is mutual (neither side has blocked the other, and each side's tier allows it).
+    const visibleIds = memberIds.filter(id=> id===me.id || canISee(id));
+    const people = visibleIds.map(id=> id===me.id ? {id, name:'You', mine:true} : {id, name: profileFor(id).name, mine:false});
+
+    gridEl.innerHTML = people.map(p=>{
       const st = liveCache[p.id];
       const studying = !!(st && st.studying);
       const stale = isSnapshotStale(st);
       const streak = p.mine ? computeStreak() : computeStreakFor(friendCache[p.id] || {});
-      const circleClass = ['snap-circle', p.mine?'clickable':'clickable', studying && !stale ? 'pulsing':'', stale?'stale':''].filter(Boolean).join(' ');
-      const inner = (st && st.snapshot) ? `<img src="${st.snapshot}" alt="">` : p.name.slice(0,1).toUpperCase();
-      let subText;
-      if(p.mine){
-        subText = !snapSettings.enabled ? 'snapshots off' : (camPausedManually ? 'paused' : (studying ? 'live' : 'off · not studying'));
-      } else {
-        subText = studying ? (stale ? 'reconnecting…' : 'live') : (stale ? `seen ${timeAgoShort(st.snapshotAt)}` : 'not studying');
-      }
-      const muteBadge = p.mine ? `<div class="snap-mute-badge" id="snapMuteBadge" title="Pause my snapshots">${(camPausedManually||!snapSettings.enabled)?'🚫':'📷'}</div>` : '';
+      const mins = p.mine ? (todayTotalMinutes() + (timerRunning?elapsedMs/60000:0)) : liveMinutesFor(st);
+      const prof = profileFor(p.id);
+      const circleClass = ['lc-circle', studying && !stale ? 'pulsing':'', stale?'stale':''].filter(Boolean).join(' ');
+      const inner = (st && st.snapshot) ? `<img src="${st.snapshot}" alt="">` : (prof.photo ? `<img src="${prof.photo}" alt="">` : p.name.slice(0,1).toUpperCase());
+      let statusText;
+      if(p.mine) statusText = !snapSettings.enabled ? 'snapshots off' : (camPausedManually ? 'paused' : (studying ? 'live' : 'not studying'));
+      else statusText = studying ? (stale ? 'reconnecting…' : 'live') : (stale ? `seen ${timeAgoShort(st.snapshotAt)}` : 'not studying');
+      const menuId = 'lc_'+p.id;
       return `
-        <div class="snap-tile">
-          <div class="snap-circle-wrap">
+        <div class="live-cell">
+          <div class="lc-circle-wrap">
             <div class="${circleClass}" data-id="${p.id}" data-mine="${p.mine?'1':'0'}">${inner}</div>
-            ${muteBadge}
+            ${p.mine ? `<div class="snap-mute-badge" id="snapMuteBadge" title="Pause my snapshots">${(camPausedManually||!snapSettings.enabled)?'🚫':'📷'}</div>` : ''}
           </div>
-          <div class="snap-name">${escapeHtml(p.name)}</div>
-          ${streak>0 ? `<div class="snap-streak">🔥${streak}</div>` : ''}
-          <div class="snap-sub">${subText}</div>
+          <div class="lc-box">
+            <div class="lc-name">${escapeHtml(p.name)}</div>
+            <div class="lc-total">${fmtHMCompact(mins)} today</div>
+            ${streak>0 ? `<div class="lc-streak">🔥${streak}</div>` : '<div class="lc-streak">&nbsp;</div>'}
+            <div class="lc-status">${statusText}</div>
+          </div>
+          ${!p.mine ? `
+          <button type="button" class="task-menu-btn" data-menu-id="${menuId}">⋮</button>
+          <div class="task-menu" data-menu-for="${menuId}">
+            <button type="button" data-nudge-member="${p.id}">👋 Nudge</button>
+            <button type="button" data-block-member="${p.id}">🚫 Block</button>
+            ${isAdmin ? `<button type="button" data-remove-member="${p.id}">🗑 Remove from group</button>` : ''}
+          </div>` : ''}
         </div>
       `;
     }).join('');
+
     const muteBadgeEl = document.getElementById('snapMuteBadge');
     if(muteBadgeEl){
       muteBadgeEl.addEventListener('click', (e)=>{
@@ -3590,8 +3804,49 @@ window.storage = storage; // keep the rest of the app's code unchanged
         renderSnapRow();
       });
     }
-    el.querySelectorAll('.snap-circle[data-mine="0"]').forEach(circle=>{
-      circle.addEventListener('click', ()=> sendNudge(circle.dataset.id));
+    gridEl.querySelectorAll('.lc-circle[data-mine="0"]').forEach(circle=>{
+      circle.addEventListener('click', ()=> openMemberProfileModal(circle.dataset.id));
+    });
+    gridEl.querySelectorAll('.task-menu-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const menu = gridEl.querySelector(`.task-menu[data-menu-for="${btn.dataset.menuId}"]`);
+        const isOpen = menu.classList.contains('open');
+        gridEl.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open'));
+        if(!isOpen) menu.classList.add('open');
+      });
+    });
+    if(!gridEl.dataset.menuCloseWired){
+      gridEl.dataset.menuCloseWired = '1';
+      document.addEventListener('click', ()=> gridEl.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open')));
+    }
+    gridEl.querySelectorAll('[data-nudge-member]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        sendNudge(btn.dataset.nudgeMember);
+      });
+    });
+    gridEl.querySelectorAll('[data-block-member]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const uid = btn.dataset.blockMember;
+        const p = profileFor(uid);
+        if(!confirm(`Block ${p.name}? Neither of you will be able to see each other after this.`)) return;
+        state.blockedIds = state.blockedIds || {};
+        state.blockedIds[uid] = true;
+        saveState();
+        renderSnapRow();
+      });
+    });
+    gridEl.querySelectorAll('[data-remove-member]').forEach(btn=>{
+      btn.addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        const uid = btn.dataset.removeMember;
+        const p = profileFor(uid);
+        if(!confirm(`Remove ${p.name} from this group?`)) return;
+        await removeMemberFromGroup(activeGroupId, uid);
+        renderSnapRow();
+      });
     });
   }
 
@@ -3786,11 +4041,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
   });
   document.getElementById('fabAdd').style.display = 'none';
   updateGroupBarVisibility();
-
-  document.getElementById('peopleCollapseBtn').addEventListener('click', ()=>{
-    sharedPeopleCollapsed = !sharedPeopleCollapsed;
-    renderPeopleRow();
-  });
 
   // ---------- Today's sessions: collapsed by default, toggled by the arrow beside the heading ----------
   let sessionLogExpanded = false;
@@ -4011,7 +4261,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const h = Math.floor(totalSec/3600);
     const m = Math.floor((totalSec%3600)/60);
     const s = totalSec%60;
-    const mini = document.getElementById('liveMiniDigits');
+    const mini = document.getElementById('liveSelfDigits');
     if(timerMode==='countdown'){
       document.getElementById('timerDigits').innerHTML = `${pad(h)}:${pad(m)}<span class="tdig-ss">:${pad(s)}</span>`;
       renderRing();
@@ -4026,6 +4276,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(miniStart) miniStart.textContent = document.getElementById('startBtn').textContent;
     const focusPauseBtn = document.getElementById('focusPauseBtn');
     if(focusPauseBtn) focusPauseBtn.textContent = document.getElementById('startBtn').textContent;
+    const selfStatus = document.getElementById('liveSelfStatus');
+    if(selfStatus) selfStatus.textContent = document.getElementById('timerStatus').textContent || document.getElementById('swStatus').textContent;
+    const selfTotal = document.getElementById('liveSelfTotal');
+    if(selfTotal){
+      const liveExtra = timerRunning ? elapsedMs/60000 : 0;
+      selfTotal.textContent = `${fmtHM(todayTotalMinutes() + liveExtra)} today`;
+    }
   }
   function setStatusText(txt){
     document.getElementById('timerStatus').textContent = txt;
