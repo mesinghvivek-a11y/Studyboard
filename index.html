@@ -2000,9 +2000,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!me) return;
     setSyncStatus('syncing');
     try{
-      // manual "sync now" always means the actual server truth, never a cached guess
-      const snap = await getDocFromServer(doc(db, 'boards', me.id));
-      if(snap.exists() && snap.data().value) mergeRemoteIntoState(snap.data().value);
+      // flushStateNow() now does its own fetch-and-merge-from-server before writing (see
+      // mergeThenWriteBoard), so a manual sync just needs to trigger that immediately.
       await flushStateNow();
       setSyncStatus('ok');
       render();
@@ -2181,14 +2180,30 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let stateReadyToPersist = false; // becomes true only after loadState() has reconciled with the server —
                                     // guards against any accidental early save overwriting real data with a
                                     // still-empty/still-stale in-memory `state`
+  // Critical safety step for every write of the main board doc: Firestore's merge:true does
+  // NOT deep-merge array fields (targets/plans/subjects) — it replaces them wholesale. If this
+  // device's local `state` is even slightly stale (a manual Firestore console edit, or another
+  // device's very recent save this device hasn't received yet via onSnapshot), writing directly
+  // would silently wipe out whatever changed there. Fetching the true server copy and merging it
+  // in first — via the same union-safe mergeRemoteIntoState already used for the real-time
+  // listener — closes that race before every single write, not just a manual "sync now" tap.
+  async function mergeThenWriteBoard(){
+    try{
+      const snap = await getDocFromServer(doc(db, 'boards', me.id));
+      if(snap.exists() && snap.data().value) mergeRemoteIntoState(snap.data().value);
+    }catch(e){
+      console.warn('pre-save merge fetch failed — saving with local state only', e);
+    }
+    await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+    pushSharedBoard();
+  }
   function saveState(){
     if(!stateReadyToPersist){ console.warn('saveState() blocked — state not yet reconciled with server'); return; }
     clearTimeout(saveTimeout);
     setSyncStatus('syncing');
     saveTimeout = setTimeout(async ()=>{
       try{
-        await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
-        pushSharedBoard();
+        await mergeThenWriteBoard();
         setSyncStatus('ok');
       }
       catch(e){ console.error('save failed', e); setSyncStatus('err'); }
@@ -2198,8 +2213,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!stateReadyToPersist){ console.warn('flushStateNow() blocked — state not yet reconciled with server'); return; }
     clearTimeout(saveTimeout);
     try{
-      await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
-      pushSharedBoard();
+      await mergeThenWriteBoard();
       setSyncStatus('ok');
     }catch(e){ console.error('flush failed', e); setSyncStatus('err'); }
   }
@@ -3164,6 +3178,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
       body.innerHTML = `
         <button class="close-x">×</button>
         <h3>My Groups</h3>
+        <div class="grp-actions-row" style="margin-bottom:12px;">
+          <button class="btn btn-ghost" id="grp-admin-btn">🛡️ Admin</button>
+          <button class="btn btn-ghost" id="grp-network-btn">🌐 Network</button>
+        </div>
         <div id="grp-list-wrap"><div style="font-size:12px; color:var(--chalk-faint);">Loading…</div></div>
         <div class="grp-actions-row">
           <button class="btn btn-ghost" id="grp-join-btn">Join with code</button>
@@ -3171,6 +3189,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
         </div>
       `;
       body.querySelector('.close-x').addEventListener('click', close);
+      body.querySelector('#grp-admin-btn').addEventListener('click', drawAdminGroups);
+      body.querySelector('#grp-network-btn').addEventListener('click', drawNetwork);
       const listWrap = body.querySelector('#grp-list-wrap');
       const groups = [];
       for(const gid of myGroupIds){
@@ -3198,6 +3218,89 @@ window.storage = storage; // keep the rest of the app's code unchanged
       }
       body.querySelector('#grp-join-btn').addEventListener('click', drawJoin);
       body.querySelector('#grp-create-btn').addEventListener('click', drawCreate);
+    }
+
+    // "My Groups (Admin)" — narrowed to groups I own, since ownership is what unlocks the
+    // extra controls (remove member, extend deadline) already living in drawDetail.
+    async function drawAdminGroups(){
+      const body = backdrop.querySelector('#grpModalBody');
+      body.innerHTML = `
+        <button class="close-x">×</button>
+        <h3>My Groups — Admin</h3>
+        <div style="font-size:11.5px; color:var(--chalk-faint); margin-bottom:12px;">Groups you own and manage.</div>
+        <div id="grp-admin-list"><div style="font-size:12px; color:var(--chalk-faint);">Loading…</div></div>
+        <div class="modal-actions"><button class="btn btn-ghost" id="grp-admin-back">Back</button></div>
+      `;
+      body.querySelector('.close-x').addEventListener('click', close);
+      body.querySelector('#grp-admin-back').addEventListener('click', drawList);
+      const listWrap = body.querySelector('#grp-admin-list');
+      const groups = [];
+      for(const gid of myGroupIds){
+        try{ const snap = await getDoc(doc(db,'groups',gid)); if(snap.exists() && snap.data().ownerId===me.id) groups.push(snap.data()); }catch(e){}
+      }
+      listWrap.innerHTML = groups.length ? groups.map(g=>{
+        const count = Object.keys(g.members||{}).length;
+        const ended = g.deadlineAt && Date.now() > g.deadlineAt;
+        return `
+          <div class="grp-list-item ${g.id===activeGroupId?'active':''}" data-gid="${g.id}">
+            <div>
+              <div class="name">👑 ${escapeHtml(g.name)}</div>
+              <div class="meta">${count} member${count===1?'':'s'}${ended?' · ended':''}</div>
+            </div>
+            <div style="color:var(--chalk-faint);">›</div>
+          </div>
+        `;
+      }).join('') : `<div style="font-size:12px; color:var(--chalk-faint); padding:10px 0;">You don't own any groups yet — create one from the previous screen.</div>`;
+      listWrap.querySelectorAll('[data-gid]').forEach(el=>{
+        el.addEventListener('click', ()=> drawDetail(el.dataset.gid));
+      });
+    }
+
+    // "Network" — everyone across every group you're in, deduplicated, filtered through the
+    // same reciprocity gate as the Live grid (blocked/hidden people never show up here either).
+    // Tapping a person opens their read-only Member Profile.
+    async function drawNetwork(){
+      const body = backdrop.querySelector('#grpModalBody');
+      body.innerHTML = `
+        <button class="close-x">×</button>
+        <h3>Network</h3>
+        <div style="font-size:11.5px; color:var(--chalk-faint); margin-bottom:12px;">Everyone you share a group with.</div>
+        <div id="grp-network-list"><div style="font-size:12px; color:var(--chalk-faint);">Loading…</div></div>
+        <div class="modal-actions"><button class="btn btn-ghost" id="grp-network-back">Back</button></div>
+      `;
+      body.querySelector('.close-x').addEventListener('click', close);
+      body.querySelector('#grp-network-back').addEventListener('click', drawList);
+      const listWrap = body.querySelector('#grp-network-list');
+      const seen = new Set();
+      const people = [];
+      for(const gid of myGroupIds){
+        try{
+          const snap = await getDoc(doc(db,'groups',gid));
+          if(!snap.exists()) continue;
+          Object.keys(snap.data().members||{}).forEach(uid=>{
+            if(uid===me.id || seen.has(uid)) return;
+            seen.add(uid);
+            people.push(uid);
+          });
+        }catch(e){}
+      }
+      await Promise.all(people.map(uid=> friendCache[uid] ? Promise.resolve() : fetchFriendBoard(uid)));
+      const visible = people.filter(uid=> canISee(uid));
+      listWrap.innerHTML = visible.length ? visible.map(uid=>{
+        const p = profileFor(uid);
+        return `
+          <div class="grp-list-item" data-uid="${uid}">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="cat-dot" style="width:14px; height:14px; background:${p.color||'#7FB3D5'}"></span>
+              <span class="name">${escapeHtml(p.name)}</span>
+            </div>
+            <div style="color:var(--chalk-faint);">›</div>
+          </div>
+        `;
+      }).join('') : `<div style="font-size:12px; color:var(--chalk-faint); padding:10px 0;">Nobody visible here yet.</div>`;
+      listWrap.querySelectorAll('[data-uid]').forEach(el=>{
+        el.addEventListener('click', ()=>{ close(); openMemberProfileModal(el.dataset.uid); });
+      });
     }
 
     function drawCreate(){
@@ -3996,7 +4099,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     // as a fallback for targets saved before the calendar-based picker existed.
     const recurring = targets.filter(t=>{
       if(t.kind!=='recurring' || !coveringPlanIds.has(t.planId)) return false;
-      if(t.dates) return t.dates.includes(key);
+      // BUGFIX: was `if(t.dates)`, which is true even for an empty array — meaning a target
+      // with dates:[] silently failed .includes() for every date and never appeared on Today,
+      // instead of correctly falling back to its `days` weekday pattern. Check length instead.
+      if(t.dates && t.dates.length) return t.dates.includes(key);
       return (t.days||[]).includes(dow);
     }).map(t=>({...t, source:'template'}));
     const once = targets.filter(t=> t.kind==='once' && t.date===key).map(t=>({...t, source:'extra'}));
@@ -5503,7 +5609,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // plan correctly shows e.g. "3 / 4 days". Each target is its own record now — no more
   // grouping multiple rows by label, so this operates on one target directly.
   function recurringTargetStatus(data, target, plan){
-    const dates = (target.dates || datesForDaysInPlan(plan, target.days||[])).slice().sort();
+    // BUGFIX: `target.dates || fallback` is wrong — an empty array is truthy in JS, so a
+    // target whose `dates` is [] (rather than simply absent) would silently skip the `days`
+    // fallback forever, even when `days` still holds perfectly good data. Check length instead.
+    const rawDates = (target.dates && target.dates.length) ? target.dates : datesForDaysInPlan(plan, target.days||[]);
+    const dates = rawDates.slice().sort();
     const doneDates = [];
     const totalDue = dates.length;
     let totalDone = 0;
@@ -6076,7 +6186,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     let selectedDates = new Set();
     let pendingOverflowDates = new Set(); // dates picked via the calendar that fall outside the current plan
     if(isEdit && existingTarget.kind==='recurring'){
-      selectedDates = new Set(existingTarget.dates || datesForDaysInPlan(chosenPlan, existingTarget.days||[]));
+      // BUGFIX: was `existingTarget.dates || fallback`, which is wrong because [] is truthy —
+      // a target with dates:[] would seed as empty instead of recomputing from `days`, and if
+      // the person then hit Save without re-picking anything, the target would get deleted
+      // entirely (see the save handler's "zero dates on edit" branch below). Check length instead.
+      selectedDates = new Set((existingTarget.dates && existingTarget.dates.length) ? existingTarget.dates : datesForDaysInPlan(chosenPlan, existingTarget.days||[]));
     } else if(!isEdit && kind==='recurring'){
       selectedDates.add(anchorDate);
     }
@@ -6299,7 +6413,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
             notifyOthers(`${me.name} added a recurring target: ${label || subjectName(subject)}`);
           }
         } else if(isEdit){
-          // every in-range date was removed in favor of overflow-only — this target no longer belongs here
+          // Every in-range date was moved to overflow — nothing stays on this plan. Confirm
+          // explicitly rather than silently deleting; the top-level guard above already stops
+          // a fully-empty save, so this only fires when overflow dates exist to take its place.
+          if(!confirm('All dates for this target are moving to the next plan — nothing will remain on this plan. Continue?')){ return; }
           state.targets = state.targets.filter(x=>x.id!==existingTarget.id);
           tombstone(existingTarget.id);
         }
