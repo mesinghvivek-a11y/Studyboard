@@ -1599,7 +1599,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // Plans (other than excludeId) whose date range touches this range, split by whether they
   // share this category (a hard block) or not (fine — different categories may overlap).
   function findPlanConflicts(data, category, startDate, endDate, excludeId){
-    const overlapping = (data.plans||[]).filter(p=>
+    const overlapping = plansArr(data).filter(p=>
       p.id!==excludeId && dateRangesOverlap(startDate, endDate, p.startDate, p.endDate)
     );
     return {
@@ -1611,29 +1611,35 @@ window.storage = storage; // keep the rest of the app's code unchanged
   const USERS_KEY = 'study-board-users'; // shared: [{id,name,color}]
 
   let state = {
-    subjects: [
-      {id:'s1', name:'General', color:'#7FB3D5'}
-    ],
-    // Simplified Target model (v4). One flat array; each Target is either a recurring
+    subjects: {
+      s1: {id:'s1', name:'General', color:'#7FB3D5', updatedAt: Date.now()}
+    },
+    // Simplified Target model (v4 shape; v5 storage). Every Target is either a recurring
     // day-pattern block or a single-date "once" task — the old aggregate hours/sessions/
     // count goal type was removed entirely (see simplifyTargets migration). Every item's
     // `id` is preserved through every migration, so completion keys ('YYYY-MM-DD|id') and
-    // session links (linkedTaskId) never need rewriting for NEW writes — only the v3→v4
-    // migration itself does a one-time, explicit remap when it merges old per-day rows.
+    // session links (linkedTaskId) never need rewriting for NEW writes.
     // {
     //   id, planId (required for 'recurring'; null allowed for a 'once' task with no
     //     covering plan — matches the old dailyExtra, which never required a plan),
-    //   subject, label, note, createdAt,
+    //   subject, label, note, createdAt, updatedAt,
     //   kind: 'recurring' | 'once',
     //   timing: 'fixed' | 'floating', start ('HH:MM'|null when floating), duration (min),
     //   days: [0-6, ...]  — only for kind==='recurring'; [0,1,2,3,4,5,6] means "All day"
     //   date: 'YYYY-MM-DD' — only for kind==='once'
     // }
-    targets: [],
+    // STORAGE SHAPE (v5): targets/plans/subjects are objects keyed by id — { [id]: item } —
+    // not arrays. This is the core Tier-2 data-loss fix: Firestore's merge:true deep-merges
+    // MAP fields but replaces ARRAY fields wholesale on write, so a stale device could silently
+    // wipe everyone else's targets/plans/subjects with one save. A keyed object is a map field,
+    // so Firestore (and our own mergeKeyedMaps below) can merge it item-by-item instead.
+    // Every item also now carries `updatedAt`, so a genuine same-id conflict between two devices
+    // resolves to whichever edit is actually newer, not just "whichever side the merge favors".
+    targets: {},
     completion: {},     // { 'YYYY-MM-DD|targetId': true }
     sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note, linkedTaskId} ] }
     goals: { dailyMin: 120, weeklyMin: 600 }, // overall study goals used for streak/progress tracking
-    plans: [], // {id, startDate:'YYYY-MM-DD', endDate:'YYYY-MM-DD', category, label, createdAt} — a fixed-date record. Dates never change after creation.
+    plans: {}, // { [id]: {id, startDate:'YYYY-MM-DD', endDate:'YYYY-MM-DD', category, label, createdAt, updatedAt} } — fixed-date record. Dates never change after creation.
     themeMode: 'dark',      // 'dark' | 'light'
     themePalette: 'cyan',   // one of PALETTES ids
     schemaVersion: 0,        // 0 = unmigrated/legacy. Bumped to CURRENT_SCHEMA_VERSION once every
@@ -1684,7 +1690,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // branches throughout this file harmlessly fall through to their "self" side rather than
   // needing every one individually rewritten.
   function isViewingSelf(){ return true; }
-  function activeData(){ return isViewingSelf() ? state : (friendCache[viewingId] || {subjects:[],targets:[],plans:[],completion:{},sessions:{}}); }
+  function activeData(){ return isViewingSelf() ? state : (friendCache[viewingId] || {subjects:{},targets:{},plans:{},completion:{},sessions:{}}); }
   function isScheduleHiddenFor(uid){
     if(!activeGroupData || !activeGroupData.members) return false;
     const m = activeGroupData.members[uid];
@@ -1725,6 +1731,23 @@ window.storage = storage; // keep the rest of the app's code unchanged
     keys.forEach(k=>{ out[k] = mergeArraysById((localMap||{})[k], (remoteMap||{})[k], tombstones); });
     return out;
   }
+  // Merges two id-keyed objects (targets/plans/subjects — see the v5 storage-shape note on
+  // `state`). This is a real map field, so Firestore's own merge:true already merges it
+  // item-by-item at the server — this client-side merge exists for the SAME-id conflict case:
+  // if both sides have genuinely edited the same item, `updatedAt` decides which edit wins,
+  // rather than blindly favoring whichever side a plain Object.assign would favor.
+  function mergeKeyedMaps(localMap, remoteMap, tombstones){
+    const tb = tombstones || {};
+    const out = {};
+    const ids = new Set([...Object.keys(localMap||{}), ...Object.keys(remoteMap||{})]);
+    ids.forEach(id=>{
+      if(tb[id]) return; // tombstoned — stays deleted regardless of which side still has it
+      const l = (localMap||{})[id], r = (remoteMap||{})[id];
+      if(l && r) out[id] = ((r.updatedAt||r.createdAt||0) > (l.updatedAt||l.createdAt||0)) ? r : l;
+      else out[id] = l || r;
+    });
+    return out;
+  }
   function mergeRemoteIntoState(remote){
     if(!remote) return;
     // Tombstones merge first, as a simple union — once any device has recorded an ID as
@@ -1732,15 +1755,30 @@ window.storage = storage; // keep the rest of the app's code unchanged
     // never reused, so a tombstoned ID can never collide with an unrelated new item later.
     const tb = Object.assign({}, remote.tombstones||{}, state.tombstones||{});
     state.tombstones = tb;
-    state.subjects = mergeArraysById(state.subjects, remote.subjects, tb);
-    state.targets = mergeArraysById(state.targets, remote.targets, tb);
-    state.plans = mergeArraysById(state.plans, remote.plans, tb);
+    state.subjects = mergeKeyedMaps(state.subjects, remote.subjects, tb);
+    state.targets = mergeKeyedMaps(state.targets, remote.targets, tb);
+    state.plans = mergeKeyedMaps(state.plans, remote.plans, tb);
     state.sessions = mergeKeyedArrayMaps(state.sessions, remote.sessions, tb);
     // completion is a flat {key: 'done'|'missed'} map with no per-key timestamp;
     // union it so a tick on one device never un-ticks what another device set.
     state.completion = Object.assign({}, remote.completion||{}, state.completion||{});
     if(remote.goals && (!state.goals || Object.keys(state.goals).length===0)) state.goals = remote.goals;
   }
+  // ---------- id-keyed map accessors (targets/plans/subjects) ----------
+  // Reads go through these Arr() helpers so existing .find/.filter/.map call sites keep working
+  // unchanged — Object.values() returns references to the real objects, so finding an item this
+  // way and mutating its fields still mutates the underlying keyed map correctly. Writes
+  // (add/remove) go through the explicit helpers below since push/splice don't translate.
+  function targetsArr(data){ return Object.values((data&&data.targets)||{}); }
+  function plansArr(data){ return Object.values((data&&data.plans)||{}); }
+  function subjectsArr(data){ return Object.values((data&&data.subjects)||{}); }
+  function addTarget(t){ if(t && t.id!=null){ t.updatedAt = Date.now(); state.targets[t.id] = t; } }
+  function addPlan(p){ if(p && p.id!=null){ p.updatedAt = Date.now(); state.plans[p.id] = p; } }
+  function addSubject(s){ if(s && s.id!=null){ s.updatedAt = Date.now(); state.subjects[s.id] = s; } }
+  function removeTarget(id){ delete state.targets[id]; }
+  function removePlan(id){ delete state.plans[id]; }
+  function removeSubject(id){ delete state.subjects[id]; }
+
   // one-time migration: "week" used to be a recomputed date-bucket (a
   // `weekStart` string stamped onto each block/goal) instead of a real
   // record. That's replaced by Plan records with their own fixed
@@ -1765,7 +1803,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
   const SCHEMA_V2_WEEK_TO_PLAN = 2;         // Week (recomputed date-bucket) → Plan (fixed-date record)
   const SCHEMA_V3_TASK_TARGET_MERGE = 3;    // weeklyTemplate + weeklyGoals + dailyExtra → one unified `targets` array
   const SCHEMA_V4_TARGET_SIMPLIFY = 4;      // drop aggregate hours/sessions/count goals; recurring day-rows → one row with days:[]
-  const CURRENT_SCHEMA_VERSION = SCHEMA_V4_TARGET_SIMPLIFY; // bump this, and add a new migration below, for any future structural change
+  const SCHEMA_V5_KEYED_MAPS = 5;           // targets/plans/subjects: array → id-keyed object (the Tier-2 data-loss fix)
+  const CURRENT_SCHEMA_VERSION = SCHEMA_V5_KEYED_MAPS; // bump this, and add a new migration below, for any future structural change
   async function migrateLegacyWeeklyTemplate(fromFreshServerData){
     if((state.schemaVersion||0) >= SCHEMA_V2_WEEK_TO_PLAN) return; // already migrated — never re-run this against real data
     let changed = false;
@@ -1965,6 +2004,40 @@ window.storage = storage; // keep the rest of the app's code unchanged
       saveState();
     }
   }
+  // Keyed-map conversion (v4 → v5): targets/plans/subjects go from arrays to id-keyed objects.
+  // This is the actual Tier-2 fix for the multi-device data-loss bug — Firestore's merge:true
+  // deep-merges MAP fields but replaces ARRAY fields wholesale, so any stale device's save could
+  // silently wipe out everyone else's targets/plans/subjects. A pure reshape: every item keeps
+  // its id and every other field untouched, just addressed by object key instead of array index.
+  // Every item also gets `updatedAt` stamped (defaulting to its own createdAt, or now if neither
+  // exists) so future same-id conflicts resolve by recency instead of arbitrarily.
+  async function migrateToKeyedMaps(fromFreshServerData){
+    if((state.schemaVersion||0) >= SCHEMA_V5_KEYED_MAPS) return;
+    const needsConversion = Array.isArray(state.targets) || Array.isArray(state.plans) || Array.isArray(state.subjects);
+    if(needsConversion && fromFreshServerData){
+      await backupNow('premigration_v'+SCHEMA_V5_KEYED_MAPS); // snapshot the exact pre-transform data first
+    }
+    function arrToMap(arr){
+      const out = {};
+      (arr||[]).forEach(item=>{
+        if(!item || item.id==null) return;
+        if(item.updatedAt==null) item.updatedAt = item.createdAt || Date.now();
+        out[item.id] = item;
+      });
+      return out;
+    }
+    if(Array.isArray(state.targets)) state.targets = arrToMap(state.targets);
+    if(Array.isArray(state.plans)) state.plans = arrToMap(state.plans);
+    if(Array.isArray(state.subjects)) state.subjects = arrToMap(state.subjects);
+    // belt-and-suspenders: never leave these as anything other than a plain object
+    if(!state.targets || typeof state.targets !== 'object') state.targets = {};
+    if(!state.plans || typeof state.plans !== 'object') state.plans = {};
+    if(!state.subjects || typeof state.subjects !== 'object') state.subjects = {};
+    if(fromFreshServerData){
+      state.schemaVersion = SCHEMA_V5_KEYED_MAPS;
+      saveState();
+    }
+  }
   function setSyncStatus(status){
     syncStatus = status;
     if(status==='ok') lastSyncAt = Date.now();
@@ -2084,6 +2157,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await migrateLegacyWeeklyTemplate(true);
     await migrateTaskTargetMerge(true);
     await migrateSimplifyTargets(true);
+    await migrateToKeyedMaps(true);
+    // Only safe to pull in a locally-buffered edit once state is guaranteed to be in the
+    // current (post-migration) shape — any backup found here was written by this same
+    // already-migrated code, so shapes always match by the time this runs.
+    if(recoverLocalBackupIfAny()) flushStateNow(); // persist the recovered edit immediately, don't wait for the next unrelated change
     pruneOldTombstones();
     maybeWriteDailyBackup();
     await loadUsersList();
@@ -2187,23 +2265,60 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // would silently wipe out whatever changed there. Fetching the true server copy and merging it
   // in first — via the same union-safe mergeRemoteIntoState already used for the real-time
   // listener — closes that race before every single write, not just a manual "sync now" tap.
-  async function mergeThenWriteBoard(){
+  // Chains every write onto the previous one so two overlapping saves (e.g. a debounced
+  // autosave firing while a manual sync is still mid-flight) can never interleave their
+  // fetch → merge → write steps. Each queued write still writes whatever `state` looks like
+  // by the time it actually runs — it just can't start until the one before it has finished.
+  let boardWriteQueue = Promise.resolve();
+  function mergeThenWriteBoard(){
+    const run = async ()=>{
+      try{
+        const snap = await getDocFromServer(doc(db, 'boards', me.id));
+        if(snap.exists() && snap.data().value) mergeRemoteIntoState(snap.data().value);
+      }catch(e){
+        console.warn('pre-save merge fetch failed — saving with local state only', e);
+      }
+      await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+      pushSharedBoard();
+    };
+    boardWriteQueue = boardWriteQueue.then(run, run); // run next regardless of whether the previous write succeeded or failed
+    return boardWriteQueue;
+  }
+  // Single-device durability net: a crash, force-quit, or reload in the ~250ms between an
+  // edit and its debounced save (or a failed network write) shouldn't lose that edit. This
+  // writes a synchronous local snapshot on every change, independent of the Firestore round
+  // trip, and is cleared only once that edit is confirmed safely written to the server.
+  function localBackupKey(){ return 'sb-pending-'+(me?me.id:'anon'); }
+  function writeLocalBackup(){
+    try{ localStorage.setItem(localBackupKey(), JSON.stringify({ savedAt: Date.now(), value: state })); }
+    catch(e){ /* storage full or unavailable — not fatal, Firestore write still proceeds */ }
+  }
+  function clearLocalBackup(){
+    try{ localStorage.removeItem(localBackupKey()); }catch(e){}
+  }
+  // Checked once at load, before this device's first write of the session — recovers any edit
+  // that made it to localStorage but never made it to Firestore last time this device was open.
+  function recoverLocalBackupIfAny(){
     try{
-      const snap = await getDocFromServer(doc(db, 'boards', me.id));
-      if(snap.exists() && snap.data().value) mergeRemoteIntoState(snap.data().value);
-    }catch(e){
-      console.warn('pre-save merge fetch failed — saving with local state only', e);
-    }
-    await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
-    pushSharedBoard();
+      const raw = localStorage.getItem(localBackupKey());
+      if(!raw) return false;
+      const backup = JSON.parse(raw);
+      if(backup && backup.value){
+        mergeRemoteIntoState(backup.value); // safe union/merge, same logic as any remote merge
+        return true;
+      }
+    }catch(e){ console.warn('local backup recovery failed', e); }
+    return false;
   }
   function saveState(){
     if(!stateReadyToPersist){ console.warn('saveState() blocked — state not yet reconciled with server'); return; }
+    writeLocalBackup();
     clearTimeout(saveTimeout);
     setSyncStatus('syncing');
     saveTimeout = setTimeout(async ()=>{
       try{
         await mergeThenWriteBoard();
+        clearLocalBackup();
         setSyncStatus('ok');
       }
       catch(e){ console.error('save failed', e); setSyncStatus('err'); }
@@ -2211,9 +2326,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   async function flushStateNow(){
     if(!stateReadyToPersist){ console.warn('flushStateNow() blocked — state not yet reconciled with server'); return; }
+    writeLocalBackup();
     clearTimeout(saveTimeout);
     try{
       await mergeThenWriteBoard();
+      clearLocalBackup();
       setSyncStatus('ok');
     }catch(e){ console.error('flush failed', e); setSyncStatus('err'); }
   }
@@ -3673,9 +3790,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
   async function fetchFriendBoard(id){
     try{
       const res = await window.storage.get('board:'+id, true);
-      friendCache[id] = res && res.value ? JSON.parse(res.value) : {subjects:[],targets:[],plans:[],completion:{},sessions:{}};
+      friendCache[id] = res && res.value ? JSON.parse(res.value) : {subjects:{},targets:{},plans:{},completion:{},sessions:{}};
     }catch(e){
-      friendCache[id] = {subjects:[],targets:[],plans:[],completion:{},sessions:{}};
+      friendCache[id] = {subjects:{},targets:{},plans:{},completion:{},sessions:{}};
     }
   }
 
@@ -3799,7 +3916,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           return;
         }
         const todayKey = fmtDate(new Date());
-        const ongoing = (fb.plans||[]).filter(p=> todayKey>=p.startDate && todayKey<=p.endDate);
+        const ongoing = plansArr(fb).filter(p=> todayKey>=p.startDate && todayKey<=p.endDate);
         el.innerHTML = ongoing.length ? ongoing.map(p=>`
           <div class="plan-card">
             ${planHeaderHtml(p, false, false)}
@@ -4042,11 +4159,11 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return s ? s.name : 'General';
   }
   function subjectColorIn(id, data){
-    const s = (data.subjects||[]).find(x=>x.id===id);
+    const s = subjectsArr(data).find(x=>x.id===id);
     return s ? s.color : '#7FB3D5';
   }
   function subjectNameIn(id, data){
-    const s = (data.subjects||[]).find(x=>x.id===id);
+    const s = subjectsArr(data).find(x=>x.id===id);
     return s ? s.name : 'General';
   }
 
@@ -4054,17 +4171,17 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // "week" date-bucket. A plan's startDate/endDate never change after
   // creation — starting a new plan just creates a new record; past ones
   // stay exactly as they were. Every task/goal links via planId. ----------
-  function sortedPlans(data){ return (data.plans||[]).slice().sort((a,b)=> a.startDate.localeCompare(b.startDate)); }
+  function sortedPlans(data){ return plansArr(data).sort((a,b)=> a.startDate.localeCompare(b.startDate)); }
   function planContainingDate(data, date){
     const key = fmtDate(date);
-    return (data.plans||[]).find(p=> key>=p.startDate && key<=p.endDate) || null;
+    return plansArr(data).find(p=> key>=p.startDate && key<=p.endDate) || null;
   }
   // A date can be covered by more than one plan at once — different categories are allowed to
   // overlap by design (only same-category plans are blocked from overlapping). Anywhere a target
   // needs to resolve "which plan(s) is this date part of", use this, not the singular version.
   function plansContainingDate(data, date){
     const key = fmtDate(date);
-    return (data.plans||[]).filter(p=> key>=p.startDate && key<=p.endDate);
+    return plansArr(data).filter(p=> key>=p.startDate && key<=p.endDate);
   }
   function planDates(plan){
     const dates = [];
@@ -4092,7 +4209,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const key = fmtDate(date);
     const dow = date.getDay();
     const coveringPlanIds = new Set(plansContainingDate(data, date).map(p=>p.id));
-    const targets = data.targets || [];
+    const targets = targetsArr(data);
     // 'source' is kept on the returned shape purely so existing UI code can tell a
     // recurring occurrence from a one-off at a glance, the same way it always did.
     // 'dates' (explicit list) is the current format; 'days' (weekday pattern) is only read
@@ -5135,7 +5252,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   function renderSubjectOptions(selectEl, selectedId){
     selectEl.innerHTML = '';
-    state.subjects.forEach(s=>{
+    subjectsArr(state).forEach(s=>{
       const opt = document.createElement('option');
       opt.value = s.id; opt.textContent = s.name;
       if(s.id === selectedId) opt.selected = true;
@@ -5516,21 +5633,21 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
     el.querySelectorAll('.task-edit[data-id]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
-        const block = state.targets.find(b=>b.id===btn.dataset.id);
+        const block = state.targets[btn.dataset.id];
         if(block) openTargetModal(block);
       });
     });
     el.querySelectorAll('.task-move[data-id]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const id = btn.dataset.id, source = btn.dataset.source;
-        const block = state.targets.find(b=>b.id===id);
+        const block = state.targets[id];
         if(block) openMoveTaskModal(block, source);
       });
     });
     el.querySelectorAll('.task-del[data-id]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const id = btn.dataset.id;
-        state.targets = state.targets.filter(b=>b.id!==id);
+        removeTarget(id);
         tombstone(id);
         saveState();
         renderTaskList();
@@ -5633,7 +5750,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // Once targets (single-checkbox one-off tasks) that belong to this plan — shown as a
   // simple checklist alongside the recurring targets.
   function onceTargetsForPlan(data, plan){
-    return (data.targets||[]).filter(t=> t.kind==='once' && t.planId===plan.id)
+    return targetsArr(data).filter(t=> t.kind==='once' && t.planId===plan.id)
       .sort((a,b)=> (a.date||'').localeCompare(b.date||''));
   }
   function donutSvg(pct, colorCss){
@@ -5654,7 +5771,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let openGoalCardId = null;
   // ---------- Plan-card body (recurring targets + one-off tasks for one plan) ----------
   function planCardBodyHtml(data, plan, editable, allowMove){
-    const recurringTargets = (data.targets||[]).filter(t=>t.kind==='recurring' && t.planId===plan.id)
+    const recurringTargets = targetsArr(data).filter(t=>t.kind==='recurring' && t.planId===plan.id)
       .sort((a,b)=> (a.createdAt||0)-(b.createdAt||0));
     const onceTasks = onceTargetsForPlan(data, plan);
 
@@ -5752,19 +5869,20 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const start = new Date(currentPlan.endDate+'T00:00:00'); start.setDate(start.getDate()+1);
       const startDate = fmtDate(start);
       next = { id:'plan_'+Date.now(), startDate, endDate: (neededEndDate>startDate?neededEndDate:startDate), category: currentPlan.category, createdAt: Date.now() };
-      state.plans = state.plans || [];
-      state.plans.push(next);
+      addPlan(next);
     } else if(neededEndDate > next.endDate){
       next.endDate = neededEndDate;
+      next.updatedAt = Date.now();
     }
     return next;
   }
   function moveTargetToNextPlan(targetId){
-    const t = (state.targets||[]).find(x=>x.id===targetId);
+    const t = state.targets[targetId];
     if(!t) return;
     const next = nextPlanAfter(t.planId);
     if(!next){ alert('No upcoming plan yet — create one first, then move this target.'); return; }
     t.planId = next.id;
+    t.updatedAt = Date.now();
     saveState();
     openGoalCardId = null;
     renderWeeklyGoalsList();
@@ -5919,7 +6037,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const past = allPlans.filter(p=> p.endDate < todayKey).slice().reverse();
       if(!past.length){ container.innerHTML = `<div class="wgoal-empty">No past plans yet.</div>`; return; }
       container.innerHTML = past.map(p=>{
-        const recurringTargets = (data.targets||[]).filter(t=>t.kind==='recurring' && t.planId===p.id);
+        const recurringTargets = targetsArr(data).filter(t=>t.kind==='recurring' && t.planId===p.id);
         const onceTasks = onceTargetsForPlan(data, p);
         const onceDone = onceTasks.filter(t=> (data.completion||{})[t.date+'|'+t.id]==='done').length;
         let recDue=0, recDone=0;
@@ -5954,14 +6072,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
     container.querySelectorAll('.tgt-edit-recurring').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const t = state.targets.find(x=>x.id===btn.dataset.tgtId);
+        const t = state.targets[btn.dataset.tgtId];
         if(t) openTargetModal(t);
       });
     });
     container.querySelectorAll('.tgt-del-recurring').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
-        state.targets = state.targets.filter(x=>x.id!==btn.dataset.tgtId);
+        removeTarget(btn.dataset.tgtId);
         tombstone(btn.dataset.tgtId);
         openGoalCardId = null;
         saveState();
@@ -5974,7 +6092,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     container.querySelectorAll('[data-once-check]').forEach(chip=>{
       chip.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const t = state.targets.find(x=>x.id===chip.dataset.onceCheck);
+        const t = state.targets[chip.dataset.onceCheck];
         if(!t) return;
         const key = t.date+'|'+t.id;
         state.completion[key] = nextStatus(state.completion[key]);
@@ -5986,7 +6104,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     container.querySelectorAll('[data-edit-once]').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const t = state.targets.find(x=>x.id===btn.dataset.editOnce);
+        const t = state.targets[btn.dataset.editOnce];
         if(t) openTargetModal(t);
       });
     });
@@ -6003,7 +6121,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // Quick add/edit-subject modal — reachable via the "+" beside the Subject dropdown in the
   // Target modal, so a person never has to leave the flow they're in to make a new subject.
   function openQuickSubjectModal(editSubjectId, onSaved){
-    const existing = editSubjectId ? state.subjects.find(s=>s.id===editSubjectId) : null;
+    const existing = editSubjectId ? state.subjects[editSubjectId] : null;
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     const defaultColor = existing ? existing.color : COLORS[Math.floor(Math.random()*COLORS.length)];
@@ -6044,8 +6162,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const name = backdrop.querySelector('#qs-name').value.trim();
       if(!name){ alert('Enter a name.'); return; }
       let subjectId;
-      if(existing){ existing.name = name; existing.color = pickedColor; subjectId = existing.id; }
-      else { subjectId = 'sub_'+Date.now(); state.subjects.push({ id: subjectId, name, color: pickedColor }); }
+      if(existing){ existing.name = name; existing.color = pickedColor; existing.updatedAt = Date.now(); subjectId = existing.id; }
+      else { subjectId = 'sub_'+Date.now(); addSubject({ id: subjectId, name, color: pickedColor, createdAt: Date.now() }); }
       saveState();
       close();
       if(onSaved) onSaved(subjectId);
@@ -6057,7 +6175,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // while anything still references it (targets or logged sessions) or if it's the only one
   // left — either would leave dangling subject ids behind.
   function subjectInUse(subjectId){
-    if((state.targets||[]).some(t=>t.subject===subjectId)) return true;
+    if(targetsArr(state).some(t=>t.subject===subjectId)) return true;
     return Object.values(state.sessions||{}).some(list=>(list||[]).some(s=>s.subject===subjectId));
   }
   function openSubjectManagerModal(currentSubjectId, onChange){
@@ -6076,7 +6194,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
     function refresh(){
-      backdrop.querySelector('#sm-list').innerHTML = state.subjects.map(s=>`
+      backdrop.querySelector('#sm-list').innerHTML = subjectsArr(state).map(s=>`
         <div class="grp-list-item" style="cursor:default;">
           <div style="display:flex; align-items:center; gap:10px;">
             <span class="cat-dot" style="width:14px; height:14px; background:${s.color}"></span>
@@ -6096,14 +6214,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
       backdrop.querySelectorAll('[data-sm-del]').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           const id = btn.dataset.smDel;
-          if(state.subjects.length<=1){ alert("You need at least one subject."); return; }
+          const remaining = subjectsArr(state);
+          if(remaining.length<=1){ alert("You need at least one subject."); return; }
           if(subjectInUse(id)){ alert("This subject is used by an existing target or logged session — it can't be deleted while in use."); return; }
-          const s = state.subjects.find(x=>x.id===id);
+          const s = state.subjects[id];
           if(!confirm(`Delete "${s.name}"?`)) return;
-          state.subjects = state.subjects.filter(x=>x.id!==id);
+          removeSubject(id);
           saveState();
           refresh();
-          if(onChange) onChange(state.subjects[0].id);
+          if(onChange) onChange(subjectsArr(state)[0].id);
         });
       });
     }
@@ -6174,7 +6293,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
     const planCandidates = fromDaily ? plansContainingDate(state, anchorDateObj) : [];
     let chosenPlan = opts.plan
-      || (isEdit && existingTarget.planId ? (state.plans||[]).find(p=>p.id===existingTarget.planId) : null)
+      || (isEdit && existingTarget.planId ? state.plans[existingTarget.planId] : null)
       || (planCandidates[0] || null);
 
     let kind = isEdit ? existingTarget.kind : (fromDaily ? 'once' : 'recurring');
@@ -6276,7 +6395,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     `;
     document.body.appendChild(backdrop);
 
-    renderSubjectOptions(backdrop.querySelector('#tgt-subject'), existingTarget?.subject || state.subjects[0].id);
+    renderSubjectOptions(backdrop.querySelector('#tgt-subject'), existingTarget?.subject || subjectsArr(state)[0].id);
     const startWheel = createTimeWheel(backdrop.querySelector('#tgt-start-wheel'), (isEdit && existingTarget.start) || '16:00');
     const durationWheel = createDurationStepper(backdrop.querySelector('#tgt-duration-wheel'), (isEdit && existingTarget.duration) || 30);
 
@@ -6302,7 +6421,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     function currentPlanForDays(){
       if(fromDaily){
         const destSel = backdrop.querySelector('#tgt-dest');
-        return destSel ? ((state.plans||[]).find(p=>p.id===destSel.value) || null) : null;
+        return destSel ? (state.plans[destSel.value] || null) : null;
       }
       return chosenPlan;
     }
@@ -6402,14 +6521,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
         if(selectedDates.size){
           const payload = {
             planId: plan.id, subject, label: label||null, note: note||null, kind:'recurring',
-            timing, start, duration, dates:[...selectedDates].sort()
+            timing, start, duration, dates:[...selectedDates].sort(), updatedAt: Date.now()
           };
           if(isEdit){
-            const t = state.targets.find(x=>x.id===existingTarget.id);
+            const t = state.targets[existingTarget.id];
             if(t) Object.assign(t, payload);
             notifyOthers(`${me.name} updated a recurring target`);
           } else {
-            state.targets.push(Object.assign({ id:'tgt_'+Date.now(), createdAt: Date.now() }, payload));
+            addTarget(Object.assign({ id:'tgt_'+Date.now(), createdAt: Date.now() }, payload));
             notifyOthers(`${me.name} added a recurring target: ${label || subjectName(subject)}`);
           }
         } else if(isEdit){
@@ -6417,7 +6536,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           // explicitly rather than silently deleting; the top-level guard above already stops
           // a fully-empty save, so this only fires when overflow dates exist to take its place.
           if(!confirm('All dates for this target are moving to the next plan — nothing will remain on this plan. Continue?')){ return; }
-          state.targets = state.targets.filter(x=>x.id!==existingTarget.id);
+          removeTarget(existingTarget.id);
           tombstone(existingTarget.id);
         }
         // Overflow dates (picked beyond this plan's range) become their own target on
@@ -6425,7 +6544,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         if(pendingOverflowDates.size){
           const overflowSorted = [...pendingOverflowDates].sort();
           const nextPlan = resolveOrCreateNextPlan(plan, overflowSorted[overflowSorted.length-1]);
-          state.targets.push({
+          addTarget({
             id:'tgt_'+Date.now()+'_of', planId: nextPlan.id, subject, label: label||null, note: note||null,
             kind:'recurring', timing, start, duration, dates: overflowSorted, createdAt: Date.now()
           });
@@ -6441,17 +6560,17 @@ window.storage = storage; // keep the rest of the app's code unchanged
         }
         if(!date){ alert('Pick a date.'); return; }
         const destSel = backdrop.querySelector('#tgt-dest');
-        const planForOnce = destSel ? (state.plans||[]).find(p=>p.id===destSel.value) : (planContainingDate(state, new Date(date+'T00:00:00')) || chosenPlan);
+        const planForOnce = destSel ? state.plans[destSel.value] : (planContainingDate(state, new Date(date+'T00:00:00')) || chosenPlan);
         const payload = {
           planId: planForOnce ? planForOnce.id : null, subject, label: label||null, note: note||null,
-          kind:'once', timing, start, duration, date
+          kind:'once', timing, start, duration, date, updatedAt: Date.now()
         };
         if(isEdit){
-          const t = state.targets.find(x=>x.id===existingTarget.id);
+          const t = state.targets[existingTarget.id];
           if(t) Object.assign(t, payload);
           notifyOthers(`${me.name} updated a task`);
         } else {
-          state.targets.push(Object.assign({ id:'tgt_'+Date.now(), createdAt: Date.now() }, payload));
+          addTarget(Object.assign({ id:'tgt_'+Date.now(), createdAt: Date.now() }, payload));
           notifyOthers(`${me.name} added a task: ${label || subjectName(subject)}`);
         }
       }
@@ -6464,7 +6583,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
     const deleteBtn = backdrop.querySelector('#tgt-delete');
     if(deleteBtn) deleteBtn.addEventListener('click', ()=>{
-      state.targets = state.targets.filter(x=>x.id!==existingTarget.id);
+      removeTarget(existingTarget.id);
       tombstone(existingTarget.id);
       openGoalCardId = null;
       saveState();
@@ -6491,7 +6610,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     let currentCategory = opts.getCategory ? opts.getCategory() : 'other';
 
     function dayPlansFor(dateKey){
-      return (state.plans||[]).filter(p=> p.id!==opts.excludePlanId && dateKey>=p.startDate && dateKey<=p.endDate);
+      return plansArr(state).filter(p=> p.id!==opts.excludePlanId && dateKey>=p.startDate && dateKey<=p.endDate);
     }
     function rangeLoHi(){ return selStart<=selEnd ? [selStart,selEnd] : [selEnd,selStart]; }
 
@@ -6657,8 +6776,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const category = categorySel.value;
       if(picker.hasConflict()){ alert("This range overlaps another plan in the same category. Same-category plans can't share dates — pick a different range or category."); return; }
       const newPlan = { id:'plan_'+Date.now(), startDate, endDate, category, createdAt: Date.now() };
-      state.plans = state.plans || [];
-      state.plans.push(newPlan);
+      addPlan(newPlan);
 
       saveState();
       activePlanId = newPlan.id;
@@ -6710,22 +6828,21 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const endDate = picker.getEnd();
       if(!startDate || !endDate || endDate < startDate){ alert('Pick a valid date range.'); return; }
       if(picker.hasConflict()){ alert("This range overlaps another plan in the same category. Same-category plans can't share dates — pick a different range or category."); return; }
-      const p = state.plans.find(x=>x.id===plan.id);
-      if(p){ p.startDate = startDate; p.endDate = endDate; p.category = categorySel.value; }
+      const p = state.plans[plan.id];
+      if(p){ p.startDate = startDate; p.endDate = endDate; p.category = categorySel.value; p.updatedAt = Date.now(); }
       saveState();
       renderWeeklyGoalsList();
       close();
     });
 
     backdrop.querySelector('#ep-delete').addEventListener('click', ()=>{
-      const linked = (state.targets||[]).filter(t=>t.planId===plan.id);
+      const linked = targetsArr(state).filter(t=>t.planId===plan.id);
       const onceCount = linked.filter(t=>t.kind==='once').length;
       const recurringCount = linked.filter(t=>t.kind==='recurring').length;
       const extra = (onceCount||recurringCount) ? ` This also removes ${onceCount} one-off task${onceCount===1?'':'s'} and ${recurringCount} recurring target${recurringCount===1?'':'s'} linked to it.` : '';
       if(!confirm(`Delete this plan (${fmtPlanRange(plan.startDate, plan.endDate)})?${extra} This can't be undone.`)) return;
-      state.plans = (state.plans||[]).filter(p=>p.id!==plan.id);
-      linked.forEach(t=> tombstone(t.id));
-      state.targets = (state.targets||[]).filter(t=>t.planId!==plan.id);
+      removePlan(plan.id);
+      linked.forEach(t=>{ tombstone(t.id); removeTarget(t.id); });
       if(activePlanId===plan.id) activePlanId = null;
       saveState();
       openGoalCardId = null;
@@ -6875,14 +6992,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const toKey = backdrop.querySelector('#mv-date').value;
       if(!toKey || toKey===fromKey){ close(); return; }
       if(source==='extra'){
-        const t = state.targets.find(x=>x.id===block.id);
-        if(t) t.date = toKey;
+        const t = state.targets[block.id];
+        if(t){ t.date = toKey; t.updatedAt = Date.now(); }
       } else {
         // recurring occurrence: leave the recurring target as-is (it still repeats
         // on its weekday) but clone this one occurrence onto the new date as a
         // one-off target, and mark the original occurrence 'moved' so it's not
         // left dangling as due.
-        state.targets.push({
+        addTarget({
           id:'tgt_'+Date.now(), planId: (planContainingDate(state, new Date(toKey+'T00:00:00'))||{}).id || null,
           kind:'once', date: toKey,
           subject: block.subject, timing: block.timing||'fixed', start: block.start||null, duration: block.duration,
