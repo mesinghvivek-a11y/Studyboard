@@ -2153,6 +2153,22 @@ window.storage = storage; // keep the rest of the app's code unchanged
       state = Object.assign(state, snap.data().value);
     }
     stateReadyToPersist = true;
+    // The v2-v4 migrations below all assume targets/plans/subjects are arrays — true for any
+    // account with real stored data, since that's what they've always been until migrateToKeyedMaps
+    // (v5) converts them. But a brand-new account has no stored data to override the default
+    // `state` object, and the default is now the v5 (keyed-map) shape — so without this, those
+    // migrations would crash on a plain object where they expect array methods (.some/.push/etc).
+    // Normalize back to arrays here; migrateToKeyedMaps converts to the final map shape at the
+    // end regardless, exactly as it would for any other account. Gated on schemaVersion < 5:
+    // an account that's already fully migrated must NOT be touched here, or every migration
+    // below would just skip (their own version guards already say "done") while this would have
+    // already flattened a correctly-shaped map back into an array with nothing left to convert
+    // it back — leaving the rest of the session running on the wrong shape.
+    if((state.schemaVersion||0) < SCHEMA_V5_KEYED_MAPS){
+      if(!Array.isArray(state.targets)) state.targets = Object.values(state.targets||{});
+      if(!Array.isArray(state.plans)) state.plans = Object.values(state.plans||{});
+      if(!Array.isArray(state.subjects)) state.subjects = Object.values(state.subjects||{});
+    }
     applyTheme();
     await migrateLegacyWeeklyTemplate(true);
     await migrateTaskTargetMerge(true);
