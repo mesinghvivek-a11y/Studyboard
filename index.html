@@ -447,7 +447,9 @@
   .plan-card-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px; }
   .plan-card-title{ font-family:'Kalam'; font-size:16px; color:var(--chalk); display:flex; align-items:center; gap:7px; }
   .plan-card-dates{ font-family:'JetBrains Mono'; font-size:11.5px; color:var(--chalk-faint); margin-top:2px; }
-  .plan-card-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .plan-card-actions{ display:flex; gap:6px; flex-shrink:0; position:relative; }
+  .plan-card-actions .task-menu-btn{ position:static; font-size:18px; padding:4px 8px; }
+  .plan-card-actions .task-menu{ top:28px; right:0; left:auto; }
   .plan-card-actions button{ background:none; border:none; font-size:15px; cursor:pointer; color:var(--chalk-faint); padding:4px; }
   .cat-dot{ width:9px; height:9px; border-radius:50%; flex:0 0 auto; display:inline-block; }
   .cat-chip{
@@ -1640,6 +1642,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     sessions: {},        // { 'YYYY-MM-DD': [ {id, subject, duration, mode, endedAt, note, linkedTaskId} ] }
     goals: { dailyMin: 120, weeklyMin: 600 }, // overall study goals used for streak/progress tracking
     plans: {}, // { [id]: {id, startDate:'YYYY-MM-DD', endDate:'YYYY-MM-DD', category, label, createdAt, updatedAt} } — fixed-date record. Dates never change after creation.
+    // { [id]: { id, category, periodDays, label, createdAt, updatedAt,
+    //   targets: [ { kind, subject, label, note, timing, start, duration, dayOffsets|dayOffset } ] } }
+    // A snapshot of a plan's targets relative to its OWN start date (day-offsets, not absolute
+    // dates) — "Save as template" strips the exact date range, "repeat from template" re-anchors
+    // those offsets onto whatever new range the person picks.
+    templates: {},
     themeMode: 'dark',      // 'dark' | 'light'
     themePalette: 'cyan',   // one of PALETTES ids
     schemaVersion: 0,        // 0 = unmigrated/legacy. Bumped to CURRENT_SCHEMA_VERSION once every
@@ -1758,6 +1766,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     state.subjects = mergeKeyedMaps(state.subjects, remote.subjects, tb);
     state.targets = mergeKeyedMaps(state.targets, remote.targets, tb);
     state.plans = mergeKeyedMaps(state.plans, remote.plans, tb);
+    state.templates = mergeKeyedMaps(state.templates, remote.templates, tb);
     state.sessions = mergeKeyedArrayMaps(state.sessions, remote.sessions, tb);
     // completion is a flat {key: 'done'|'missed'} map with no per-key timestamp;
     // union it so a tick on one device never un-ticks what another device set.
@@ -1778,6 +1787,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function removeTarget(id){ delete state.targets[id]; }
   function removePlan(id){ delete state.plans[id]; }
   function removeSubject(id){ delete state.subjects[id]; }
+  function templatesArr(data){ return Object.values((data&&data.templates)||{}); }
+  function addTemplate(t){ if(t && t.id!=null){ t.updatedAt = Date.now(); state.templates[t.id] = t; } }
+  function removeTemplate(id){ delete state.templates[id]; }
 
   // one-time migration: "week" used to be a recomputed date-bucket (a
   // `weekStart` string stamped onto each block/goal) instead of a real
@@ -4220,6 +4232,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!plan || !days || !days.length) return [];
     return planDates(plan).filter(d=>days.includes(d.getDay())).map(fmtDate);
   }
+  // Integer day-offset between two 'YYYY-MM-DD' strings — used to store/re-anchor a
+  // template's targets relative to whatever plan they're applied to, instead of absolute dates.
+  function daysBetween(startDateStr, dateStr){
+    const a = new Date(startDateStr+'T00:00:00');
+    const b = new Date(dateStr+'T00:00:00');
+    return Math.round((b-a)/86400000);
+  }
   function blocksForDate(date){ return blocksForDateIn(activeData(), date); }
   function blocksForDateIn(data, date){
     const key = fmtDate(date);
@@ -5998,16 +6017,22 @@ window.storage = storage; // keep the rest of the app's code unchanged
     // Manual plan titles are gone — the date range itself is the heading. A small
     // category chip sits beside it so the plan's category is always visible at a glance.
     const cat = categoryFor(plan);
+    const menuId = 'plan_'+plan.id;
     return `
       <div class="plan-card-head">
         <div>
           <div class="plan-card-title">${dateStr}</div>
           <div class="plan-card-dates"><span class="cat-chip"><span class="cat-dot" style="background:${cat.color}"></span>${cat.name}</span></div>
         </div>
-        <div class="plan-card-actions">
-          ${editable && showEditPencil ? `<button type="button" data-edit-plan="${plan.id}" title="Edit plan">✏️</button>` : ''}
-          ${editable ? `<button type="button" data-add-target="${plan.id}" title="Add target">＋</button>` : ''}
-        </div>
+        ${editable && showEditPencil ? `
+        <div class="plan-card-actions task-menu-wrap">
+          <button type="button" class="task-menu-btn" data-menu-id="${menuId}" title="Plan options">⋮</button>
+          <div class="task-menu" data-menu-for="${menuId}">
+            <button type="button" data-plan-modify="${plan.id}">✏️ Modify</button>
+            <button type="button" data-plan-template="${plan.id}">📋 Save as template</button>
+            <button type="button" data-plan-delete="${plan.id}">🗑 Delete</button>
+          </div>
+        </div>` : ''}
       </div>
     `;
   }
@@ -6026,29 +6051,24 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
     if(planSubtab==='ongoing'){
       const ongoing = allPlans.filter(p=> todayKey>=p.startDate && todayKey<=p.endDate);
-      if(!ongoing.length){
-        container.innerHTML = `<div class="wgoal-empty">No ongoing plan right now.</div>` +
-          (editable ? `<button type="button" class="btn btn-primary" id="ongoingAddPlanBtn" style="width:100%; margin-top:10px;">＋ Add plan</button>` : '');
-        if(editable){ const b = container.querySelector('#ongoingAddPlanBtn'); if(b) b.addEventListener('click', openNewPlanModal); }
-        return;
-      }
-      container.innerHTML = ongoing.map(p=>`
+      const addBtnHtml = editable ? `<button type="button" class="btn btn-primary" id="ongoingAddPlanBtn" style="width:100%; margin-top:14px;">＋ New plan</button>` : '';
+      container.innerHTML = (ongoing.length ? ongoing.map(p=>`
         <div class="plan-card" data-plan-card="${p.id}">
           ${planHeaderHtml(p, editable, true)}
           ${planCardBodyHtml(data, p, editable, true)}
         </div>
-      `).join('');
+      `).join('') : `<div class="wgoal-empty">No ongoing plan right now.</div>`) + addBtnHtml;
+      if(editable){ const b = container.querySelector('#ongoingAddPlanBtn'); if(b) b.addEventListener('click', openNewPlanChoiceModal); }
     } else if(planSubtab==='upcoming'){
       const upcoming = allPlans.filter(p=> p.startDate > todayKey);
-      container.innerHTML =
-        (editable ? `<button type="button" class="btn btn-primary" id="upcomingNewPlanBtn" style="width:100%; margin-bottom:14px;">＋ New plan</button>` : '') +
-        (upcoming.length ? upcoming.map(p=>`
-          <div class="plan-card" data-plan-card="${p.id}">
-            ${planHeaderHtml(p, editable, true)}
-            ${planCardBodyHtml(data, p, editable, true)}
-          </div>
-        `).join('') : `<div class="wgoal-empty">No upcoming plans yet.</div>`);
-      if(editable){ const b = container.querySelector('#upcomingNewPlanBtn'); if(b) b.addEventListener('click', openNewPlanModal); }
+      const addBtnHtml = editable ? `<button type="button" class="btn btn-primary" id="upcomingNewPlanBtn" style="width:100%; margin-top:14px;">＋ New plan</button>` : '';
+      container.innerHTML = (upcoming.length ? upcoming.map(p=>`
+        <div class="plan-card" data-plan-card="${p.id}">
+          ${planHeaderHtml(p, editable, true)}
+          ${planCardBodyHtml(data, p, editable, true)}
+        </div>
+      `).join('') : `<div class="wgoal-empty">No upcoming plans yet.</div>`) + addBtnHtml;
+      if(editable){ const b = container.querySelector('#upcomingNewPlanBtn'); if(b) b.addEventListener('click', openNewPlanChoiceModal); }
     } else {
       const past = allPlans.filter(p=> p.endDate < todayKey).slice().reverse();
       if(!past.length){ container.innerHTML = `<div class="wgoal-empty">No past plans yet.</div>`; return; }
@@ -6078,11 +6098,28 @@ window.storage = storage; // keep the rest of the app's code unchanged
         renderWeeklyGoalsList();
       });
     });
-    container.querySelectorAll('[data-edit-plan]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{ e.stopPropagation(); const p = allPlans.find(x=>x.id===btn.dataset.editPlan); if(p) openEditPlanModal(p); });
+    // ---- plan-card ⋮ menu: open/close ----
+    container.querySelectorAll('.plan-card-actions .task-menu-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const menu = container.querySelector(`.task-menu[data-menu-for="${btn.dataset.menuId}"]`);
+        const isOpen = menu.classList.contains('open');
+        container.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open'));
+        if(!isOpen) menu.classList.add('open');
+      });
     });
-    container.querySelectorAll('[data-add-target]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{ e.stopPropagation(); const p = allPlans.find(x=>x.id===btn.dataset.addTarget); if(p) openTargetModal(null, { plan: p }); });
+    if(!container.dataset.menuCloseWired){
+      container.dataset.menuCloseWired = '1';
+      document.addEventListener('click', ()=> container.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open')));
+    }
+    container.querySelectorAll('[data-plan-modify]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); const p = allPlans.find(x=>x.id===btn.dataset.planModify); if(p) openEditPlanModal(p); });
+    });
+    container.querySelectorAll('[data-plan-template]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); const p = allPlans.find(x=>x.id===btn.dataset.planTemplate); if(p) saveplanAsTemplate(p); });
+    });
+    container.querySelectorAll('[data-plan-delete]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); const p = allPlans.find(x=>x.id===btn.dataset.planDelete); if(p) deletePlanWithConfirm(p); });
     });
     if(!editable) return;
     container.querySelectorAll('.tgt-edit-recurring').forEach(btn=>{
@@ -6235,6 +6272,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           if(subjectInUse(id)){ alert("This subject is used by an existing target or logged session — it can't be deleted while in use."); return; }
           const s = state.subjects[id];
           if(!confirm(`Delete "${s.name}"?`)) return;
+          tombstone(id);
           removeSubject(id);
           saveState();
           refresh();
@@ -6714,6 +6752,158 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
 
   // ---------- NEW PLAN (with "bring forward unfinished goals") ----------
+  // ---------- Plan templates: save a plan's shape (category, length, targets) without its
+  // exact dates, then re-anchor that shape onto a fresh date range later. ----------
+  function saveplanAsTemplate(plan){
+    const periodDays = planDates(plan).length;
+    const targets = targetsArr(state).filter(t=>t.planId===plan.id).map(t=>{
+      const base = { kind:t.kind, subject:t.subject, label:t.label||null, note:t.note||null, timing:t.timing||'fixed', start:t.start||null, duration:t.duration||30 };
+      if(t.kind==='recurring'){
+        const dates = t.dates || datesForDaysInPlan(plan, t.days||[]);
+        base.dayOffsets = dates.map(dk=> daysBetween(plan.startDate, dk)).filter(n=>n>=0 && n<periodDays);
+      } else if(t.kind==='once'){
+        base.dayOffset = daysBetween(plan.startDate, t.date);
+      }
+      return base;
+    });
+    addTemplate({ id:'tpl_'+Date.now(), category: plan.category||'other', periodDays, targets, createdAt: Date.now() });
+    saveState();
+    showNudgeToast(`Saved as a ${periodDays}-day template`);
+  }
+  // Global "+" chooser: an entirely blank plan (the common case, shown more prominently) or
+  // re-anchoring a saved template onto a new date range.
+  function openNewPlanChoiceModal(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal" style="text-align:center;">
+        <button class="close-x">×</button>
+        <h3>New plan</h3>
+        <button type="button" class="btn btn-primary" id="npc-entirely" style="width:100%; margin-bottom:12px; padding:16px 0; font-size:15px;">✨ Entirely new plan</button>
+        <button type="button" class="btn btn-ghost" id="npc-template" style="width:100%; font-size:12px; opacity:.8;">📋 Repeat from template</button>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    backdrop.querySelector('#npc-entirely').addEventListener('click', ()=>{ close(); openNewPlanModal(); });
+    backdrop.querySelector('#npc-template').addEventListener('click', ()=>{ close(); openTemplateListModal(); });
+  }
+  function openTemplateListModal(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `<div class="modal"><button class="close-x">×</button><h3>Templates</h3><div id="tpl-list"></div></div>`;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    function refresh(){
+      const templates = templatesArr(state).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      const listEl = backdrop.querySelector('#tpl-list');
+      listEl.innerHTML = templates.length ? templates.map(t=>{
+        const cat = categoryFor(t);
+        const n = (t.targets||[]).length;
+        return `
+          <div class="grp-list-item" style="cursor:default;">
+            <div>
+              <div class="name"><span class="cat-dot" style="background:${cat.color}"></span> ${cat.name}</div>
+              <div class="meta">${t.periodDays} day${t.periodDays===1?'':'s'} · ${n} target${n===1?'':'s'}</div>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="task-edit" data-tpl-fetch="${t.id}" style="font-size:11px;">Fetch</button>
+              <button type="button" class="task-del" data-tpl-del="${t.id}">🗑</button>
+            </div>
+          </div>
+        `;
+      }).join('') : `<div style="font-size:12px; color:var(--chalk-faint); padding:10px 0;">No saved templates yet — use a plan's ⋮ menu to save one.</div>`;
+      listEl.querySelectorAll('[data-tpl-fetch]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const t = state.templates[btn.dataset.tplFetch];
+          close();
+          if(t) openApplyTemplateModal(t);
+        });
+      });
+      listEl.querySelectorAll('[data-tpl-del]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          if(!confirm('Delete this template?')) return;
+          tombstone(btn.dataset.tplDel);
+          removeTemplate(btn.dataset.tplDel);
+          saveState();
+          refresh();
+        });
+      });
+    }
+    refresh();
+  }
+  // Re-anchors a template's day-offsets onto whatever date range the person picks here — any
+  // offset that falls outside a shorter-than-original range is silently skipped rather than
+  // blocking the whole plan creation.
+  function openApplyTemplateModal(template){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const today = fmtDate(new Date());
+    const endDefault = (()=>{ const d = new Date(today+'T00:00:00'); d.setDate(d.getDate()+template.periodDays-1); return fmtDate(d); })();
+    backdrop.innerHTML = `
+      <div class="modal">
+        <button class="close-x">×</button>
+        <h3>Repeat from template</h3>
+        <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:10px;">Pick when this ${template.periodDays}-day plan should start.</div>
+        <div id="at-calendar"></div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="at-cancel">Cancel</button>
+          <button class="btn btn-primary" id="at-save">Create plan</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    const picker = createPlanRangePicker(backdrop.querySelector('#at-calendar'), {
+      initialStart: today, initialEnd: endDefault,
+      getCategory: ()=> template.category
+    });
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.querySelector('#at-cancel').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    backdrop.querySelector('#at-save').addEventListener('click', ()=>{
+      const startDate = picker.getStart();
+      const endDate = picker.getEnd();
+      if(!startDate || !endDate || endDate < startDate){ alert('Pick a valid date range.'); return; }
+      if(picker.hasConflict()){ alert("This range overlaps another plan in the same category. Same-category plans can't share dates — pick a different range or category."); return; }
+      const newPlan = { id:'plan_'+Date.now(), startDate, endDate, category: template.category, createdAt: Date.now() };
+      addPlan(newPlan);
+      const rangeDays = daysBetween(startDate, endDate) + 1;
+      (template.targets||[]).forEach((tt, i)=>{
+        if(tt.kind==='recurring'){
+          const dates = (tt.dayOffsets||[]).filter(off=>off>=0 && off<rangeDays).map(off=>{
+            const d = new Date(startDate+'T00:00:00'); d.setDate(d.getDate()+off); return fmtDate(d);
+          });
+          if(!dates.length) return; // nothing lands inside a shorter range — skip silently
+          addTarget({
+            id:'tgt_'+Date.now()+'_'+i, planId:newPlan.id, kind:'recurring', subject:tt.subject,
+            label:tt.label, note:tt.note, timing:tt.timing, start:tt.start, duration:tt.duration,
+            dates, createdAt: Date.now()
+          });
+        } else if(tt.kind==='once'){
+          if(tt.dayOffset==null || tt.dayOffset<0 || tt.dayOffset>=rangeDays) return;
+          const d = new Date(startDate+'T00:00:00'); d.setDate(d.getDate()+tt.dayOffset);
+          addTarget({
+            id:'tgt_'+Date.now()+'_'+i, planId:newPlan.id, kind:'once', subject:tt.subject,
+            label:tt.label, note:tt.note, timing:tt.timing, start:tt.start, duration:tt.duration,
+            date: fmtDate(d), createdAt: Date.now()
+          });
+        }
+      });
+      saveState();
+      activePlanId = newPlan.id;
+      openGoalCardId = null;
+      notifyOthers(`${me.name} started a new plan from a template`);
+      renderWeeklyGoalsList();
+      close();
+    });
+  }
+
   function openNewPlanModal(){
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
@@ -6802,6 +6992,23 @@ window.storage = storage; // keep the rest of the app's code unchanged
       close();
     });
   }
+  // Shared by both the plan-card 3-dot menu and the Edit Plan modal's own delete button, so
+  // the confirm/tombstone/cascade logic only exists once.
+  function deletePlanWithConfirm(plan, onDone){
+    const linked = targetsArr(state).filter(t=>t.planId===plan.id);
+    const onceCount = linked.filter(t=>t.kind==='once').length;
+    const recurringCount = linked.filter(t=>t.kind==='recurring').length;
+    const extra = (onceCount||recurringCount) ? ` This also removes ${onceCount} one-off task${onceCount===1?'':'s'} and ${recurringCount} recurring target${recurringCount===1?'':'s'} linked to it.` : '';
+    if(!confirm(`Delete this plan (${fmtPlanRange(plan.startDate, plan.endDate)})?${extra} This can't be undone.`)) return;
+    tombstone(plan.id);
+    removePlan(plan.id);
+    linked.forEach(t=>{ tombstone(t.id); removeTarget(t.id); });
+    if(activePlanId===plan.id) activePlanId = null;
+    saveState();
+    openGoalCardId = null;
+    renderWeeklyGoalsList();
+    if(onDone) onDone();
+  }
   function openEditPlanModal(forcedPlan){
     const plan = forcedPlan || resolveActivePlan();
     if(!plan){ alert('No plan to edit yet — tap “＋ New plan” to create one.'); return; }
@@ -6852,18 +7059,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
 
     backdrop.querySelector('#ep-delete').addEventListener('click', ()=>{
-      const linked = targetsArr(state).filter(t=>t.planId===plan.id);
-      const onceCount = linked.filter(t=>t.kind==='once').length;
-      const recurringCount = linked.filter(t=>t.kind==='recurring').length;
-      const extra = (onceCount||recurringCount) ? ` This also removes ${onceCount} one-off task${onceCount===1?'':'s'} and ${recurringCount} recurring target${recurringCount===1?'':'s'} linked to it.` : '';
-      if(!confirm(`Delete this plan (${fmtPlanRange(plan.startDate, plan.endDate)})?${extra} This can't be undone.`)) return;
-      removePlan(plan.id);
-      linked.forEach(t=>{ tombstone(t.id); removeTarget(t.id); });
-      if(activePlanId===plan.id) activePlanId = null;
-      saveState();
-      openGoalCardId = null;
-      renderWeeklyGoalsList();
-      close();
+      deletePlanWithConfirm(plan, close);
     });
   }
 
