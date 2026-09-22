@@ -1726,6 +1726,35 @@ window.storage = storage; // keep the rest of the app's code unchanged
     Object.keys(tb).forEach(id=>{ if(tb[id] < cutoff){ delete tb[id]; changed = true; } });
     if(changed) saveState();
   }
+  // ---------- corruption self-heal: a keyed map's container key must always equal the item's
+  // own `.id` ----------
+  // Root cause of the "plans/targets get duplicated and delete stops working" bug: mergeKeyedMaps
+  // (below) assumes both sides are already {id: item} objects. If EITHER side is still shaped as
+  // an array at the moment a merge runs — a stale cached client tab, an unmigrated backup, or any
+  // other path that hands it a raw array — `Object.keys(anArray)` returns numeric index strings
+  // ("0","1","2"...) instead of real ids. Those numeric strings then become brand-new, bogus keys
+  // in the merged map, each holding a full duplicate of whatever item sat at that array index —
+  // permanently, since nothing else in the app de-dupes by an item's real id. Every later save
+  // just carries the duplicate forward. This rebuilds a map strictly keyed by each item's own id
+  // (whether the input was already a map, or still an array), dropping any container key that
+  // doesn't match the item's id and keeping only the most-recently-updated copy when the same id
+  // shows up more than once — same conflict rule mergeKeyedMaps itself uses. Safe to run on
+  // already-clean data: it's then just an identity transform.
+  function repairKeyedMapShape(map){
+    const isArr = Array.isArray(map);
+    const entries = isArr ? map.map((it,i)=>[String(i), it]) : Object.entries(map||{});
+    const clean = {};
+    const badKeys = []; // container keys that must be explicitly deleted server-side (deleteField)
+    entries.forEach(([key, item])=>{
+      if(!item || item.id==null) return;
+      if(key !== item.id) badKeys.push(key);
+      const existing = clean[item.id];
+      if(!existing || (item.updatedAt||item.createdAt||0) >= (existing.updatedAt||existing.createdAt||0)){
+        clean[item.id] = item;
+      }
+    });
+    return { map: clean, badKeys, changed: isArr || badKeys.length>0 };
+  }
   function mergeArraysById(localArr, remoteArr, tombstones){
     const tb = tombstones || {};
     const byId = new Map();
@@ -1746,11 +1775,16 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // rather than blindly favoring whichever side a plain Object.assign would favor.
   function mergeKeyedMaps(localMap, remoteMap, tombstones){
     const tb = tombstones || {};
+    // Defensive normalize first (see repairKeyedMapShape) — this is what actually stops the
+    // numeric-index-key corruption at its source, regardless of which side (or which client
+    // version) handed us a still-array-shaped value.
+    const local = repairKeyedMapShape(localMap).map;
+    const remote = repairKeyedMapShape(remoteMap).map;
     const out = {};
-    const ids = new Set([...Object.keys(localMap||{}), ...Object.keys(remoteMap||{})]);
+    const ids = new Set([...Object.keys(local), ...Object.keys(remote)]);
     ids.forEach(id=>{
       if(tb[id]) return; // tombstoned — stays deleted regardless of which side still has it
-      const l = (localMap||{})[id], r = (remoteMap||{})[id];
+      const l = local[id], r = remote[id];
       if(l && r) out[id] = ((r.updatedAt||r.createdAt||0) > (l.updatedAt||l.createdAt||0)) ? r : l;
       else out[id] = l || r;
     });
@@ -1784,12 +1818,43 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function addTarget(t){ if(t && t.id!=null){ t.updatedAt = Date.now(); state.targets[t.id] = t; } }
   function addPlan(p){ if(p && p.id!=null){ p.updatedAt = Date.now(); state.plans[p.id] = p; } }
   function addSubject(s){ if(s && s.id!=null){ s.updatedAt = Date.now(); state.subjects[s.id] = s; } }
-  function removeTarget(id){ delete state.targets[id]; }
-  function removePlan(id){ delete state.plans[id]; }
-  function removeSubject(id){ delete state.subjects[id]; }
+  // Firestore's {merge:true} (used for every board-doc write — see storage.set) only ADDS or
+  // OVERWRITES fields that are present in the write; a key simply absent from the outgoing
+  // object is left untouched server-side. So `delete state.targets[id]` alone never actually
+  // removes that key from Firestore — the record just sits there, hidden by its tombstone only
+  // as long as every read goes through the tombstone-aware merge (loadState's initial fetch does
+  // NOT), which is how "deleted" plans/targets resurrected on the next reload. Queuing the id
+  // here lets the next save issue an explicit deleteField() for it — see flushPendingFieldDeletions.
+  const pendingFieldDeletions = { targets:new Set(), plans:new Set(), subjects:new Set(), templates:new Set() };
+  function removeTarget(id){ delete state.targets[id]; pendingFieldDeletions.targets.add(id); }
+  function removePlan(id){ delete state.plans[id]; pendingFieldDeletions.plans.add(id); }
+  function removeSubject(id){ delete state.subjects[id]; pendingFieldDeletions.subjects.add(id); }
   function templatesArr(data){ return Object.values((data&&data.templates)||{}); }
   function addTemplate(t){ if(t && t.id!=null){ t.updatedAt = Date.now(); state.templates[t.id] = t; } }
-  function removeTemplate(id){ delete state.templates[id]; }
+  function removeTemplate(id){ delete state.templates[id]; pendingFieldDeletions.templates.add(id); }
+  // Actually strips queued ids from the stored document's targets/plans/subjects/templates maps
+  // via Firestore's deleteField() sentinel — the one thing plain {merge:true} can't do. Runs as
+  // part of every board write (see mergeThenWriteBoard) so a delete sticks on the very next save,
+  // not just whenever the account next happens to self-heal on load.
+  async function flushPendingFieldDeletions(){
+    if(!me) return;
+    const fields = {};
+    Object.keys(pendingFieldDeletions).forEach(f=>{
+      if(pendingFieldDeletions[f].size){
+        fields[f] = Array.from(pendingFieldDeletions[f]);
+        pendingFieldDeletions[f] = new Set();
+      }
+    });
+    if(!Object.keys(fields).length) return;
+    const patch = { value: {} };
+    Object.keys(fields).forEach(field=>{
+      const obj = {};
+      fields[field].forEach(id=>{ obj[id] = deleteField(); });
+      patch.value[field] = obj;
+    });
+    try{ await setDoc(doc(db,'boards', me.id), patch, { merge:true }); }
+    catch(e){ console.warn('field-deletion sync failed — tombstone still hides it locally, will retry on next save', e); }
+  }
 
   // one-time migration: "week" used to be a recomputed date-bucket (a
   // `weekStart` string stamped onto each block/goal) instead of a real
@@ -2186,10 +2251,28 @@ window.storage = storage; // keep the rest of the app's code unchanged
     await migrateTaskTargetMerge(true);
     await migrateSimplifyTargets(true);
     await migrateToKeyedMaps(true);
+    // Self-heal existing corruption (see repairKeyedMapShape) — bogus array-index keys that
+    // duplicated a plan/target, plus anything tombstoned-as-deleted that's still physically
+    // present in the stored doc (the merge:true-never-deletes issue described by
+    // flushPendingFieldDeletions). Runs every load; a no-op once an account is actually clean.
+    let corruptionFound = false;
+    ['targets','plans','subjects','templates'].forEach(field=>{
+      const { map, badKeys, changed } = repairKeyedMapShape(state[field]);
+      state[field] = map;
+      if(changed) corruptionFound = true;
+      badKeys.forEach(k=> pendingFieldDeletions[field].add(k));
+    });
+    const tbAtLoad = state.tombstones || {};
+    ['targets','plans','subjects','templates'].forEach(field=>{
+      Object.keys(state[field]||{}).forEach(id=>{
+        if(tbAtLoad[id]){ delete state[field][id]; pendingFieldDeletions[field].add(id); corruptionFound = true; }
+      });
+    });
     // Only safe to pull in a locally-buffered edit once state is guaranteed to be in the
     // current (post-migration) shape — any backup found here was written by this same
     // already-migrated code, so shapes always match by the time this runs.
-    if(recoverLocalBackupIfAny()) flushStateNow(); // persist the recovered edit immediately, don't wait for the next unrelated change
+    const recoveredLocalEdit = recoverLocalBackupIfAny();
+    if(recoveredLocalEdit || corruptionFound) flushStateNow(); // persist the recovered edit and/or the corruption cleanup immediately
     pruneOldTombstones();
     maybeWriteDailyBackup();
     await loadUsersList();
@@ -2307,6 +2390,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         console.warn('pre-save merge fetch failed — saving with local state only', e);
       }
       await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+      await flushPendingFieldDeletions(); // actually remove any queued deletions server-side (see definition)
       pushSharedBoard();
     };
     boardWriteQueue = boardWriteQueue.then(run, run); // run next regardless of whether the previous write succeeded or failed
@@ -5684,7 +5768,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         const id = btn.dataset.id;
         removeTarget(id);
         tombstone(id);
-        saveState();
+        flushStateNow(); // deletion: write immediately, don't wait on the debounce timer
         renderTaskList();
         renderWeeklyGoalsList();
       });
@@ -6135,7 +6219,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         removeTarget(btn.dataset.tgtId);
         tombstone(btn.dataset.tgtId);
         openGoalCardId = null;
-        saveState();
+        flushStateNow(); // deletion: write immediately, don't wait on the debounce timer
         renderWeeklyGoalsList();
       });
     });
@@ -6274,7 +6358,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           if(!confirm(`Delete "${s.name}"?`)) return;
           tombstone(id);
           removeSubject(id);
-          saveState();
+          flushStateNow(); // deletion: write immediately, don't wait on the debounce timer
           refresh();
           if(onChange) onChange(subjectsArr(state)[0].id);
         });
@@ -6640,7 +6724,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       removeTarget(existingTarget.id);
       tombstone(existingTarget.id);
       openGoalCardId = null;
-      saveState();
+      flushStateNow(); // deletion: write immediately, don't wait on the debounce timer
       render();
       renderWeeklyGoalsList();
       close();
@@ -7004,7 +7088,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     removePlan(plan.id);
     linked.forEach(t=>{ tombstone(t.id); removeTarget(t.id); });
     if(activePlanId===plan.id) activePlanId = null;
-    saveState();
+    flushStateNow(); // deletion: write immediately, don't wait on the debounce timer
     openGoalCardId = null;
     renderWeeklyGoalsList();
     if(onDone) onDone();
