@@ -1402,6 +1402,18 @@
         <div id="studyChartWrap"></div>
       </div>
 
+      <div class="wk-section-head" style="margin-top:18px;">
+        <h2>Subjects studied</h2>
+        <div class="chart-range-toggle" id="subjectDonutRangeToggle">
+          <button type="button" class="active" data-range="week">Week</button>
+          <button type="button" data-range="fortnight">Fortnight</button>
+          <button type="button" data-range="month">Month</button>
+        </div>
+      </div>
+      <div class="study-chart-card">
+        <div id="subjectDonutWrap"></div>
+      </div>
+
       <button type="button" class="add-goal-btn ghost" id="toggleHistoryList" style="width:100%; margin:16px 0 4px;">📋 View day-by-day tasks</button>
       <div id="historyDetailWrap" style="display:none;">
         <div class="field-row">
@@ -4498,9 +4510,16 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
     document.querySelector('.tab-btn[data-screen="timer"]').click();
     if(timerMode!=='countdown') document.getElementById('modeCountdown').click();
+    // Always start this task fresh — don't rely on the click above for the reset, since it's
+    // skipped entirely when the timer was already in countdown mode from a prior (paused, not
+    // finished) session. That's exactly what let a leftover elapsedMs survive into a new task's
+    // countdown, making it look like only ~1 minute was left on an otherwise-full timer.
+    elapsedMs = 0;
+    sessionStartClock = null;
     linkedTaskId = b.id;
     document.getElementById('timerSubject').value = b.subject;
     applyLinkedTaskDurationToLength(remainingMinutesForTask(b));
+    renderTimerDigits();
     renderTaskPinLabel();
     document.getElementById('startBtn').click();
   }
@@ -5504,7 +5523,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       tombstone(session.id);
       await flushStateNow();
       if(isToday) setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // profile-chip total is cached in liveStatus, not derived live — must push explicitly
-      renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart();
+      renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart(); renderSubjectDonut();
       if(currentScreen==='today') renderTaskList();
       close();
     });
@@ -5540,7 +5559,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       }
       await flushStateNow();
       if(isToday) setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // profile-chip total is cached in liveStatus, not derived live — must push explicitly
-      renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart();
+      renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart(); renderSubjectDonut();
       if(currentScreen==='today') renderTaskList();
       close();
     });
@@ -5943,7 +5962,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
             ${linkedRows}
             ${editable ? `<button type="button" class="edit tgt-edit-recurring" data-tgt-id="${t.id}" style="margin-top:10px;">✏️ Edit target</button>` : ''}
             ${editable ? `<button type="button" class="del tgt-del-recurring" data-tgt-id="${t.id}">🗑 Delete target</button>` : ''}
-            ${editable && allowMove ? `<button type="button" class="move-to-next" data-move-rec="${t.id}">➡️ Move to next plan</button>` : ''}
+            ${editable && allowMove ? `<button type="button" class="move-to-next" data-move-target="${t.id}">➡️ Move target</button>` : ''}
           </div>
         </div>
       `;
@@ -5995,17 +6014,124 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
     return next;
   }
-  function moveTargetToNextPlan(targetId){
+  // ---------- Move target: pick any ongoing/upcoming plan, then whole-target vs pending-only ----------
+  function candidateMoveTargetPlans(currentPlanId){
+    const todayKey = fmtDate(new Date());
+    // "any ongoing/upcoming plan" — not just the chronologically-next one — excluding the
+    // target's own current plan and anything already fully in the past.
+    return sortedPlans(state).filter(p=> p.id!==currentPlanId && p.endDate>=todayKey);
+  }
+  function openMoveTargetModal(targetId){
     const t = state.targets[targetId];
     if(!t) return;
-    const next = nextPlanAfter(t.planId);
-    if(!next){ alert('No upcoming plan yet — create one first, then move this target.'); return; }
-    t.planId = next.id;
-    t.updatedAt = Date.now();
+    const sourcePlan = state.plans[t.planId];
+    const candidates = candidateMoveTargetPlans(t.planId);
+    if(!candidates.length){ alert('No other ongoing or upcoming plan to move this target to — create one first, then move this target.'); return; }
+    const title = t.label || subjectNameIn(t.subject, state);
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <button class="close-x">×</button>
+        <h3>Move "${escapeHtml(title)}"</h3>
+        <div id="mv-step-plan">
+          <div style="font-size:12px; color:var(--chalk-dim); margin-bottom:8px;">Choose a plan to move it to:</div>
+          <div id="mv-plan-list">
+            ${candidates.map(p=>{
+              const cat = categoryFor(p);
+              return `
+                <div class="grp-list-item" data-mv-plan="${p.id}" style="cursor:pointer;">
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span class="cat-dot" style="width:14px; height:14px; background:${cat.color}"></span>
+                    <span class="name">${fmtPlanRange(p.startDate, p.endDate)}</span>
+                  </div>
+                  <span class="cat-chip">${cat.name}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+        <div id="mv-step-split" style="display:none;"></div>
+        <div id="mv-step-confirm" style="display:none;"></div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    backdrop.querySelectorAll('[data-mv-plan]').forEach(row=>{
+      row.addEventListener('click', ()=>{
+        const destPlan = state.plans[row.dataset.mvPlan];
+        if(destPlan) showSplitStep(destPlan);
+      });
+    });
+    function showSplitStep(destPlan){
+      backdrop.querySelector('#mv-step-plan').style.display = 'none';
+      const status = sourcePlan ? recurringTargetStatus(state, t, sourcePlan) : { totalDue:0, totalDone:0 };
+      const pending = status.totalDue - status.totalDone;
+      const splitEl = backdrop.querySelector('#mv-step-split');
+      splitEl.style.display = '';
+      if(status.totalDone>0 && pending>0){
+        // Only worth asking when there's a genuine split to make — some days done, some not.
+        splitEl.innerHTML = `
+          <div style="font-size:12px; color:var(--chalk-dim); margin-bottom:10px;">This target has ${status.totalDone} done and ${pending} pending day${pending===1?'':'s'} on its current plan.</div>
+          <button type="button" class="btn btn-primary" id="mv-split-all" style="width:100%; margin-bottom:8px;">Move entire target (all ${status.totalDue} days)</button>
+          <button type="button" class="btn" id="mv-split-pending" style="width:100%;">Move only pending days (${pending}) — done days stay put</button>
+        `;
+        splitEl.querySelector('#mv-split-all').addEventListener('click', ()=> showConfirmStep(destPlan, 'all'));
+        splitEl.querySelector('#mv-split-pending').addEventListener('click', ()=> showConfirmStep(destPlan, 'pending'));
+      } else {
+        showConfirmStep(destPlan, 'all'); // nothing done yet, or already fully done — no meaningful split to offer
+      }
+    }
+    function showConfirmStep(destPlan, mode){
+      backdrop.querySelector('#mv-step-split').style.display = 'none';
+      const confirmEl = backdrop.querySelector('#mv-step-confirm');
+      confirmEl.style.display = '';
+      const detail = mode==='pending'
+        ? 'Only the pending (not-yet-done) days will move — done days stay on the current plan.'
+        : 'The entire target will move, including any days already done.';
+      confirmEl.innerHTML = `
+        <div style="font-size:13px; margin-bottom:14px;">Move to <b>${fmtPlanRange(destPlan.startDate, destPlan.endDate)}</b>? ${detail}</div>
+        <button type="button" class="btn btn-primary" id="mv-confirm-go" style="width:100%; margin-bottom:8px;">Confirm move</button>
+        <button type="button" class="btn" id="mv-confirm-back" style="width:100%;">Back</button>
+      `;
+      confirmEl.querySelector('#mv-confirm-go').addEventListener('click', ()=>{ executeMoveTarget(t, destPlan, mode); close(); });
+      confirmEl.querySelector('#mv-confirm-back').addEventListener('click', ()=>{
+        confirmEl.style.display = 'none';
+        backdrop.querySelector('#mv-step-plan').style.display = '';
+      });
+    }
+  }
+  function executeMoveTarget(t, destPlan, mode){
+    if(mode==='all'){
+      t.planId = destPlan.id;
+      t.updatedAt = Date.now();
+    } else {
+      // Split: done dates stay on the original record (still on the source plan), pending
+      // dates become a brand-new record on the destination plan.
+      const sourcePlan = state.plans[t.planId];
+      const status = sourcePlan ? recurringTargetStatus(state, t, sourcePlan) : { dates:[], doneDates:[] };
+      const doneDates = status.doneDates;
+      const pendingDates = status.dates.filter(d=> !doneDates.includes(d));
+      if(doneDates.length){
+        t.dates = doneDates;
+        t.days = [];
+        t.updatedAt = Date.now();
+      } else {
+        // Nothing done at all — splitting would leave an empty husk behind, so just retire it.
+        tombstone(t.id);
+        removeTarget(t.id);
+      }
+      addTarget(Object.assign({}, t, {
+        id: 'tgt_'+Date.now(), planId: destPlan.id, dates: pendingDates, days: [],
+        createdAt: Date.now(), updatedAt: Date.now()
+      }));
+    }
     saveState();
     openGoalCardId = null;
     renderWeeklyGoalsList();
-    notifyOthers(`${me.name} moved a target to the next plan`);
+    notifyOthers(`${me.name} moved a target to a different plan`);
   }
   // Multi-select calendar for hand-picking exact dates for a recurring target — reached via
   // the 📅 icon beside "Days this repeats". Dates outside the plan's own range are allowed but
@@ -6223,8 +6349,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
         renderWeeklyGoalsList();
       });
     });
-    container.querySelectorAll('[data-move-rec]').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{ e.stopPropagation(); moveTargetToNextPlan(btn.dataset.moveRec); });
+    container.querySelectorAll('[data-move-target]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); openMoveTargetModal(btn.dataset.moveTarget); });
     });
     container.querySelectorAll('[data-once-check]').forEach(chip=>{
       chip.addEventListener('click', (e)=>{
@@ -7170,11 +7296,27 @@ window.storage = storage; // keep the rest of the app's code unchanged
     scrollToIndex(current, false);
     paintCenter(current);
     let settleTimer = null;
+    // The very first 'scroll' event this wheel ever emits can be nothing more than the browser
+    // catching up to the programmatic scrollToIndex() call two lines up — which silently lands
+    // at 0 if this element was still display:none / un-laid-out at that exact moment (e.g. the
+    // first time the Focus Timer screen is shown in a page session, switched-to and built in the
+    // same synchronous tick). Letting that settle feed back into `current`/onSettle quietly
+    // overwrote a freshly-picked countdown length with ~0h0m a moment after Start was pressed —
+    // the "always 1 minute, only the first time" bug. So the first settle just re-asserts the
+    // intended position instead of trusting it; every later, genuinely user-driven scroll behaves
+    // exactly as before.
+    let ignoredFirstSettle = false;
     el.addEventListener('scroll', ()=>{
       clearTimeout(settleTimer);
       settleTimer = setTimeout(()=>{
         let idx = Math.round(el.scrollTop / WHEEL_ITEM_H);
         idx = Math.max(0, Math.min(items.length-1, idx));
+        if(!ignoredFirstSettle){
+          ignoredFirstSettle = true;
+          scrollToIndex(current, false);
+          paintCenter(current);
+          return;
+        }
         current = idx;
         scrollToIndex(idx, true);
         paintCenter(idx);
@@ -7337,7 +7479,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderDayScroller();
     renderTaskList();
     renderWeeklyGoalsList();
-    if(currentScreen==='history'){ renderHistoryCalendar(); renderHistory(); renderStudyChart(); }
+    if(currentScreen==='history'){ renderHistoryCalendar(); renderHistory(); renderStudyChart(); renderSubjectDonut(); }
   }
 
   document.getElementById('historyDate').addEventListener('change', async ()=>{
@@ -7358,6 +7500,15 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.querySelectorAll('#chartRangeToggle button').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       renderStudyChart();
+    });
+  });
+  let subjectDonutRange = 'week'; // 'week' | 'fortnight' | 'month' — independent of chartRange above
+  document.getElementById('subjectDonutRangeToggle').querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      subjectDonutRange = btn.dataset.range;
+      document.querySelectorAll('#subjectDonutRangeToggle button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      renderSubjectDonut();
     });
   });
   document.getElementById('toggleHistoryList').addEventListener('click', ()=>{
@@ -7452,6 +7603,71 @@ window.storage = storage; // keep the rest of the app's code unchanged
         <span><i style="background:hsl(140,68%,54%);"></i>light</span>
         <span><i style="background:hsl(45,68%,54%);"></i>moderate</span>
         <span><i style="background:hsl(0,68%,54%);"></i>heavy</span>
+      </div>
+    `;
+  }
+
+  // ---------- subjects-studied donut (Analyse screen) ----------
+  function computeSubjectMinutes(data, rangeType){
+    const days = rangeType==='week' ? 7 : (rangeType==='fortnight' ? 14 : 30);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const bySubject = {}; // subjectId -> minutes
+    for(let i=0; i<days; i++){
+      const d = new Date(today); d.setDate(d.getDate()-i);
+      const key = fmtDate(d);
+      ((data.sessions||{})[key]||[]).forEach(s=>{
+        const sid = s.subject || 'general';
+        bySubject[sid] = (bySubject[sid]||0) + (s.duration||0);
+      });
+    }
+    return Object.keys(bySubject)
+      .map(sid=> ({ id: sid, name: subjectNameIn(sid, data), color: subjectColorIn(sid, data), minutes: bySubject[sid] }))
+      .filter(x=> x.minutes>0)
+      .sort((a,b)=> b.minutes-a.minutes);
+  }
+  function renderSubjectDonut(){
+    const el = document.getElementById('subjectDonutWrap');
+    if(!el) return;
+    const data = activeData();
+    const slices = computeSubjectMinutes(data, subjectDonutRange);
+    const totalMin = slices.reduce((s,x)=>s+x.minutes,0);
+    if(!totalMin){
+      el.innerHTML = `<div style="text-align:center; padding:20px 10px; color:var(--chalk-faint); font-size:12.5px;">No study sessions logged in this range yet.</div>`;
+      return;
+    }
+    // Thick ring: draw each slice as a stroked arc segment on a shared circle, via
+    // stroke-dasharray/offset — simplest robust way to build a multi-color donut in raw SVG.
+    const size = 176, cx = size/2, cy = size/2, r = 62, thickness = 22;
+    const circumference = 2*Math.PI*r;
+    let offset = 0;
+    const arcs = slices.map(s=>{
+      const frac = s.minutes/totalMin;
+      const len = frac*circumference;
+      const dasharray = `${len} ${circumference-len}`;
+      const dashoffset = circumference*0.25 - offset; // start at 12 o'clock, go clockwise
+      offset += len;
+      return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${thickness}"
+                stroke-dasharray="${dasharray}" stroke-dashoffset="${dashoffset}" stroke-linecap="butt"/>`;
+    }).join('');
+    const legend = slices.map(s=>{
+      const pct = Math.round((s.minutes/totalMin)*100);
+      return `
+        <div style="display:flex; align-items:center; gap:8px; font-size:12px; padding:4px 0;">
+          <span style="width:10px; height:10px; border-radius:50%; background:${s.color}; flex:0 0 auto;"></span>
+          <span style="flex:1; color:var(--chalk); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(s.name)}</span>
+          <span style="color:var(--chalk-dim); font-family:'JetBrains Mono'; font-size:11px;">${fmtHM(s.minutes)} · ${pct}%</span>
+        </div>
+      `;
+    }).join('');
+    el.innerHTML = `
+      <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap; justify-content:center;">
+        <svg viewBox="0 0 ${size} ${size}" style="width:150px; height:150px; flex:0 0 auto; transform:rotate(0deg);">
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--card-line)" stroke-width="${thickness}"/>
+          <g style="transform:rotate(-90deg); transform-origin:${cx}px ${cy}px;">${arcs}</g>
+          <text x="${cx}" y="${cy-4}" text-anchor="middle" font-family="JetBrains Mono" font-size="17" fill="var(--chalk)" font-weight="700">${fmtHMCompact(totalMin)}</text>
+          <text x="${cx}" y="${cy+13}" text-anchor="middle" font-size="8.5" fill="var(--chalk-faint)">total</text>
+        </svg>
+        <div style="flex:1; min-width:140px;">${legend}</div>
       </div>
     `;
   }
