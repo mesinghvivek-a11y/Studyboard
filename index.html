@@ -1070,12 +1070,14 @@
   }
   .live-cell .lc-circle.stale{ opacity:0.45; filter:grayscale(0.6); }
   .live-cell .lc-box{
-    width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:7px 4px; text-align:center;
+    width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:5px 4px; text-align:center;
   }
+  .live-cell .lc-box[data-mine="0"]{ cursor:pointer; }
   .live-cell .lc-name{ font-size:11px; font-weight:700; color:var(--chalk); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .live-cell .lc-total{ font-family:'JetBrains Mono'; font-size:10px; color:var(--chalk-dim); margin-top:2px; }
-  .live-cell .lc-streak{ font-size:9.5px; color:var(--c1); font-weight:700; margin-top:2px; }
-  .live-cell .lc-status{ font-size:8.5px; color:var(--chalk-faint); margin-top:2px; }
+  .live-cell .lc-meta-row{ display:flex; align-items:center; justify-content:center; gap:5px; margin-top:1px; }
+  .live-cell .lc-total{ font-family:'JetBrains Mono'; font-size:10px; color:var(--chalk-dim); }
+  .live-cell .lc-streak{ font-size:9.5px; color:var(--c1); font-weight:700; }
+  .live-cell .lc-status{ font-size:8.5px; color:var(--chalk-faint); margin-top:1px; }
   .live-cell .task-menu-btn{ position:absolute; top:-4px; right:6px; }
   .live-cell .task-menu{ right:0; left:auto; top:20px; }
   .live-member-row{
@@ -1262,12 +1264,11 @@
 <div class="app-content">
 
   <header class="top">
-    <div>
+    <div style="display:none;">
       <h1 id="headerTitle">Study Board</h1>
       <div class="sub" id="headerSub">stay on the clock</div>
     </div>
     <div class="header-actions">
-      <button class="bell-btn" id="syncBtn" title="Sync now">↻<span class="sync-dot" id="syncDot"></span></button>
       <button class="bell-btn" id="bellBtn" title="Notifications">🔔<span class="bell-badge" id="bellBadge" style="display:none;">0</span></button>
       <button class="avatar-btn" id="acctBtn" title="Account"></button>
     </div>
@@ -2172,7 +2173,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       setSyncStatus('err');
     }
   }
-  document.getElementById('syncBtn').addEventListener('click', manualSync);
 
   // ---------- persistence: my own private working copy ----------
   function showLoadBlocker(msg){
@@ -2767,6 +2767,74 @@ window.storage = storage; // keep the rest of the app's code unchanged
         </div>
 
         <div class="section-divider"></div>
+        <div class="settings-row" data-nav="profile">
+          <div class="label"><span class="icon">👤</span> Profile</div><span class="chev">›</span>
+        </div>
+        <div class="settings-row" data-nav="appearance">
+          <div class="label"><span class="icon">🎨</span> Appearance</div><span class="chev">›</span>
+        </div>
+        <div class="settings-row" data-nav="goals">
+          <div class="label"><span class="icon">🎯</span> Study Goals</div><span class="chev">›</span>
+        </div>
+        <div class="settings-row" data-nav="camera">
+          <div class="label"><span class="icon">📷</span> Camera & Snapshots</div><span class="chev">›</span>
+        </div>
+        <div class="settings-row" data-nav="privacy">
+          <div class="label"><span class="icon">🔒</span> Privacy & Social</div><span class="chev">›</span>
+        </div>
+        <div class="settings-row" data-nav="notifications">
+          <div class="label"><span class="icon">🔔</span> Notifications</div><span class="chev">›</span>
+        </div>
+
+        <div class="section-divider"></div>
+        ${!me.isAnon ? `<button class="btn btn-danger" id="acct-logout" style="width:100%; margin-bottom:8px;">Log out</button>` : ''}
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+
+    backdrop.querySelectorAll('.settings-row[data-nav]').forEach(row=>{
+      row.addEventListener('click', async ()=>{
+        await close();
+        const dest = row.dataset.nav;
+        if(dest==='profile') openProfileSettings();
+        else if(dest==='appearance') openAppearanceSettings();
+        else if(dest==='goals') openStudyGoalsSettings();
+        else if(dest==='camera') openCameraSettings();
+        else if(dest==='privacy') openPrivacySettings();
+        else if(dest==='notifications') openNotificationSettings();
+      });
+    });
+
+    const logoutBtn = backdrop.querySelector('#acct-logout');
+    if(logoutBtn) logoutBtn.addEventListener('click', async ()=>{ document.body.removeChild(backdrop); await doLogout(); });
+    const signinBtn = backdrop.querySelector('#acct-signin');
+    if(signinBtn) signinBtn.addEventListener('click', async ()=>{ await close(); openAuthOverlay(); });
+    const resendBtn = backdrop.querySelector('#acct-resend-verify');
+    if(resendBtn) resendBtn.addEventListener('click', async ()=>{
+      resendBtn.disabled = true;
+      try{ await sendEmailVerification(auth.currentUser); resendBtn.textContent = 'Sent!'; }
+      catch(e){ resendBtn.textContent = 'Could not send — try again later'; }
+      setTimeout(()=>{ resendBtn.disabled = false; }, 3000);
+    });
+    backdrop.querySelector('#acct-upgrade').addEventListener('click', async ()=>{
+      if(me.isAnon){ await close(); openAuthOverlay(); return; }
+      showNudgeToast('Premium membership is coming soon ✨');
+    });
+  }
+
+  // ---------- Profile sub-page (photo, name, email, phone, avatar color, delete account) ----------
+  function openProfileSettings(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <div class="settings-sub-header">
+          <button class="settings-back" id="ss-back">‹</button>
+          <h3>Profile</h3>
+        </div>
         <div class="acct-photo-row">
           <div class="acct-photo" id="acct-photo-preview">${me.photo ? `<img src="${me.photo}" alt="">` : escapeHtml((me.name||'?').slice(0,1).toUpperCase())}</div>
           <div class="acct-photo-actions">
@@ -2795,27 +2863,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
           </div>
         </div>
 
-        <div class="section-divider"></div>
-        <div class="settings-row" data-nav="appearance">
-          <div class="label"><span class="icon">🎨</span> Appearance</div><span class="chev">›</span>
-        </div>
-        <div class="settings-row" data-nav="goals">
-          <div class="label"><span class="icon">🎯</span> Study Goals</div><span class="chev">›</span>
-        </div>
-        <div class="settings-row" data-nav="camera">
-          <div class="label"><span class="icon">📷</span> Camera & Snapshots</div><span class="chev">›</span>
-        </div>
-        <div class="settings-row" data-nav="privacy">
-          <div class="label"><span class="icon">🔒</span> Privacy & Social</div><span class="chev">›</span>
-        </div>
-        <div class="settings-row" data-nav="notifications">
-          <div class="label"><span class="icon">🔔</span> Notifications</div><span class="chev">›</span>
-        </div>
-
-        <div class="section-divider"></div>
-        ${!me.isAnon ? `<button class="btn btn-danger" id="acct-logout" style="width:100%; margin-bottom:8px;">Log out</button>` : ''}
-        <button class="btn btn-ghost" id="acct-export" style="width:100%;">⬇ Export my data</button>
-
         <div class="danger-zone">
           <div class="dz-title">Danger zone</div>
           <div class="dz-sub">Permanently deletes your account and all synced data. This can't be undone.</div>
@@ -2828,7 +2875,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     let pickedColor = me.color;
     let pickedPhoto = me.photo || null;
 
-    // Everything in the top section auto-saves the moment the hub closes — no Save/Cancel buttons.
+    // Everything here auto-saves the moment the sub-page closes — no separate Save/Cancel.
     async function close(){
       const newName = backdrop.querySelector('#acct-name').value.trim() || me.name;
       const newPhone = backdrop.querySelector('#acct-phone').value.trim();
@@ -2841,8 +2888,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
       await registerUser(me, true);
       renderHeaderAvatar();
       render();
+      openSettingsHub();
     }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
+    backdrop.querySelector('#ss-back').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
 
     backdrop.querySelectorAll('#acct-colors .swatch').forEach(sw=>{
@@ -2870,35 +2918,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
         backdrop.querySelector('#acct-photo-preview').innerHTML = escapeHtml(nm.slice(0,1).toUpperCase());
       });
     }
-
-    backdrop.querySelectorAll('.settings-row[data-nav]').forEach(row=>{
-      row.addEventListener('click', async ()=>{
-        await close();
-        const dest = row.dataset.nav;
-        if(dest==='appearance') openAppearanceSettings();
-        else if(dest==='goals') openStudyGoalsSettings();
-        else if(dest==='camera') openCameraSettings();
-        else if(dest==='privacy') openPrivacySettings();
-        else if(dest==='notifications') openNotificationSettings();
-      });
-    });
-
-    const logoutBtn = backdrop.querySelector('#acct-logout');
-    if(logoutBtn) logoutBtn.addEventListener('click', async ()=>{ document.body.removeChild(backdrop); await doLogout(); });
-    const signinBtn = backdrop.querySelector('#acct-signin');
-    if(signinBtn) signinBtn.addEventListener('click', async ()=>{ await close(); openAuthOverlay(); });
-    const resendBtn = backdrop.querySelector('#acct-resend-verify');
-    if(resendBtn) resendBtn.addEventListener('click', async ()=>{
-      resendBtn.disabled = true;
-      try{ await sendEmailVerification(auth.currentUser); resendBtn.textContent = 'Sent!'; }
-      catch(e){ resendBtn.textContent = 'Could not send — try again later'; }
-      setTimeout(()=>{ resendBtn.disabled = false; }, 3000);
-    });
-    backdrop.querySelector('#acct-upgrade').addEventListener('click', async ()=>{
-      if(me.isAnon){ await close(); openAuthOverlay(); return; }
-      showNudgeToast('Premium membership is coming soon ✨');
-    });
-    backdrop.querySelector('#acct-export').addEventListener('click', exportUserData);
     backdrop.querySelector('#acct-delete').addEventListener('click', async ()=>{
       document.body.removeChild(backdrop);
       openDeleteAccountConfirm();
@@ -3159,26 +3178,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
     backdrop.querySelector('#ss-back').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-  }
-
-  // ---------- Export data ----------
-  function exportUserData(){
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      profile: { name: me.name, email: me.email||null },
-      subjects: state.subjects, sessions: state.sessions,
-      targets: state.targets, plans: state.plans,
-      completion: state.completion, goals: state.goals
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `study-board-export-${fmtDate(new Date())}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=> URL.revokeObjectURL(url), 4000);
   }
 
   // ---------- Delete account ----------
@@ -4072,6 +4071,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTabContent();
   }
 
+  let openLiveMenuId = null; // which live-card ⋮ menu is open — must survive renderSnapRow's 1s live-ticker re-render
   function renderSnapRow(){
     const tabsEl = document.getElementById('liveGroupTabs');
     const gridEl = document.getElementById('liveGrid');
@@ -4122,10 +4122,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
             <div class="${circleClass}" data-id="${p.id}" data-mine="${p.mine?'1':'0'}">${inner}</div>
             ${p.mine ? `<div class="snap-mute-badge" id="snapMuteBadge" title="Pause my snapshots">${(camPausedManually||!snapSettings.enabled)?'🚫':'📷'}</div>` : ''}
           </div>
-          <div class="lc-box">
+          <div class="lc-box" data-id="${p.id}" data-mine="${p.mine?'1':'0'}">
             <div class="lc-name">${escapeHtml(p.name)}</div>
-            <div class="lc-total">${fmtHMCompact(mins)} today</div>
-            ${streak>0 ? `<div class="lc-streak">🔥${streak}</div>` : '<div class="lc-streak">&nbsp;</div>'}
+            <div class="lc-meta-row">
+              <span class="lc-total">${fmtHMCompact(mins)} today</span>
+              ${streak>0 ? `<span class="lc-streak">🔥${streak}</span>` : ''}
+            </div>
             <div class="lc-status">${statusText}</div>
           </div>
           ${!p.mine ? `
@@ -4138,6 +4140,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
         </div>
       `;
     }).join('');
+    if(openLiveMenuId){
+      const reopened = gridEl.querySelector(`.task-menu[data-menu-for="${openLiveMenuId}"]`);
+      if(reopened) reopened.classList.add('open'); else openLiveMenuId = null;
+    }
 
     const muteBadgeEl = document.getElementById('snapMuteBadge');
     if(muteBadgeEl){
@@ -4151,18 +4157,25 @@ window.storage = storage; // keep the rest of the app's code unchanged
     gridEl.querySelectorAll('.lc-circle[data-mine="0"]').forEach(circle=>{
       circle.addEventListener('click', ()=> openMemberProfileModal(circle.dataset.id));
     });
+    gridEl.querySelectorAll('.lc-box[data-mine="0"]').forEach(box=>{
+      box.addEventListener('click', ()=> openMemberProfileModal(box.dataset.id));
+    });
     gridEl.querySelectorAll('.task-menu-btn').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
         const menu = gridEl.querySelector(`.task-menu[data-menu-for="${btn.dataset.menuId}"]`);
         const isOpen = menu.classList.contains('open');
         gridEl.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open'));
-        if(!isOpen) menu.classList.add('open');
+        if(!isOpen){ menu.classList.add('open'); openLiveMenuId = btn.dataset.menuId; }
+        else openLiveMenuId = null;
       });
     });
     if(!gridEl.dataset.menuCloseWired){
       gridEl.dataset.menuCloseWired = '1';
-      document.addEventListener('click', ()=> gridEl.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open')));
+      document.addEventListener('click', ()=>{
+        gridEl.querySelectorAll('.task-menu.open').forEach(m=>m.classList.remove('open'));
+        openLiveMenuId = null;
+      });
     }
     gridEl.querySelectorAll('[data-nudge-member]').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
