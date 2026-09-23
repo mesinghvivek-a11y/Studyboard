@@ -1,1 +1,8 @@
-
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.timely.planner",
+        "sha256_cert_fingerprints": ["D6:24:B9:E7:41:FC:70:FB:B4:F2:71:2B:64:41:A0:E7:62:D9:D3:49:08:E3:64:6F:86:17:4B:4F:81:C4:23:B5"]
+      }
+    }]
