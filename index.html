@@ -1465,8 +1465,7 @@ import {
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, updateProfile, signInAnonymously,
-  linkWithCredential, linkWithPopup, signInWithPopup, signInWithCredential,
-  EmailAuthProvider, GoogleAuthProvider,
+  signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider,
   sendEmailVerification, sendPasswordResetEmail, deleteUser
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import {
@@ -2464,6 +2463,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   // ---------- auth: login / sign up / logout ----------
   let booted = false;
+  let pendingRedirectAuthError = null; // set if a signInWithRedirect() round-trip came back with an error; surfaced once boot finishes, see bootAsUser
   let anonSignInInFlight = false;
   const authScreen = document.getElementById('authScreen');
   const appRoot = document.getElementById('app');
@@ -2518,11 +2518,26 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const code = match ? 'auth/'+match[1] : (e && e.code) || '';
     return AUTH_ERROR_MESSAGES[code] || (e && e.message ? e.message.replace('Firebase: ','') : 'Something went wrong. Please try again.');
   }
+  // Gate for the handful of things a guest shouldn't be able to start: making a target, making
+  // a plan, Live's group features. Everything else (Now/Today, browsing) stays fully open to
+  // guests — this only fires at the exact moment a guest would otherwise create something that
+  // needs to persist or be social, which is the point where a real account actually matters.
+  function requireAccount(message){
+    if(me && me.isAnon){
+      openAuthOverlay();
+      showAuthNote(message);
+      return false;
+    }
+    return true;
+  }
 
-  // Handles both: (a) a genuinely fresh sign-in (new uid — anonymous boot, or switching to a
-  // different existing account), and (b) the first time we see a given uid on this browser.
-  // NOT used when linking a credential to the current guest session in place — that keeps the
-  // same uid and all already-loaded state, see upgradeGuestInPlace() below.
+  // Handles every sign-in success: a fresh anonymous boot, a brand-new account just created, or
+  // signing into an existing real account. Always a clean switch to the given user's own uid —
+  // there is no in-place upgrade path. A guest's local session is simply left behind when they
+  // sign in for real: nothing on the guest tier (Now/Today only, per requireAccount above) is
+  // valuable enough to be worth the complexity linkWithCredential/linkWithPopup used to carry
+  // (merge-conflict prompts, "credential already in use" dead ends). Cutting over to a plain
+  // create-or-sign-in, every time, removes that whole class of bug for free.
   async function bootAsUser(user, opts){
     opts = opts || {};
     window.__meId = user.uid;
@@ -2542,19 +2557,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     closeAuthOverlay();
     showApp();
     await loadState();
-  }
-  // Upgrades the current guest session to a real account WITHOUT changing uid — all already-loaded
-  // state, boards, and history stay exactly as they are. This is the whole point of anonymous-auth
-  // account linking: guest progress becomes the permanent account, not a separate thing to migrate.
-  function upgradeGuestInPlace(user, name){
-    if(name) me.name = name;
-    me.isAnon = false;
-    me.email = user.email || null;
-    me.emailVerified = !!user.emailVerified;
-    window.storage.set('study-board-profile', JSON.stringify(me), false).catch(()=>{});
-    registerUser(me, true).catch(()=>{});
-    closeAuthOverlay();
-    renderHeaderAvatar();
+    if(pendingRedirectAuthError){
+      const msg = pendingRedirectAuthError;
+      pendingRedirectAuthError = null;
+      openAuthOverlay();
+      setAuthError(msg);
+    }
   }
   // A soft, one-time nudge after a guest has logged a few real sessions — never a gate,
   // just a gentle reminder at a natural moment that their progress isn't backed up yet.
@@ -2565,38 +2573,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
     state.guestNudgeShown = true;
     saveState();
     showNudgeToast("Loving the momentum? Tap your profile (top right) to sign in and never lose this.");
-  }
-  // Shown when linking fails because the email/Google account is already a real, separate account
-  // elsewhere — we never silently merge two people's data. The person explicitly chooses to switch,
-  // understanding their guest activity on this device is left behind (it was never backed up anyway).
-  function offerAccountSwitch(email, password, googleCredential){
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    backdrop.innerHTML = `
-      <div class="modal">
-        <h3>This account already exists</h3>
-        <div style="font-size:13px; color:var(--chalk-dim); line-height:1.6; margin-bottom:18px;">
-          ${googleCredential ? 'That Google account' : 'That email'} already has its own saved progress under a separate account.
-          Switching to it will leave behind whatever you've done here as a guest — it won't be merged in.
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-ghost" id="switch-cancel">Cancel</button>
-          <button class="btn btn-primary" id="switch-confirm">Switch to that account</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('#switch-cancel').addEventListener('click', close);
-    backdrop.querySelector('#switch-confirm').addEventListener('click', async ()=>{
-      close();
-      try{
-        const cred = googleCredential
-          ? await signInWithCredential(auth, googleCredential)
-          : await signInWithEmailAndPassword(auth, email, password);
-        await bootAsUser(cred.user, {});
-      }catch(e){ setAuthError(friendlyAuthError(e)); }
-    });
   }
 
   let authMode = 'login'; // or 'signup'
@@ -2629,22 +2605,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('authSubmit').disabled = true;
     try{
       if(authMode==='signup'){
-        if(auth.currentUser && auth.currentUser.isAnonymous){
-          try{
-            const cred = await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(email, password));
-            upgradeGuestInPlace(cred.user, name);
-            try{ await sendEmailVerification(cred.user); showAuthNote('Account created! We sent a verification link to ' + email + '.'); }
-            catch(e){ showAuthNote('Account created!'); }
-          }catch(e){
-            if(e.code==='auth/email-already-in-use' || e.code==='auth/credential-already-in-use'){
-              offerAccountSwitch(email, password);
-            } else { throw e; }
-          }
-        } else {
-          const cred = await createUserWithEmailAndPassword(auth, email, password);
-          await bootAsUser(cred.user, { name });
-          try{ await sendEmailVerification(cred.user); }catch(e){}
-        }
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await bootAsUser(cred.user, { name });
+        try{ await sendEmailVerification(cred.user); }catch(e){}
       } else {
         const cred = await signInWithEmailAndPassword(auth, email, password);
         await bootAsUser(cred.user, {});
@@ -2655,29 +2618,30 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('authSubmit').disabled = false;
   });
 
+  // TWA (Android/Play Store) and iOS homescreen PWAs both run in standalone display mode, where
+  // signInWithPopup is unreliable — the popup can fail to open or lose its connection back to the
+  // page. Detect that case and use a full-page redirect instead; the result comes back through
+  // onAuthStateChanged (see getRedirectResult handling below) rather than this function's return.
+  function isStandaloneDisplay(){
+    try{ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+    catch(e){ return false; }
+  }
   document.getElementById('authGoogle').addEventListener('click', async ()=>{
     setAuthError('');
     const provider = new GoogleAuthProvider();
     const btn = document.getElementById('authGoogle');
     btn.disabled = true;
     try{
-      if(auth.currentUser && auth.currentUser.isAnonymous){
-        try{
-          const cred = await linkWithPopup(auth.currentUser, provider);
-          upgradeGuestInPlace(cred.user, cred.user.displayName);
-        }catch(e){
-          if(e.code==='auth/credential-already-in-use'){
-            offerAccountSwitch(null, null, GoogleAuthProvider.credentialFromError(e));
-          } else if(e.code!=='auth/popup-closed-by-user' && e.code!=='auth/cancelled-popup-request'){
-            throw e;
-          }
-        }
-      } else {
-        const cred = await signInWithPopup(auth, provider);
-        await bootAsUser(cred.user, { name: cred.user.displayName });
+      if(isStandaloneDisplay()){
+        await signInWithRedirect(auth, provider);
+        return; // page navigates away here — nothing more to do until it comes back
       }
+      const cred = await signInWithPopup(auth, provider);
+      await bootAsUser(cred.user, { name: cred.user.displayName });
     }catch(e){
-      setAuthError(friendlyAuthError(e));
+      if(e.code!=='auth/popup-closed-by-user' && e.code!=='auth/cancelled-popup-request'){
+        setAuthError(friendlyAuthError(e));
+      }
     }
     btn.disabled = false;
   });
@@ -3406,6 +3370,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   });
 
   function openGroupsModal(jumpToGroupId){
+    if(!requireAccount("Sign in to use groups — study together and see who's live.")) return;
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     backdrop.innerHTML = `<div class="modal" id="grpModalBody"></div>`;
@@ -3743,6 +3708,16 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
 
   armLoadBlockerTimeout(); // covers the window before the very first onAuthStateChanged fires
+  // If the page just came back from a signInWithRedirect() round-trip (see isStandaloneDisplay
+  // above), onAuthStateChanged below already handles a successful result — but a failed redirect
+  // (network error, consent declined) leaves auth.currentUser unset, and onAuthStateChanged would
+  // otherwise silently re-drop the person into a fresh guest session with no explanation. Catch
+  // that here and surface it once the app's up.
+  getRedirectResult(auth).catch(e=>{
+    if(e && e.code && e.code!=='auth/popup-closed-by-user' && e.code!=='auth/cancelled-popup-request'){
+      pendingRedirectAuthError = friendlyAuthError(e);
+    }
+  });
   onAuthStateChanged(auth, async (user)=>{
     if(user && !booted){
       try{
@@ -6562,6 +6537,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   //  - opts.fromDaily: true only for a brand-new target opened from the Daily page's "+".
   //  - opts.date: the anchor date (defaults to the currently selected Daily-page date).
   function openTargetModal(existingTarget, opts){
+    if(!existingTarget && !requireAccount("Sign in to create targets — they'll sync and stay backed up across your devices.")) return;
     opts = opts || {};
     const isEdit = !!existingTarget;
     const fromDaily = !!opts.fromDaily && !isEdit;
@@ -7128,6 +7104,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
 
   function openNewPlanModal(){
+    if(!requireAccount("Sign in to create plans — they'll sync and stay backed up across your devices.")) return;
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     const plans = sortedPlans(state);
