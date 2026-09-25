@@ -165,7 +165,7 @@
   .mode-switch button.active{ background:var(--accent-dim); color:var(--accent); }
 
   .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; }
-  .ring-outer{ position:relative; width:230px; height:230px; }
+  .ring-outer{ position:relative; width:264px; height:264px; }
   .ring-svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; }
   .ring-track{ fill:none; stroke:var(--card); stroke-width:14; }
   .ring-progress{
@@ -182,7 +182,7 @@
     align-items:center; justify-content:center; text-align:center;
   }
   .timer-digits{
-    font-family:'JetBrains Mono'; font-weight:700; font-size:38px; letter-spacing:0.5px;
+    font-family:'JetBrains Mono'; font-weight:700; font-size:44px; letter-spacing:0.5px;
     color:var(--chalk);
   }
   .timer-digits .tdig-ss{ font-size:0.6em; color:var(--chalk-faint); }
@@ -191,11 +191,11 @@
   /* ---------- Digital stopwatch (no dial — continuous count) ---------- */
   .stopwatch-face{
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    min-height:230px; text-align:center;
+    min-height:264px; text-align:center;
   }
   .sw-digits{ display:flex; align-items:baseline; font-family:'JetBrains Mono'; font-weight:700; color:var(--chalk); }
-  .sw-main{ font-size:54px; letter-spacing:0.5px; transition: color .25s, text-shadow .25s; }
-  .sw-sec{ font-size:22px; color:var(--chalk-faint); margin-left:2px; font-weight:600; }
+  .sw-main{ font-size:60px; letter-spacing:0.5px; transition: color .25s, text-shadow .25s; }
+  .sw-sec{ font-size:24px; color:var(--chalk-faint); margin-left:2px; font-weight:600; }
   .stopwatch-face.running .sw-main{ color:var(--accent); text-shadow: 0 0 14px rgba(var(--accent-rgb),0.45); }
 
   /* ---------- Focus Timer length picker, integrated into the ring itself ---------- */
@@ -300,7 +300,6 @@
   .field-row{ margin-bottom:14px; }
   .field-row label{ display:block; font-size:11px; color:var(--chalk-faint); margin-bottom:6px; letter-spacing:0.5px; text-transform:uppercase; }
 
-  .timer-controls{ display:flex; gap:10px; margin-top:6px; }
   .btn{
     flex:1; padding:14px 0; border-radius:14px; border:none; font-family:'Inter'; font-weight:700; font-size:14px;
     cursor:pointer; letter-spacing:0.3px;
@@ -324,10 +323,6 @@
   }
   .session-log-toggle:active{ opacity:1; }
   .task-pin-label{ font-size:11px; color:var(--accent); margin-top:16px; text-align:center; }
-  .task-pin-edit{
-    background:none; border:none; color:var(--chalk-faint); font-size:10.5px; cursor:pointer;
-    text-decoration:underline; padding:0 0 0 4px;
-  }
   .session-item{
     display:flex; align-items:center; justify-content:space-between;
     padding:10px 12px; background:var(--card); border-radius:12px; margin-bottom:8px;
@@ -370,6 +365,7 @@
     position:relative;
   }
   .task-card.done{ opacity:0.45; }
+  .task-card[data-row-play]{ cursor:pointer; }
   .task-card > .progress-fill{
     position:absolute; top:0; left:0; bottom:0; z-index:0; opacity:0.16; pointer-events:none;
     transition: width 1s linear; border-radius:14px;
@@ -518,6 +514,11 @@
   .goal-card .row1{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
   .goal-card .streak{ font-family:'Kalam'; font-size:14px; color:var(--chalk); display:flex; align-items:center; gap:6px; }
   .goal-card .streak b{ font-family:'JetBrains Mono'; color:var(--accent); font-size:15px; }
+  .goal-gear-btn{
+    width:26px; height:26px; border-radius:8px; background:var(--card2, var(--card)); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; flex:0 0 auto;
+  }
+  .goal-gear-btn:active{ background:var(--accent-dim); border-color:var(--accent); }
   .goal-bar-row{ margin-bottom:8px; }
   .goal-bar-row:last-child{ margin-bottom:0; }
   .goal-bar-label{ display:flex; justify-content:space-between; font-size:10.5px; color:var(--chalk-faint); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.4px; }
@@ -607,11 +608,41 @@
     background:rgba(184,160,217,0.12); border:1px solid rgba(184,160,217,0.3); padding:3px 9px; border-radius:20px;
   }
 
-  .task-pin-btn{
-    flex:0 0 auto; width:40px; height:40px; border-radius:12px; background:var(--card); border:1px solid var(--card-line);
-    font-size:16px; cursor:pointer; color:var(--chalk-faint);
+  .timer-actions-row{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:14px; }
+  /* Both the subject picker and Reset/Stop are normal flex siblings (not absolutely positioned —
+     that fought with native <select> sizing on iOS Safari and made the pill balloon out way too
+     wide). Each collapses to nothing via max-width/opacity/padding instead, so only one is ever
+     visually present, but sizing stays exactly what its own content wants. */
+  .subject-picker-inline{
+    display:flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--card-line);
+    border-radius:999px; height:40px; overflow:hidden;
+    max-width:170px; padding:0 6px 0 14px; opacity:1;
+    transition:opacity .25s ease, max-width .25s ease, padding .25s ease;
   }
-  .task-pin-btn.pinned{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+  .subject-picker-inline select{
+    flex:1; min-width:0; max-width:100px; background:transparent; border:none; color:var(--chalk); font-size:13px;
+    font-family:'Inter'; -webkit-appearance:none; appearance:none;
+  }
+  .subject-picker-inline .subject-add-btn{
+    flex:0 0 auto; width:28px; height:28px; border-radius:50%; background:var(--card2,var(--board)); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:15px; cursor:pointer; padding:0;
+  }
+  .timer-actions-row.committed .subject-picker-inline{ max-width:0; padding:0; opacity:0; pointer-events:none; }
+  .timer-pill-btn{
+    height:40px; padding:0 22px; border-radius:999px; border:none; font-family:'Inter'; font-weight:700;
+    font-size:13.5px; cursor:pointer; letter-spacing:0.3px; white-space:nowrap; overflow:hidden;
+  }
+  #resetBtn.timer-pill-btn{
+    background:var(--card); color:var(--chalk); border:1px solid var(--card-line);
+    max-width:0; padding:0; opacity:0; pointer-events:none;
+    transition:opacity .25s ease, max-width .25s ease, padding .25s ease;
+  }
+  .timer-actions-row.committed #resetBtn.timer-pill-btn{ max-width:140px; padding:0 22px; opacity:1; pointer-events:auto; }
+  #startBtn.timer-pill-btn{
+    background:var(--c1); color:var(--ink); box-shadow:0 6px 20px rgba(var(--c1-rgb),0.45), 0 0 0 1px rgba(var(--c1-rgb),0.15) inset;
+    flex:0 0 auto; height:46px; padding:0 32px; font-size:15px;
+  }
+  #startBtn.timer-pill-btn:active{ transform:scale(0.96); }
 
   .week-day{ margin-bottom:20px; }
 
@@ -651,7 +682,7 @@
   body.focus-active .focus-toggle-btn,
   body.focus-active .field-row,
   body.focus-active .mode-switch,
-  body.focus-active .timer-controls{
+  body.focus-active .timer-actions-row{
     display:none !important;
   }
   body.focus-active main{ padding-bottom:0; }
@@ -1264,14 +1295,12 @@
 <div class="app-content">
 
   <header class="top">
+    <button class="avatar-btn" id="acctBtn" title="Settings"></button>
     <div style="display:none;">
       <h1 id="headerTitle">Study Board</h1>
       <div class="sub" id="headerSub">stay on the clock</div>
     </div>
-    <div class="header-actions">
-      <button class="bell-btn" id="bellBtn" title="Notifications">🔔<span class="bell-badge" id="bellBadge" style="display:none;">0</span></button>
-      <button class="avatar-btn" id="acctBtn" title="Account"></button>
-    </div>
+    <button class="bell-btn" id="bellBtn" title="Notifications">🔔<span class="bell-badge" id="bellBadge" style="display:none;">0</span></button>
   </header>
 
   <div class="group-bar-wrap" id="groupBarWrap" style="display:none;">
@@ -1293,23 +1322,21 @@
 
       <div id="timerControlsWrap">
         <div class="mode-switch mode-fade">
-          <button id="modeStopwatch" class="active">Stopwatch</button>
-          <button id="modeCountdown">Focus Timer</button>
+          <button id="modeStopwatch">Stopwatch</button>
+          <button id="modeCountdown" class="active">Focus Timer</button>
         </div>
 
-        <select id="timerSubject" style="display:none;"></select>
-
         <div class="timer-ring-wrap">
-          <div class="ring-outer" id="ringOuter" style="display:none;">
+          <div class="ring-outer" id="ringOuter">
             <svg viewBox="0 0 220 220" class="ring-svg">
               <circle cx="110" cy="110" r="100" class="ring-track"></circle>
               <circle cx="110" cy="110" r="100" class="ring-progress" id="ringProgress"></circle>
             </svg>
-            <div class="timer-face" id="ringDigitsFace">
+            <div class="timer-face" id="ringDigitsFace" style="display:none;">
               <div class="timer-digits" id="timerDigits">00:00<span class="tdig-ss">:00</span></div>
               <div class="timer-label" id="timerStatus">ready</div>
             </div>
-            <div class="ring-len-picker" id="ringLenPicker">
+            <div class="ring-len-picker" id="ringLenPicker" style="display:flex;">
               <div class="rlp-col">
                 <button type="button" class="rlp-arrow" id="rlpHUp">▲</button>
                 <div class="rlp-wheel" id="rlpHWheel"></div>
@@ -1323,7 +1350,7 @@
               </div>
             </div>
           </div>
-          <div class="stopwatch-face" id="stopwatchFace">
+          <div class="stopwatch-face" id="stopwatchFace" style="display:none;">
             <div class="sw-digits">
               <span class="sw-main" id="swMain">00:00</span><span class="sw-sec" id="swSec">:00</span>
             </div>
@@ -1333,10 +1360,13 @@
 
         <button type="button" class="focus-pause-btn" id="focusPauseBtn">Pause</button>
 
-        <div class="timer-controls">
-          <button class="btn btn-ghost" id="resetBtn">Reset/Stop</button>
-          <button type="button" class="task-pin-btn" id="taskPinBtn" title="Link to a daily task (optional)">📌</button>
-          <button class="btn btn-primary" id="startBtn">Start</button>
+        <div class="timer-actions-row" id="timerActionsRow">
+          <div class="subject-picker-inline">
+            <select id="timerSubject"></select>
+            <button type="button" class="subject-add-btn" id="timerSubjectAdd" title="Manage subjects">＋</button>
+          </div>
+          <button type="button" class="timer-pill-btn" id="resetBtn">Reset/Stop</button>
+          <button type="button" class="timer-pill-btn" id="startBtn">Start</button>
         </div>
         <button type="button" class="focus-toggle-btn" id="focusToggleBtn">🧘 Enter focus mode</button>
         <div id="taskPinLabel" class="task-pin-label" style="display:none;"></div>
@@ -4398,7 +4428,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   });
 
   // ---------- TIMER LOGIC ----------
-  let timerMode = 'stopwatch'; // or 'countdown'
+  let timerMode = 'countdown'; // or 'stopwatch' — Focus Timer is the default mode
   let timerRunning = false;
   let elapsedMs = 0;
   let countdownTotalMs = 60*60*1000;
@@ -4407,73 +4437,20 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let linkedTaskId = null; // optional: today's task this session's time should count toward
   let openTaskMenuId = null; // which task's ⋮ menu is open — must survive renderTaskList's per-second re-render while a timer runs
 
+  // Read-only indicator: a task/target started from the Today page (playTaskOnNowPage) sets
+  // linkedTaskId so its session records against the right subject automatically. There's no way
+  // to set or edit this link from the Now page anymore — starting a timer from a target's own row
+  // on the Today page is the only way in, so this just reflects that, it doesn't offer to change it.
   function renderTaskPinLabel(){
     const labelEl = document.getElementById('taskPinLabel');
-    const btn = document.getElementById('taskPinBtn');
+    if(!labelEl) return;
     if(!linkedTaskId){
       labelEl.style.display = 'none';
-      btn.classList.remove('pinned');
       return;
     }
-    const todayKey = fmtDate(new Date());
     const b = blocksForDateIn(state, new Date()).find(x=>x.id===linkedTaskId);
     labelEl.style.display = 'block';
-    const canEdit = !timerRunning;
-    labelEl.innerHTML = b
-      ? `📌 ${escapeHtml(b.label || subjectNameIn(b.subject, state))}${canEdit ? ` <button type="button" class="task-pin-edit" id="taskPinEdit">✎ edit</button>` : ''}`
-      : '📌 linked task no longer exists today';
-    btn.classList.add('pinned');
-    const editBtn = document.getElementById('taskPinEdit');
-    if(editBtn) editBtn.addEventListener('click', openTaskPinPicker);
-  }
-  function openTaskPinPicker(){
-    if(timerRunning) return;
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    const todayBlocks = blocksForDateIn(state, new Date());
-    backdrop.innerHTML = `
-      <div class="modal">
-        <button class="close-x">×</button>
-        <h3>Link to a task</h3>
-        <div style="font-size:11.5px; color:var(--chalk-faint); margin-bottom:12px;">Optional — track how much of today's timer goes to a specific task.</div>
-        <div id="pin-list"></div>
-        <button class="btn btn-ghost" id="pin-clear" style="width:100%; margin-top:6px;">No link</button>
-      </div>
-    `;
-    document.body.appendChild(backdrop);
-    function close(){ document.body.removeChild(backdrop); }
-    backdrop.querySelector('.close-x').addEventListener('click', close);
-    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-    const listEl = backdrop.querySelector('#pin-list');
-    if(!todayBlocks.length){
-      listEl.innerHTML = `<div style="font-size:12px; color:var(--chalk-faint); padding:10px 0;">No tasks scheduled for today yet.</div>`;
-    } else {
-      listEl.innerHTML = todayBlocks.map(b=>`
-        <div class="grp-list-item ${b.id===linkedTaskId?'active':''}" data-tid="${b.id}">
-          <div>
-            <div class="name">${escapeHtml(b.label || subjectNameIn(b.subject, state))}</div>
-            <div class="meta">${subjectNameIn(b.subject, state)} · ${b.duration||30} min</div>
-          </div>
-        </div>
-      `).join('');
-      listEl.querySelectorAll('[data-tid]').forEach(item=>{
-        item.addEventListener('click', ()=>{
-          linkedTaskId = item.dataset.tid;
-          const linkedBlock = todayBlocks.find(x=>x.id===linkedTaskId);
-          if(linkedBlock){
-            document.getElementById('timerSubject').value = linkedBlock.subject; // keep the logged session's subject in step with the task it's linked to
-            if(timerMode==='countdown' && !timerRunning) applyLinkedTaskDurationToLength(remainingMinutesForTask(linkedBlock));
-          }
-          renderTaskPinLabel();
-          close();
-        });
-      });
-    }
-    backdrop.querySelector('#pin-clear').addEventListener('click', ()=>{
-      linkedTaskId = null;
-      renderTaskPinLabel();
-      close();
-    });
+    labelEl.textContent = b ? `📌 ${b.label || subjectNameIn(b.subject, state)}` : '📌 linked task no longer exists today';
   }
   // How much of this task's target is still left today — a task you're 20 of 30 min
   // into should offer a 10-min focus timer, not the full 30 again.
@@ -4511,7 +4488,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTaskPinLabel();
     document.getElementById('startBtn').click();
   }
-  document.getElementById('taskPinBtn').addEventListener('click', openTaskPinPicker);
+  document.getElementById('timerSubjectAdd').addEventListener('click', ()=>{
+    openSubjectManagerModal(document.getElementById('timerSubject').value, (newSubjectId)=>{
+      renderSubjectOptions(document.getElementById('timerSubject'), newSubjectId);
+      renderRing();
+    });
+  });
 
   function applyModeUI(mode){
     timerMode = mode;
@@ -4531,6 +4513,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('modeStopwatch').classList.toggle('mode-collapsed', committed && timerMode==='countdown');
     document.getElementById('modeCountdown').classList.toggle('mode-collapsed', committed && timerMode==='stopwatch');
     document.querySelector('.mode-switch').classList.toggle('mode-collapsed', committed);
+    const actionsRow = document.getElementById('timerActionsRow');
+    if(actionsRow) actionsRow.classList.toggle('committed', committed);
+    document.getElementById('startBtn').textContent = timerRunning ? 'Pause' : (committed ? 'Resume' : 'Start');
 
     const showPicker = timerMode==='countdown' && !committed;
     const pickerEl = document.getElementById('ringLenPicker');
@@ -4686,7 +4671,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // tap anywhere to minimize back to the main screen — the timer keeps running in the background
   document.body.addEventListener('click', (e)=>{
     if(!document.body.classList.contains('focus-active')) return;
-    if(e.target.closest('.timer-controls')) return; // let Start/Pause/Reset keep working normally
+    if(e.target.closest('.timer-actions-row')) return; // let Start/Pause/Reset keep working normally
     if(e.target.closest('#focusPauseBtn')) return;   // the single pause/resume button in focus mode itself
     exitFocusMode();
   });
@@ -4851,6 +4836,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       ${whoLabel}
       <div class="row1">
         <div class="streak">🔥 <b>${streak}</b> day streak</div>
+        ${self ? `<button type="button" class="goal-gear-btn" id="goalGearBtn" title="Study goals">⚙️</button>` : ''}
       </div>
       ${goals.dailyMin ? `
       <div class="goal-bar-row">
@@ -4863,6 +4849,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
         <div class="goal-bar-track"><div class="goal-bar-fill week" style="width:${weeklyPct}%;"></div></div>
       </div>` : ''}
     `;
+    const gearBtn = document.getElementById('goalGearBtn');
+    if(gearBtn) gearBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openStudyGoalsSettings(); });
   }
   function hardReset(){
     timerRunning = false;
@@ -5264,7 +5252,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       // device that just pressed Start/Resume). Adopt it if we aren't already tracking this
       // exact session locally.
       if(!timerRunning || sessionStartClock !== st.startedAt){
-        applyModeUI(st.mode || 'stopwatch');
+        applyModeUI(st.mode || 'countdown');
         if(st.totalMs) countdownTotalMs = st.totalMs;
         sessionStartClock = st.startedAt;
         elapsedMs = (st.baseElapsedMs||0) + (Date.now() - st.startedAt);
@@ -5621,7 +5609,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           const subjColor = subjectColorIn(b.subject, state);
           const lockedByTimer = isToday && timerRunning && linkedTaskId===b.id;
           return `
-            <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}">
+            <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}" ${(isToday && status!=='done' && !timerRunning) ? `data-row-play="${b.id}"` : ''}>
               ${pct>0 ? `<div class="progress-fill" style="width:${pct}%; background:${subjColor};"></div>` : ''}
               <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
               <div class="check ${status||''}" data-key="${compKey}">${checkInner}</div>
@@ -5753,6 +5741,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
     el.querySelectorAll('.task-play[data-play-id]').forEach(btn=>{
       btn.addEventListener('click', ()=> playTaskOnNowPage(btn.dataset.playId));
+    });
+    el.querySelectorAll('.task-card[data-row-play]').forEach(card=>{
+      card.addEventListener('click', (e)=>{
+        if(e.target.closest('.check')) return; // don't hijack the done/missed toggle
+        if(e.target.closest('.task-menu-wrap')) return; // or the ⋮ menu and its own actions
+        playTaskOnNowPage(card.dataset.rowPlay);
+      });
     });
     el.querySelectorAll('.task-play[data-stop-id]').forEach(btn=>{
       btn.addEventListener('click', ()=> document.getElementById('resetBtn').click());
@@ -7444,7 +7439,12 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
 
   // ---------- master render ----------
+  let ringLenPickerBuilt = false; // Focus Timer is the default mode, so the wheel needs real content
+  // from the very first render — but it must happen safely inside the async boot/render pipeline,
+  // never as a bare top-level call, or it can run ahead of later top-level `let` declarations
+  // elsewhere in this file and crash with a temporal-dead-zone error before the app ever boots.
   function render(){
+    if(!ringLenPickerBuilt){ ringLenPickerBuilt = true; buildRingLenPicker(); }
     renderPeopleRow(); renderSnapRow();
 
     const banner = document.getElementById('viewingBanner');
