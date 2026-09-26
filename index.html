@@ -17,7 +17,7 @@
 <script>
 (function(){
   try{
-    var t = localStorage.getItem('sb-theme') || 'dark';
+    var t = localStorage.getItem('sb-theme') || 'light';
     var p = localStorage.getItem('sb-palette') || 'cyan';
     document.documentElement.setAttribute('data-theme', t);
     document.documentElement.setAttribute('data-palette', p);
@@ -333,13 +333,18 @@
   }
   .day-scroller::-webkit-scrollbar{ display:none; }
   .day-chip{
-    flex:0 0 auto; width:52px; padding:9px 0; border-radius:14px; text-align:center;
-    background:var(--card); border:1px solid var(--card-line); cursor:pointer;
+    flex:0 0 auto; width:60px; display:flex; flex-direction:column; align-items:center; cursor:pointer; padding:2px 0;
   }
-  .day-chip.active{ background:var(--accent-dim); border-color:var(--accent); }
-  .day-chip .dname{ font-size:10px; color:var(--chalk-faint); letter-spacing:0.5px; }
-  .day-chip.active .dname{ color:var(--accent); }
-  .day-chip .dnum{ font-family:'JetBrains Mono'; font-weight:700; font-size:16px; margin-top:2px; color:var(--chalk); }
+  .day-ring-wrap{ position:relative; width:56px; height:56px; }
+  .day-ring-svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; }
+  .day-ring-center{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none;
+  }
+  .day-ring-center .dname{ font-size:9.5px; font-weight:600; color:var(--chalk-faint); letter-spacing:0.4px; line-height:1; }
+  .day-ring-center .dnum{ font-family:'JetBrains Mono'; font-weight:700; font-size:18px; margin-top:2px; color:var(--chalk); line-height:1; }
+  .day-chip.active .day-ring-center .dname,
+  .day-chip.active .day-ring-center .dnum{ color:var(--accent); }
+  .day-hours-label{ font-size:8.5px; color:var(--chalk-faint); margin-top:3px; font-family:'JetBrains Mono'; letter-spacing:0.3px; }
   .jump-to-date-wrap{ position:relative; flex:0 0 auto; width:44px; height:44px; margin-bottom:14px; }
   .jump-to-date-btn{
     position:absolute; inset:0; width:100%; height:100%; border-radius:14px; pointer-events:none;
@@ -1673,7 +1678,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     // dates) — "Save as template" strips the exact date range, "repeat from template" re-anchors
     // those offsets onto whatever new range the person picks.
     templates: {},
-    themeMode: 'dark',      // 'dark' | 'light'
+    themeMode: 'light',      // 'dark' | 'light'
     themePalette: 'cyan',   // one of PALETTES ids
     schemaVersion: 0,        // 0 = unmigrated/legacy. Bumped to CURRENT_SCHEMA_VERSION once every
                               // migration below has run against this user's real server data — do not
@@ -2949,7 +2954,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
 
   // ---------- Study Goals sub-page ----------
-  function openStudyGoalsSettings(){
+  function openStudyGoalsSettings(standalone){
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     backdrop.innerHTML = `
@@ -2976,7 +2981,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.body.removeChild(backdrop);
       await flushStateNow();
       render();
-      openSettingsHub();
+      if(!standalone) openSettingsHub(); // only return to the hub when we were actually opened from it — the streak card's gear shortcut should just close outright
     }
     backdrop.querySelector('#ss-back').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
@@ -4201,7 +4206,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   function pad(n){ return String(n).padStart(2,'0'); }
   function applyTheme(){
-    const mode = state.themeMode || 'dark';
+    const mode = state.themeMode || 'light';
     const palette = state.themePalette || 'cyan';
     document.documentElement.setAttribute('data-theme', mode);
     document.documentElement.setAttribute('data-palette', palette);
@@ -4608,12 +4613,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
   async function enterFocusMode(){
     if(!timerRunning) return; // only enterable once a session is actually running
     document.body.classList.add('focus-active');
+    document.documentElement.setAttribute('data-theme', 'dark'); // focus mode is always dark, regardless of the app's own light/dark setting — not persisted, just a temporary override
     if('wakeLock' in navigator){
       try{ wakeLockSentinel = await navigator.wakeLock.request('screen'); }catch(e){ /* not critical */ }
     }
   }
   function exitFocusMode(){
     document.body.classList.remove('focus-active');
+    document.documentElement.setAttribute('data-theme', state.themeMode || 'light'); // restore the person's actual preference
     if(wakeLockSentinel){ wakeLockSentinel.release().catch(()=>{}); wakeLockSentinel = null; }
   }
   document.getElementById('focusToggleBtn').addEventListener('click', (e)=>{
@@ -4869,7 +4876,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       </div>` : ''}
     `;
     const gearBtn = document.getElementById('goalGearBtn');
-    if(gearBtn) gearBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openStudyGoalsSettings(); });
+    if(gearBtn) gearBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openStudyGoalsSettings(true); });
   }
   function hardReset(){
     timerRunning = false;
@@ -5561,16 +5568,42 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
 
   // ---------- TODAY SCREEN ----------
+  // A day's ring shows how much of that day's total target minutes have actually been logged —
+  // a continuous proportion driven by real session time, not the done/missed tick marks, so it
+  // fills in gradually as the day is studied rather than jumping only when something is ticked off.
+  function dayRingSvg(frac){
+    const r = 24, c = 2*Math.PI*r;
+    const len = Math.max(0, Math.min(1, frac)) * c;
+    return `
+      <svg viewBox="0 0 56 56" class="day-ring-svg">
+        <circle cx="28" cy="28" r="${r}" fill="none" stroke="var(--card-line)" stroke-width="4" opacity="0.2"></circle>
+        ${len>0 ? `<circle cx="28" cy="28" r="${r}" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"
+          stroke-dasharray="${len} ${c-len}"></circle>` : ''}
+      </svg>
+    `;
+  }
   function renderDayScroller(){
     const el = document.getElementById('dayScroller');
     el.innerHTML='';
     const today = new Date();
-    for(let i=-3;i<=10;i++){
+    for(let i=-10;i<=10;i++){
       const d = new Date(today);
       d.setDate(today.getDate()+i);
+      const targetMin = blocksForDateIn(state, d).reduce((s,b)=> s+(b.duration||30), 0);
+      const loggedMin = minutesOnDate(d);
+      const frac = targetMin>0 ? loggedMin/targetMin : (loggedMin>0 ? 1 : 0);
       const chip = document.createElement('div');
       chip.className = 'day-chip' + (fmtDate(d)===fmtDate(selectedDate) ? ' active':'');
-      chip.innerHTML = `<div class="dname">${DAY_NAMES[d.getDay()]}</div><div class="dnum">${d.getDate()}</div>`;
+      chip.innerHTML = `
+        <div class="day-ring-wrap">
+          ${dayRingSvg(frac)}
+          <div class="day-ring-center">
+            <div class="dname">${DAY_NAMES[d.getDay()]}</div>
+            <div class="dnum">${d.getDate()}</div>
+          </div>
+        </div>
+        <div class="day-hours-label">${loggedMin>0 ? fmtHMCompact(loggedMin) : ''}</div>
+      `;
       chip.addEventListener('click', ()=>{ selectedDate = d; render(); });
       el.appendChild(chip);
     }
