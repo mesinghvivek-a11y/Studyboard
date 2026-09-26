@@ -203,11 +203,6 @@
     position:absolute; inset:0; display:none; align-items:center; justify-content:center; gap:4px;
   }
   .rlp-col{ display:flex; flex-direction:column; align-items:center; gap:4px; }
-  .rlp-arrow{
-    width:30px; height:20px; border-radius:7px; background:var(--card); border:1px solid var(--card-line);
-    color:var(--chalk-dim); font-size:10px; cursor:pointer; padding:0; line-height:1;
-  }
-  .rlp-arrow:active{ background:var(--accent-dim); color:var(--accent); border-color:var(--accent); }
   .rlp-wheel{
     width:58px; height:120px; overflow-y:scroll; scroll-snap-type:y mandatory;
     scrollbar-width:none; -webkit-overflow-scrolling:touch; position:relative;
@@ -215,10 +210,11 @@
   .rlp-wheel::-webkit-scrollbar{ display:none; }
   .rlp-wheel .opt{
     height:40px; display:flex; align-items:center; justify-content:center; scroll-snap-align:center;
-    font-family:'JetBrains Mono'; font-size:19px; font-weight:700; color:var(--chalk-faint); transition: color .15s;
+    font-family:'JetBrains Mono'; font-size:16px; font-weight:400; color:var(--chalk-faint); opacity:0.5;
+    transition: color .15s, opacity .15s;
   }
-  .rlp-wheel .opt.center{ color:var(--chalk); font-size:23px; }
-  .rlp-colon{ font-family:'JetBrains Mono'; font-size:23px; font-weight:700; color:var(--chalk-dim); align-self:center; margin:24px 0 0; }
+  .rlp-wheel .opt.center{ color:var(--chalk); font-size:30px; font-weight:800; opacity:1; }
+  .rlp-colon{ font-family:'JetBrains Mono'; font-size:23px; font-weight:700; color:var(--chalk-dim); align-self:center; }
 
   /* ---------- wheel / dial picker (time & duration, no typing) ---------- */
   .wheel-picker{
@@ -609,29 +605,23 @@
   }
 
   .timer-actions-row{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:14px; }
-  /* Both the subject picker and Reset/Stop are normal flex siblings (not absolutely positioned —
-     that fought with native <select> sizing on iOS Safari and made the pill balloon out way too
-     wide). Each collapses to nothing via max-width/opacity/padding instead, so only one is ever
-     visually present, but sizing stays exactly what its own content wants. */
-  .subject-picker-inline{
-    display:flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--card-line);
-    border-radius:999px; height:40px; overflow:hidden;
-    max-width:170px; padding:0 6px 0 14px; opacity:1;
-    transition:opacity .25s ease, max-width .25s ease, padding .25s ease;
-  }
-  .subject-picker-inline select{
-    flex:1; min-width:0; max-width:100px; background:transparent; border:none; color:var(--chalk); font-size:13px;
-    font-family:'Inter'; -webkit-appearance:none; appearance:none;
-  }
-  .subject-picker-inline .subject-add-btn{
-    flex:0 0 auto; width:28px; height:28px; border-radius:50%; background:var(--card2,var(--board)); border:1px solid var(--card-line);
-    color:var(--chalk-dim); font-size:15px; cursor:pointer; padding:0;
-  }
-  .timer-actions-row.committed .subject-picker-inline{ max-width:0; padding:0; opacity:0; pointer-events:none; }
+  /* Reset/Stop collapses to nothing via max-width/opacity/padding when not committed, rather than
+     absolute positioning — that fought with native <select> sizing on iOS Safari in an earlier
+     version of this row and made things balloon out too wide. */
   .timer-pill-btn{
     height:40px; padding:0 22px; border-radius:999px; border:none; font-family:'Inter'; font-weight:700;
     font-size:13.5px; cursor:pointer; letter-spacing:0.3px; white-space:nowrap; overflow:hidden;
   }
+  /* Subject-picker popup — the universal Start button's fresh-state action. Corner buttons for
+     add (＋) and manage/edit (✎) reuse openQuickSubjectModal / openSubjectManagerModal, same as
+     the target-creation window's own subject picker. */
+  .tsp-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .tsp-header h3{ margin:0; font-size:15px; }
+  .tsp-corner-btn{
+    width:32px; height:32px; border-radius:50%; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:14px; cursor:pointer; padding:0; flex:0 0 auto;
+  }
+  .tsp-corner-btn:active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
   #resetBtn.timer-pill-btn{
     background:var(--card); color:var(--chalk); border:1px solid var(--card-line);
     max-width:0; padding:0; opacity:0; pointer-events:none;
@@ -1338,15 +1328,11 @@
             </div>
             <div class="ring-len-picker" id="ringLenPicker" style="display:flex;">
               <div class="rlp-col">
-                <button type="button" class="rlp-arrow" id="rlpHUp">▲</button>
                 <div class="rlp-wheel" id="rlpHWheel"></div>
-                <button type="button" class="rlp-arrow" id="rlpHDown">▼</button>
               </div>
               <div class="rlp-colon">:</div>
               <div class="rlp-col">
-                <button type="button" class="rlp-arrow" id="rlpMUp">▲</button>
                 <div class="rlp-wheel" id="rlpMWheel"></div>
-                <button type="button" class="rlp-arrow" id="rlpMDown">▼</button>
               </div>
             </div>
           </div>
@@ -1361,10 +1347,7 @@
         <button type="button" class="focus-pause-btn" id="focusPauseBtn">Pause</button>
 
         <div class="timer-actions-row" id="timerActionsRow">
-          <div class="subject-picker-inline">
-            <select id="timerSubject"></select>
-            <button type="button" class="subject-add-btn" id="timerSubjectAdd" title="Manage subjects">＋</button>
-          </div>
+          <select id="timerSubject" style="display:none;"></select>
           <button type="button" class="timer-pill-btn" id="resetBtn">Reset/Stop</button>
           <button type="button" class="timer-pill-btn" id="startBtn">Start</button>
         </div>
@@ -4486,14 +4469,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     applyLinkedTaskDurationToLength(remainingMinutesForTask(b));
     renderTimerDigits();
     renderTaskPinLabel();
-    document.getElementById('startBtn').click();
+    startFreshOrResume(); // start directly — the universal Start button's picker-popup is only for the fresh, no-subject-yet case
   }
-  document.getElementById('timerSubjectAdd').addEventListener('click', ()=>{
-    openSubjectManagerModal(document.getElementById('timerSubject').value, (newSubjectId)=>{
-      renderSubjectOptions(document.getElementById('timerSubject'), newSubjectId);
-      renderRing();
-    });
-  });
 
   function applyModeUI(mode){
     timerMode = mode;
@@ -4553,26 +4530,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       countdownTotalMs = Math.max(1, h*60+m) * 60000;
       renderTimerDigits();
     }
-    document.getElementById('rlpHUp').onclick = ()=>{
-      const cur = hours.indexOf(hWheel.value);
-      hWheel.setIndex(Math.min(hours.length-1, cur+1));
-      pushRingLenValue();
-    };
-    document.getElementById('rlpHDown').onclick = ()=>{
-      const cur = hours.indexOf(hWheel.value);
-      hWheel.setIndex(Math.max(0, cur-1));
-      pushRingLenValue();
-    };
-    document.getElementById('rlpMUp').onclick = ()=>{
-      const cur = mins.indexOf(mWheel.value);
-      mWheel.setIndex((cur+1) % mins.length);
-      pushRingLenValue();
-    };
-    document.getElementById('rlpMDown').onclick = ()=>{
-      const cur = mins.indexOf(mWheel.value);
-      mWheel.setIndex((cur-1+mins.length) % mins.length);
-      pushRingLenValue();
-    };
   }
   document.getElementById('timerSubject').addEventListener('change', renderRing);
 
@@ -4686,26 +4643,36 @@ window.storage = storage; // keep the rest of the app's code unchanged
     localStorage.setItem(flagKey, '1');
     notifyOthers(`${me.name} started studying today 📚`);
   }
+  // The actual mechanics of starting or resuming a session — split out from the click handler
+  // below so both a fresh start (via the subject picker) and a resume (paused → running) can
+  // trigger it directly, without the picker-opening guard in between getting in the way.
+  function startFreshOrResume(){
+    timerRunning = true;
+    lastTick = Date.now();
+    if(!sessionStartClock) sessionStartClock = Date.now() - elapsedMs;
+    document.getElementById('startBtn').textContent = 'Pause';
+    setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
+    tickHandle = setInterval(tick, 250);
+    const subjectId = document.getElementById('timerSubject').value;
+    setLiveStatus({
+      studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
+      mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs,
+      linkedTaskId: linkedTaskId || null
+    });
+    startSnapshotScheduler();
+    updateFocusToggleVisibility();
+    updateRunningDeclutter();
+    renderTaskPinLabel();
+    startLiveUiTicker();
+    notifyFirstSessionOfDayIfNeeded();
+  }
   document.getElementById('startBtn').addEventListener('click', ()=>{
+    if(!timerRunning && elapsedMs===0){
+      openTimerSubjectPicker(); // universal button, fresh state: pick a subject, which starts it
+      return;
+    }
     if(!timerRunning){
-      timerRunning = true;
-      lastTick = Date.now();
-      if(!sessionStartClock) sessionStartClock = Date.now() - elapsedMs;
-      document.getElementById('startBtn').textContent = 'Pause';
-      setStatusText(timerMode==='countdown' ? 'focusing…' : 'running…');
-      tickHandle = setInterval(tick, 250);
-      const subjectId = document.getElementById('timerSubject').value;
-      setLiveStatus({
-        studying:true, subject:subjectId, subjectName: subjectNameIn(subjectId, state),
-        mode:timerMode, startedAt:Date.now(), baseElapsedMs:elapsedMs, totalMs:countdownTotalMs,
-        linkedTaskId: linkedTaskId || null
-      });
-      startSnapshotScheduler();
-      updateFocusToggleVisibility();
-      updateRunningDeclutter();
-      renderTaskPinLabel();
-      startLiveUiTicker();
-      notifyFirstSessionOfDayIfNeeded();
+      startFreshOrResume(); // committed but paused — this tap is a Resume
     } else {
       pauseTimer();
     }
@@ -4723,6 +4690,58 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTaskPinLabel();
     stopLiveUiTicker();
     renderGoalCard(); renderPeopleRow(); // one final refresh so the paused numbers are exact
+  }
+  // The universal Start button's popup, shown only in the fresh (not-committed) state. Picking a
+  // subject starts the session with it immediately — there's no separate confirm step. The corner
+  // buttons reuse the exact same add/manage-subject flow as the target-creation window.
+  function openTimerSubjectPicker(){
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <div class="tsp-header">
+          <button type="button" class="tsp-corner-btn" id="tsp-edit" title="Edit subjects">✎</button>
+          <h3>Choose a subject</h3>
+          <button type="button" class="tsp-corner-btn" id="tsp-add" title="Add subject">＋</button>
+        </div>
+        <div id="tsp-list"></div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close(){ document.body.removeChild(backdrop); }
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
+    function refresh(){
+      backdrop.querySelector('#tsp-list').innerHTML = subjectsArr(state).map(s=>`
+        <div class="grp-list-item" data-tsp-subject="${s.id}" style="cursor:pointer;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="cat-dot" style="width:14px; height:14px; background:${s.color}"></span>
+            <span class="name">${escapeHtml(s.name)}</span>
+          </div>
+        </div>
+      `).join('');
+      backdrop.querySelectorAll('[data-tsp-subject]').forEach(row=>{
+        row.addEventListener('click', ()=>{
+          const subjectId = row.dataset.tspSubject;
+          document.getElementById('timerSubject').value = subjectId;
+          renderRing();
+          close();
+          startFreshOrResume();
+        });
+      });
+    }
+    refresh();
+    backdrop.querySelector('#tsp-edit').addEventListener('click', ()=>{
+      openSubjectManagerModal(document.getElementById('timerSubject').value, (id)=>{
+        renderSubjectOptions(document.getElementById('timerSubject'), id);
+        refresh();
+      });
+    });
+    backdrop.querySelector('#tsp-add').addEventListener('click', ()=>{
+      openQuickSubjectModal(null, (id)=>{
+        renderSubjectOptions(document.getElementById('timerSubject'), id);
+        refresh();
+      });
+    });
   }
   const MAX_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours — auto-stop safety cap
   function tick(){
