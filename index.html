@@ -1825,11 +1825,21 @@ window.storage = storage; // keep the rest of the app's code unchanged
     });
     return { map: clean, badKeys, changed: isArr || badKeys.length>0 };
   }
+  // Sessions (used per-date, per array-item-id, by mergeKeyedArrayMaps below) need the same
+  // updatedAt-wins conflict resolution mergeKeyedMaps already gives targets/plans/subjects — this
+  // previously always favored whichever side got processed second regardless of which was actually
+  // newer, so any edit to an already-synced session got silently discarded the moment the save's
+  // own pre-write merge-fetch ran (the edit lost to the stale copy it had just fetched). Every
+  // session write now stamps `updatedAt`, so this can tell which side is the real edit.
   function mergeArraysById(localArr, remoteArr, tombstones){
     const tb = tombstones || {};
     const byId = new Map();
-    (remoteArr||[]).forEach(it=>{ if(it && it.id!=null && !tb[it.id]) byId.set(it.id, it); });
-    (localArr||[]).forEach(it=>{ if(it && it.id!=null && !tb[it.id] && !byId.has(it.id)) byId.set(it.id, it); });
+    (localArr||[]).forEach(it=>{ if(it && it.id!=null && !tb[it.id]) byId.set(it.id, it); });
+    (remoteArr||[]).forEach(it=>{
+      if(!it || it.id==null || tb[it.id]) return;
+      const existing = byId.get(it.id);
+      if(!existing || (it.updatedAt||0) > (existing.updatedAt||0)) byId.set(it.id, it);
+    });
     return Array.from(byId.values());
   }
   function mergeKeyedArrayMaps(localMap, remoteMap, tombstones){
@@ -4980,7 +4990,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
         completed: completed,
         startedAt: startedAtMs,
         endedAt: endedAt,
-        linkedTaskId: linkedTaskId || null
+        linkedTaskId: linkedTaskId || null,
+        updatedAt: Date.now()
       };
       state.sessions[key].push(justLoggedSession);
       saveState();
@@ -5059,7 +5070,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       if(text){
         const list = state.sessions[dateKey] || [];
         const s = list.find(x=>x.id===session.id);
-        if(s) s.note = text;
+        if(s){ s.note = text; s.updatedAt = Date.now(); }
         await flushStateNow();
         renderSessions();
       }
@@ -5695,7 +5706,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
         if(!state.sessions[dateKey]) state.sessions[dateKey] = [];
         state.sessions[dateKey].push({
           id: 'sess_'+Date.now(), subject: newSubject, duration: newDuration, mode:'stopwatch',
-          completed: true, startedAt: start, endedAt: end, note: newNote || null, linkedTaskId: newLinkedTaskId
+          completed: true, startedAt: start, endedAt: end, note: newNote || null, linkedTaskId: newLinkedTaskId,
+          updatedAt: Date.now()
         });
       } else {
         const s = (state.sessions[dateKey]||[]).find(x=>x.id===session.id);
@@ -5706,6 +5718,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           s.endedAt = end;
           s.note = newNote || null;
           s.linkedTaskId = newLinkedTaskId;
+          s.updatedAt = Date.now(); // must be bumped on every edit — this is what lets the sessions merge (see mergeArraysById) know this copy is the newer one
         }
       }
       await flushStateNow();
@@ -5717,17 +5730,18 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   // ---------- TODAY SCREEN ----------
   // Shared with the day-ring calc below: how much of a day's total target minutes count as
-  // "completed" — a ticked target always counts its full allocation (even with no timer ever
-  // run for it), an un-ticked but partially-timed target counts its actual linked minutes capped
-  // at its own allocation (so overshooting the target time doesn't overfill the ring), and a
-  // missed target counts nothing. Study time not linked to any specific target still adds on top,
-  // since it's real progress even without a target to credit it against.
+  // "completed" — driven entirely by each target's own status on the Today page. A ticked target
+  // always counts its full allocation (even with no timer ever run for it); an un-ticked but
+  // partially-timed target counts its actual linked minutes capped at its own allocation, so
+  // overshooting that target's time — whether from its own linked session or from unlinked
+  // "overplay" time on the Now page for the same subject — never fills the ring past what that
+  // target was actually allocated; a missed target counts nothing. Time not linked to any target
+  // at all contributes nothing to the ring — only target status/allocation drives it.
   function dayProgressFraction(date){
     const dateKey = fmtDate(date);
     const blocks = blocksForDateIn(state, date);
     const sessions = state.sessions[dateKey] || [];
     const targetTotal = blocks.reduce((s,b)=> s+(b.duration||30), 0);
-    const unlinkedMin = sessions.filter(s=>!s.linkedTaskId).reduce((s,x)=>s+(x.duration||0),0);
     if(targetTotal===0){
       const anyMin = sessions.reduce((s,x)=>s+(x.duration||0),0);
       return anyMin>0 ? 1 : 0;
@@ -5745,7 +5759,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
         completed += Math.min(linkedMin, dur);
       }
     });
-    completed += unlinkedMin;
     return completed/targetTotal;
   }
   // A day's ring shows how much of that day's total target minutes have actually been logged —
