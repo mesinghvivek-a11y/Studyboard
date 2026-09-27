@@ -319,6 +319,37 @@
     cursor:pointer; padding:2px 6px; opacity:0.85; line-height:1;
   }
   .session-log-toggle:active{ opacity:1; }
+  .session-cat-filters{ display:flex; gap:6px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none; }
+  .session-cat-filters::-webkit-scrollbar{ display:none; }
+  .session-cat-chip{
+    flex:0 0 auto; padding:6px 14px; border-radius:999px; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .session-cat-chip.active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+  .garland-timeline{ display:flex; flex-direction:column; }
+  .garland-row{ display:flex; align-items:center; gap:12px; cursor:pointer; padding:6px 0; }
+  .garland-row:active{ opacity:0.8; }
+  .garland-col-time{
+    flex:0 0 52px; display:flex; flex-direction:column; justify-content:space-between; align-self:stretch;
+    font-size:10.5px; color:var(--chalk-faint); font-family:'JetBrains Mono'; text-align:right; min-height:40px;
+  }
+  .garland-col-pill{ flex:0 0 44px; display:flex; justify-content:center; }
+  .garland-pill{
+    width:36px; border-radius:999px; border:2px solid; display:flex; align-items:center; justify-content:center;
+    transition:height .2s ease; flex:0 0 auto;
+  }
+  .garland-pill-icon{ font-size:16px; line-height:1; }
+  .garland-col-info{ flex:1; min-width:0; }
+  .g-subj{ font-size:13.5px; font-weight:700; color:var(--chalk); }
+  .g-dur-tag{ font-size:11px; color:var(--chalk-faint); font-family:'JetBrains Mono'; margin-top:2px; }
+  .garland-connector{ position:relative; height:26px; width:44px; margin-left:64px; display:flex; align-items:center; justify-content:center; }
+  .garland-connector-line{ position:absolute; top:0; bottom:0; left:50%; width:2px; background:var(--card-line); transform:translateX(-50%); }
+  .garland-add-btn{
+    position:relative; width:22px; height:22px; border-radius:50%; background:var(--card); border:1px solid var(--card-line);
+    color:var(--chalk-dim); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; line-height:1;
+  }
+  .garland-add-btn:active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+  .garland-add-btn.final{ width:30px; height:30px; font-size:16px; background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
   .task-pin-label{ font-size:11px; color:var(--accent); margin-top:16px; text-align:center; }
   .session-item{
     display:flex; align-items:center; justify-content:space-between;
@@ -718,6 +749,11 @@
   .color-row{ display:flex; gap:10px; margin-top:6px; }
   .swatch{ width:30px; height:30px; border-radius:50%; cursor:pointer; border:2px solid transparent; }
   .swatch.sel{ border-color:var(--chalk); }
+  .icon-swatch{
+    background:var(--card); border:2px solid var(--card-line); display:flex; align-items:center; justify-content:center;
+    font-size:15px;
+  }
+  .icon-swatch.sel{ border-color:var(--accent); background:var(--accent-dim); }
   .day-toggle-row{ display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
   .day-toggle{
     padding:8px 10px; border-radius:9px; background:var(--card); border:1px solid var(--card-line);
@@ -1365,7 +1401,10 @@
 
       <div class="session-log">
         <h3><span id="sessionListTitle">Today's sessions</span> <button type="button" class="session-log-toggle" id="sessionLogToggle" title="Show today's sessions">▾</button></h3>
-        <div id="sessionList" style="display:none;"></div>
+        <div id="sessionListBody" style="display:none;">
+          <div class="session-cat-filters" id="sessionCatFilters"></div>
+          <div id="sessionList"></div>
+        </div>
       </div>
     </section>
 
@@ -4297,6 +4336,29 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const s = subjectsArr(data).find(x=>x.id===id);
     return s ? s.name : 'General';
   }
+  // Subjects are subsets of a fixed set of categories, each with a starter set of icon/symbol
+  // choices offered when a subject is created under it (existing subjects keep whatever icon they
+  // were made with; the icon is only re-picked if a person explicitly edits it). Legacy subjects
+  // created before this existed have no `.category`/`.icon` yet, hence the 'study' + first-icon
+  // fallbacks throughout — never a missing/blank icon.
+  const SUBJECT_CATEGORIES = [
+    { id:'study',    name:'Study',    icons:['📖','✏️','🎓','🧠','📚'] },
+    { id:'work',     name:'Work',     icons:['💼','💻','📈','🛠️','📊'] },
+    { id:'health',   name:'Health',   icons:['🏃','🧘','💪','🥗','🚴'] },
+    { id:'creative', name:'Creative', icons:['🎨','🎸','✍️','📷','🎬'] },
+    { id:'other',    name:'Other',    icons:['⭐','🔖','🗂️','🔔','📌'] }
+  ];
+  function categoryForSubject(subjectId, data){
+    const s = subjectsArr(data).find(x=>x.id===subjectId);
+    return SUBJECT_CATEGORIES.find(c=>c.id===(s&&s.category)) || SUBJECT_CATEGORIES[0];
+  }
+  function subjectIconIn(subjectId, data){
+    const s = subjectsArr(data).find(x=>x.id===subjectId);
+    return (s && s.icon) || categoryForSubject(subjectId, data).icons[0];
+  }
+  function renderCategoryOptions(selectEl, selectedId){
+    selectEl.innerHTML = SUBJECT_CATEGORIES.map(c=>`<option value="${c.id}" ${c.id===(selectedId||'study')?'selected':''}>${c.name}</option>`).join('');
+  }
 
   // ---------- Plans: fixed-date records that replace the old recomputed
   // "week" date-bucket. A plan's startDate/endDate never change after
@@ -4407,9 +4469,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
   let sessionLogExpanded = false;
   function setSessionLogExpanded(expanded){
     sessionLogExpanded = expanded;
-    const list = document.getElementById('sessionList');
+    const body = document.getElementById('sessionListBody');
     const btn = document.getElementById('sessionLogToggle');
-    if(list) list.style.display = expanded ? 'block' : 'none';
+    if(body) body.style.display = expanded ? 'block' : 'none';
     if(btn){ btn.textContent = expanded ? '▴' : '▾'; btn.title = expanded ? 'Hide' : "Show today's sessions"; }
   }
   document.getElementById('sessionLogToggle').addEventListener('click', ()=>{
@@ -5391,70 +5453,139 @@ window.storage = storage; // keep the rest of the app's code unchanged
     backdrop.querySelector('#cmt-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') send(); });
   }
 
-  function renderSubjectOptions(selectEl, selectedId){
+  function renderSubjectOptions(selectEl, selectedId, categoryId){
     selectEl.innerHTML = '';
-    subjectsArr(state).forEach(s=>{
-      const opt = document.createElement('option');
-      opt.value = s.id; opt.textContent = s.name;
-      if(s.id === selectedId) opt.selected = true;
-      selectEl.appendChild(opt);
-    });
+    subjectsArr(state)
+      .filter(s=> !categoryId || (s.category||'study')===categoryId)
+      .forEach(s=>{
+        const opt = document.createElement('option');
+        opt.value = s.id; opt.textContent = s.name;
+        if(s.id === selectedId) opt.selected = true;
+        selectEl.appendChild(opt);
+      });
   }
 
+  let sessionCategoryFilter = 'all'; // resets each page load, like the other view-only filters in this file
   function renderSessions(){
     const key = fmtDate(new Date());
     const el = document.getElementById('sessionList');
+    const filtersEl = document.getElementById('sessionCatFilters');
     const titleEl = document.getElementById('sessionListTitle');
     const data = activeData();
     const editable = isViewingSelf();
     const friendName = !editable ? ((usersList.find(u=>u.id===viewingId)||{}).name || 'Friend') : null;
     if(titleEl) titleEl.textContent = editable ? "Today's sessions" : `${friendName}'s sessions today`;
 
-    const list = (data.sessions && data.sessions[key]) || [];
-    if(!list.length){
-      el.innerHTML = `<div class="empty" style="padding:20px 0;"><div class="big">No sessions yet</div>${editable ? "today's first block starts with you" : escapeHtml(friendName)+" hasn't logged anything today"}</div>`;
+    if(filtersEl){
+      filtersEl.innerHTML = ['all', ...SUBJECT_CATEGORIES.map(c=>c.id)].map(id=>{
+        const label = id==='all' ? 'All' : SUBJECT_CATEGORIES.find(c=>c.id===id).name;
+        return `<button type="button" class="session-cat-chip ${sessionCategoryFilter===id?'active':''}" data-cat="${id}">${label}</button>`;
+      }).join('');
+      filtersEl.querySelectorAll('.session-cat-chip').forEach(chip=>{
+        chip.addEventListener('click', ()=>{ sessionCategoryFilter = chip.dataset.cat; renderSessions(); });
+      });
+    }
+
+    // chronological, oldest first, regardless of insertion/edit order
+    const fullList = ((data.sessions && data.sessions[key]) || []).slice().sort((a,b)=>(a.startedAt||0)-(b.startedAt||0));
+    const filtered = sessionCategoryFilter==='all' ? fullList : fullList.filter(s=> categoryForSubject(s.subject, data).id===sessionCategoryFilter);
+    // Gap/final + connectors only make sense against the true, unfiltered timeline — once a
+    // category filter hides other sessions, a visible "gap" might actually be occupied by a
+    // hidden one, so offering to fill it would risk creating a silently overlapping session.
+    const showConnectors = editable && sessionCategoryFilter==='all';
+
+    if(!fullList.length){
+      el.innerHTML = `<div class="empty" style="padding:14px 0 6px;"><div class="big">No sessions yet</div>${editable ? "today's first block starts with you" : escapeHtml(friendName)+" hasn't logged anything today"}</div>` +
+        (editable ? `<div class="garland-connector"><div class="garland-connector-line"></div><button type="button" class="garland-add-btn final" id="garland-add-first" title="Add a session">+</button></div>` : '');
+      const firstBtn = document.getElementById('garland-add-first');
+      if(firstBtn) firstBtn.addEventListener('click', ()=> openEditSessionModal(null, key, { prefillStart: Date.now()-30*60000, prefillEnd: Date.now() }));
       return;
     }
-    el.innerHTML = list.slice().reverse().map(s=>{
-      const period = (s.startedAt && s.endedAt) ? `${formatClock(s.startedAt)} – ${formatClock(s.endedAt)}` : '';
-      return `
-        <div class="session-item2">
-          <div class="row1">
-            <span class="subj"><span class="dot" style="background:${subjectColorIn(s.subject, data)}"></span>${subjectNameIn(s.subject, data)}</span>
-            <span style="display:flex; align-items:center; gap:6px;">
-              <span class="dur-badge">${fmtHM(s.duration)}${s.mode==='countdown' ? (s.completed?' ✓':' ⏸'):''}</span>
-              ${editable ? `<button type="button" class="task-edit sess-edit" data-id="${s.id}" title="Edit session">✏️</button>` : ''}
-            </span>
+    if(!filtered.length){
+      el.innerHTML = `<div class="empty" style="padding:14px 0 6px;"><div class="big">No sessions in this category yet</div></div>`;
+      return;
+    }
+
+    let html = '<div class="garland-timeline">';
+    filtered.forEach((s,i)=>{
+      const icon = subjectIconIn(s.subject, data);
+      const color = subjectColorIn(s.subject, data);
+      const pillH = Math.max(40, Math.min(220, Math.round((s.duration||0) * 2.5)));
+      html += `
+        <div class="garland-row" data-sess-id="${s.id}">
+          <div class="garland-col-time">
+            <div class="g-start">${s.startedAt ? formatClock(s.startedAt) : ''}</div>
+            <div class="g-end">${s.endedAt ? formatClock(s.endedAt) : ''}</div>
           </div>
-          ${s.label ? `<div class="label">${escapeHtml(s.label)}</div>` : ''}
-          ${period ? `<div class="period">${period}</div>` : ''}
-          ${s.note ? `<div class="session-note">📝 ${escapeHtml(s.note)}</div>` : ''}
+          <div class="garland-col-pill">
+            <div class="garland-pill" style="height:${pillH}px; background:${color}26; border-color:${color};">
+              <span class="garland-pill-icon">${icon}</span>
+            </div>
+          </div>
+          <div class="garland-col-info">
+            <div class="g-subj">${escapeHtml(subjectNameIn(s.subject, data))}</div>
+            <div class="g-dur-tag">${fmtHM(s.duration)}${s.mode==='countdown' ? (s.completed?' ✓':' ⏸'):''}</div>
+            ${s.note ? `<div class="session-note">📝 ${escapeHtml(s.note)}</div>` : ''}
+          </div>
         </div>
       `;
-    }).join('');
+      if(showConnectors){
+        const next = filtered[i+1];
+        if(next){
+          const gapMs = (next.startedAt||0) - (s.endedAt||0);
+          if(gapMs > 60000){
+            html += `<div class="garland-connector"><div class="garland-connector-line"></div><button type="button" class="garland-add-btn" data-gap-start="${s.endedAt}" data-gap-end="${next.startedAt}" title="Fill this gap">+</button></div>`;
+          } else {
+            html += `<div class="garland-connector"><div class="garland-connector-line"></div></div>`;
+          }
+        } else if(s.endedAt && (Date.now() - s.endedAt) > 60000){
+          html += `<div class="garland-connector"><div class="garland-connector-line"></div><button type="button" class="garland-add-btn final" data-gap-start="${s.endedAt}" data-gap-end="${Date.now()}" title="Log time until now">+</button></div>`;
+        }
+      }
+    });
+    html += '</div>';
+    el.innerHTML = html;
+
     if(!editable) return;
-    el.querySelectorAll('.sess-edit').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const s = list.find(x=>x.id===btn.dataset.id);
+    el.querySelectorAll('.garland-row').forEach(row=>{
+      row.addEventListener('click', ()=>{
+        const s = fullList.find(x=>x.id===row.dataset.sessId);
         if(s) openEditSessionModal(s, key);
+      });
+    });
+    el.querySelectorAll('.garland-add-btn[data-gap-start]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        openEditSessionModal(null, key, { prefillStart: Number(btn.dataset.gapStart), prefillEnd: Number(btn.dataset.gapEnd) });
       });
     });
   }
 
-  function openEditSessionModal(session, dateKey){
+  // session === null means "create a new session" (used by the Garland timeline's gap/final +
+  // connectors, prefilling opts.prefillStart/opts.prefillEnd) — every other field, validation, and
+  // save/delete behavior below is exactly what already existed for editing.
+  function openEditSessionModal(session, dateKey, opts){
+    opts = opts || {};
+    const isNew = !session;
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     const isToday = dateKey===fmtDate(new Date());
     const todayBlocks = isToday ? blocksForDateIn(state, new Date()) : [];
     // Sessions logged before start/end timestamps existed only have a duration — fall back
     // to "ended now, started duration-ago" so the time fields have something sane to show.
-    const fallbackEnd = session.endedAt || Date.now();
-    const fallbackStart = session.startedAt || (fallbackEnd - (session.duration||0)*60000);
+    const fallbackEnd = isNew ? (opts.prefillEnd || Date.now()) : (session.endedAt || Date.now());
+    const fallbackStart = isNew ? (opts.prefillStart || (fallbackEnd - 30*60000)) : (session.startedAt || (fallbackEnd - (session.duration||0)*60000));
     const toTimeInput = (ts)=>{ const d = new Date(ts); return pad(d.getHours())+':'+pad(d.getMinutes()); };
+    const currentSubjectId = isNew ? subjectsArr(state)[0].id : session.subject;
+    const currentCategory = categoryForSubject(currentSubjectId, state).id;
     backdrop.innerHTML = `
       <div class="modal">
         <button class="close-x">×</button>
-        <h3>Edit session</h3>
+        <h3>${isNew ? 'Add session' : 'Edit session'}</h3>
+        <div class="field-row">
+          <label>Category</label>
+          <select id="es-category"></select>
+        </div>
         <div class="field-row">
           <label>Subject</label>
           <select id="es-subject"></select>
@@ -5477,20 +5608,28 @@ window.storage = storage; // keep the rest of the app's code unchanged
         <div style="color:var(--c1); font-size:12px; min-height:16px; margin-bottom:4px;" id="es-error"></div>
         <div class="field-row">
           <label>Note</label>
-          <textarea id="es-note" rows="2" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;">${escapeHtml(session.note||'')}</textarea>
+          <textarea id="es-note" rows="2" style="width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:10px; color:var(--chalk); padding:10px; font-family:'Inter'; font-size:13px; resize:vertical;">${escapeHtml(isNew ? '' : (session.note||''))}</textarea>
         </div>
         <div class="modal-actions">
-          <button class="btn btn-ghost" id="es-delete" style="color:var(--c1);">Delete session</button>
-          <button class="btn btn-primary" id="es-save">Save</button>
+          ${isNew ? '' : `<button class="btn btn-ghost" id="es-delete" style="color:var(--c1);">Delete session</button>`}
+          <button class="btn btn-primary" id="es-save">${isNew ? 'Add' : 'Save'}</button>
         </div>
       </div>
     `;
     document.body.appendChild(backdrop);
-    renderSubjectOptions(backdrop.querySelector('#es-subject'), session.subject);
+    const catSel = backdrop.querySelector('#es-category');
+    const subjSel = backdrop.querySelector('#es-subject');
+    renderCategoryOptions(catSel, currentCategory);
+    renderSubjectOptions(subjSel, currentSubjectId, currentCategory);
+    catSel.addEventListener('change', ()=>{
+      // switching category re-scopes the subject list to it — always land on a real subject in
+      // that category rather than leaving a stale one selected
+      renderSubjectOptions(subjSel, null, catSel.value);
+    });
     const linkSel = backdrop.querySelector('#es-linked-task');
     linkSel.innerHTML = '<option value="">— none —</option>' +
       todayBlocks.map(b=>`<option value="${b.id}">${escapeHtml(b.label || subjectNameIn(b.subject, state))}</option>`).join('');
-    if(session.linkedTaskId) linkSel.value = session.linkedTaskId;
+    if(!isNew && session.linkedTaskId) linkSel.value = session.linkedTaskId;
     if(!isToday){ linkSel.disabled = true; linkSel.title = "Linking only applies to today's tasks"; }
 
     const startInput = backdrop.querySelector('#es-start');
@@ -5521,7 +5660,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     function close(){ document.body.removeChild(backdrop); }
     backdrop.querySelector('.close-x').addEventListener('click', close);
     backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) close(); });
-    backdrop.querySelector('#es-delete').addEventListener('click', async ()=>{
+    const deleteBtn = backdrop.querySelector('#es-delete');
+    if(deleteBtn) deleteBtn.addEventListener('click', async ()=>{
       state.sessions[dateKey] = (state.sessions[dateKey]||[]).filter(s=>s.id!==session.id);
       tombstone(session.id);
       await flushStateNow();
@@ -5531,7 +5671,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       close();
     });
     backdrop.querySelector('#es-save').addEventListener('click', async ()=>{
-      const newSubject = backdrop.querySelector('#es-subject').value;
+      const newSubject = subjSel.value;
       const newNote = backdrop.querySelector('#es-note').value.trim();
       const newLinkedTaskId = linkSel.value || null;
       const { start, end } = timesToTimestamps();
@@ -5544,21 +5684,29 @@ window.storage = storage; // keep the rest of the app's code unchanged
         return;
       }
       const overlap = (state.sessions[dateKey]||[]).find(s=>
-        s.id!==session.id && s.startedAt && s.endedAt && start < s.endedAt && s.startedAt < end
+        (isNew || s.id!==session.id) && s.startedAt && s.endedAt && start < s.endedAt && s.startedAt < end
       );
       if(overlap){
         errorEl.textContent = `That overlaps with your ${subjectNameIn(overlap.subject, state)} session (${formatClock(overlap.startedAt)}–${formatClock(overlap.endedAt)}). Pick a different time.`;
         return;
       }
       const newDuration = Math.round((end-start)/60000*10)/10;
-      const s = (state.sessions[dateKey]||[]).find(x=>x.id===session.id);
-      if(s){
-        s.subject = newSubject;
-        s.duration = newDuration;
-        s.startedAt = start;
-        s.endedAt = end;
-        s.note = newNote || null;
-        s.linkedTaskId = newLinkedTaskId;
+      if(isNew){
+        if(!state.sessions[dateKey]) state.sessions[dateKey] = [];
+        state.sessions[dateKey].push({
+          id: 'sess_'+Date.now(), subject: newSubject, duration: newDuration, mode:'stopwatch',
+          completed: true, startedAt: start, endedAt: end, note: newNote || null, linkedTaskId: newLinkedTaskId
+        });
+      } else {
+        const s = (state.sessions[dateKey]||[]).find(x=>x.id===session.id);
+        if(s){
+          s.subject = newSubject;
+          s.duration = newDuration;
+          s.startedAt = start;
+          s.endedAt = end;
+          s.note = newNote || null;
+          s.linkedTaskId = newLinkedTaskId;
+        }
       }
       await flushStateNow();
       if(isToday) setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // profile-chip total is cached in liveStatus, not derived live — must push explicitly
@@ -5567,7 +5715,6 @@ window.storage = storage; // keep the rest of the app's code unchanged
       close();
     });
   }
-
   // ---------- TODAY SCREEN ----------
   // Shared with the day-ring calc below: how much of a day's total target minutes count as
   // "completed" — a ticked target always counts its full allocation (even with no timer ever
@@ -6456,6 +6603,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
     const defaultColor = existing ? existing.color : COLORS[Math.floor(Math.random()*COLORS.length)];
+    const defaultCategory = (existing && existing.category) || 'study';
+    const defaultIcon = existing ? subjectIconIn(existing.id, state) : SUBJECT_CATEGORIES.find(c=>c.id===defaultCategory).icons[0];
     backdrop.innerHTML = `
       <div class="modal">
         <button class="close-x">×</button>
@@ -6463,6 +6612,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
         <div class="field-row">
           <label>Name</label>
           <input type="text" id="qs-name" value="${escapeHtml(existing?existing.name:'')}" placeholder="e.g. Chemistry">
+        </div>
+        <div class="field-row">
+          <label>Category</label>
+          <select id="qs-category"></select>
+        </div>
+        <div class="field-row">
+          <label>Symbol</label>
+          <div class="color-row" id="qs-icons"></div>
         </div>
         <div class="field-row">
           <label>Color</label>
@@ -6478,6 +6635,25 @@ window.storage = storage; // keep the rest of the app's code unchanged
     `;
     document.body.appendChild(backdrop);
     let pickedColor = defaultColor;
+    let pickedIcon = defaultIcon;
+    const catSel = backdrop.querySelector('#qs-category');
+    renderCategoryOptions(catSel, defaultCategory);
+    function renderIconRow(){
+      const cat = SUBJECT_CATEGORIES.find(c=>c.id===catSel.value) || SUBJECT_CATEGORIES[0];
+      if(!cat.icons.includes(pickedIcon)) pickedIcon = cat.icons[0]; // switching category resets to that category's own first symbol
+      backdrop.querySelector('#qs-icons').innerHTML = cat.icons.map(ic=>`
+        <div class="swatch icon-swatch ${ic===pickedIcon?'sel':''}" data-icon="${ic}">${ic}</div>
+      `).join('');
+      backdrop.querySelectorAll('#qs-icons .icon-swatch').forEach(sw=>{
+        sw.addEventListener('click', ()=>{
+          backdrop.querySelectorAll('#qs-icons .icon-swatch').forEach(s=>s.classList.remove('sel'));
+          sw.classList.add('sel');
+          pickedIcon = sw.dataset.icon;
+        });
+      });
+    }
+    renderIconRow();
+    catSel.addEventListener('change', renderIconRow);
     backdrop.querySelectorAll('#qs-colors .swatch').forEach(sw=>{
       sw.addEventListener('click', ()=>{
         backdrop.querySelectorAll('#qs-colors .swatch').forEach(s=>s.classList.remove('sel'));
@@ -6492,9 +6668,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
     backdrop.querySelector('#qs-save').addEventListener('click', ()=>{
       const name = backdrop.querySelector('#qs-name').value.trim();
       if(!name){ alert('Enter a name.'); return; }
+      const category = catSel.value;
       let subjectId;
-      if(existing){ existing.name = name; existing.color = pickedColor; existing.updatedAt = Date.now(); subjectId = existing.id; }
-      else { subjectId = 'sub_'+Date.now(); addSubject({ id: subjectId, name, color: pickedColor, createdAt: Date.now() }); }
+      if(existing){ existing.name = name; existing.color = pickedColor; existing.category = category; existing.icon = pickedIcon; existing.updatedAt = Date.now(); subjectId = existing.id; }
+      else { subjectId = 'sub_'+Date.now(); addSubject({ id: subjectId, name, color: pickedColor, category, icon: pickedIcon, createdAt: Date.now() }); }
       saveState();
       close();
       if(onSaved) onSaved(subjectId);
