@@ -26,6 +26,7 @@
 </script>
 <style>
   :root, [data-theme="dark"]{
+    color-scheme: dark;
     --board:#000000;
     --board-2:#0A0A0A;
     --card:#141414;
@@ -44,6 +45,7 @@
     --c6:#E8C468; /* yellow */
   }
   [data-theme="light"]{
+    color-scheme: light;
     --board:#FFFFFF;
     --board-2:#F6F7F9;
     --card:#F7F8FA;
@@ -286,8 +288,7 @@
   .dur-step-val{
     flex:1; text-align:center; font-family:'JetBrains Mono'; font-size:18px; font-weight:700; color:var(--chalk);
   }
-  select, input[type=text], input[type=number], input[type=date]{
-    color-scheme: dark;
+  select, input[type=text], input[type=number], input[type=date], input[type=time]{
     background:var(--card); border:1px solid var(--card-line); color:var(--chalk);
     font-family:'Inter'; font-size:14px; padding:10px 12px; border-radius:10px; width:100%;
   }
@@ -4952,7 +4953,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTaskPinLabel();
     stopLiveUiTicker();
     renderGoalCard(); renderPeopleRow();
-    if(currentScreen==='today') renderTaskList();
+    if(currentScreen==='today'){ renderTaskList(); renderDayScroller(); }
     if(justLoggedSession && reason!=='autostop' && durationMin >= 1){
       promptSessionNote(justLoggedSession, key);
     }
@@ -5525,7 +5526,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       tombstone(session.id);
       await flushStateNow();
       if(isToday) setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // profile-chip total is cached in liveStatus, not derived live — must push explicitly
-      renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart(); renderSubjectDonut();
+      renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart(); renderSubjectDonut(); renderDayScroller();
       if(currentScreen==='today') renderTaskList();
       close();
     });
@@ -5561,13 +5562,45 @@ window.storage = storage; // keep the rest of the app's code unchanged
       }
       await flushStateNow();
       if(isToday) setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // profile-chip total is cached in liveStatus, not derived live — must push explicitly
-      renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart(); renderSubjectDonut();
+      renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart(); renderSubjectDonut(); renderDayScroller();
       if(currentScreen==='today') renderTaskList();
       close();
     });
   }
 
   // ---------- TODAY SCREEN ----------
+  // Shared with the day-ring calc below: how much of a day's total target minutes count as
+  // "completed" — a ticked target always counts its full allocation (even with no timer ever
+  // run for it), an un-ticked but partially-timed target counts its actual linked minutes capped
+  // at its own allocation (so overshooting the target time doesn't overfill the ring), and a
+  // missed target counts nothing. Study time not linked to any specific target still adds on top,
+  // since it's real progress even without a target to credit it against.
+  function dayProgressFraction(date){
+    const dateKey = fmtDate(date);
+    const blocks = blocksForDateIn(state, date);
+    const sessions = state.sessions[dateKey] || [];
+    const targetTotal = blocks.reduce((s,b)=> s+(b.duration||30), 0);
+    const unlinkedMin = sessions.filter(s=>!s.linkedTaskId).reduce((s,x)=>s+(x.duration||0),0);
+    if(targetTotal===0){
+      const anyMin = sessions.reduce((s,x)=>s+(x.duration||0),0);
+      return anyMin>0 ? 1 : 0;
+    }
+    const isToday = dateKey===fmtDate(new Date());
+    let completed = 0;
+    blocks.forEach(b=>{
+      const dur = b.duration||30;
+      const status = state.completion[dateKey+'|'+b.id];
+      if(status==='done'){
+        completed += dur;
+      } else if(status!=='missed'){
+        let linkedMin = sessions.filter(s=>s.linkedTaskId===b.id).reduce((s,x)=>s+(x.duration||0),0);
+        if(isToday && timerRunning && linkedTaskId===b.id) linkedMin += elapsedMs/60000;
+        completed += Math.min(linkedMin, dur);
+      }
+    });
+    completed += unlinkedMin;
+    return completed/targetTotal;
+  }
   // A day's ring shows how much of that day's total target minutes have actually been logged —
   // a continuous proportion driven by real session time, not the done/missed tick marks, so it
   // fills in gradually as the day is studied rather than jumping only when something is ticked off.
@@ -5589,9 +5622,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     for(let i=-10;i<=10;i++){
       const d = new Date(today);
       d.setDate(today.getDate()+i);
-      const targetMin = blocksForDateIn(state, d).reduce((s,b)=> s+(b.duration||30), 0);
       const loggedMin = minutesOnDate(d);
-      const frac = targetMin>0 ? loggedMin/targetMin : (loggedMin>0 ? 1 : 0);
+      const frac = dayProgressFraction(d);
       const chip = document.createElement('div');
       chip.className = 'day-chip' + (fmtDate(d)===fmtDate(selectedDate) ? ' active':'');
       chip.innerHTML = `
@@ -5789,6 +5821,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         saveState();
         renderTaskList();
         renderWeeklyGoalsList();
+        renderDayScroller();
       });
     });
     el.querySelectorAll('.task-play[data-play-id]').forEach(btn=>{
@@ -6396,7 +6429,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         state.completion[key] = nextStatus(state.completion[key]);
         saveState();
         renderWeeklyGoalsList();
-        if(currentScreen==='today') renderTaskList();
+        if(currentScreen==='today'){ renderTaskList(); renderDayScroller(); }
       });
     });
     container.querySelectorAll('[data-edit-once]').forEach(btn=>{
