@@ -124,6 +124,10 @@
   header.top .sub{
     font-size:11px; color:var(--chalk-faint); text-transform:uppercase; letter-spacing:1.5px;
   }
+  .header-mid-slot{ flex:1; min-width:0; }
+  /* header sits above the morph overlay so profile/bell stay tappable; the row itself is click-through */
+  header.top{ position:relative; z-index:9; pointer-events:none; }
+  header.top button{ pointer-events:auto; }
   main{
     flex:1; min-height:0; padding:0 16px 100px; overflow-y:auto; -webkit-overflow-scrolling:touch;
   }
@@ -189,6 +193,42 @@
   }
   .timer-digits .tdig-ss{ font-size:0.6em; color:var(--chalk-faint); }
   .timer-label{ font-size:12px; color:var(--chalk-faint); margin-top:6px; letter-spacing:0.5px; }
+
+  /* ---------- iOS-style morph dashboard (mobile/portrait) ----------
+     The dashboard is a fixed overlay (like a native large-title header). Scroll drives
+     transform/opacity on the live elements; the in-flow .timer-spacer reserves its height. */
+  #timerControlsWrap{
+    position:fixed; top:0; left:0; width:100%; z-index:8; box-sizing:border-box;
+    padding-left:16px; padding-right:16px; pointer-events:none;
+  }
+  #timerControlsWrap .mode-switch, #timerControlsWrap .ring-outer, #timerControlsWrap .stopwatch-face,
+  #timerControlsWrap .timer-actions-row, #timerControlsWrap .focus-toggle-btn, #timerControlsWrap .focus-pause-btn,
+  #timerControlsWrap .goal-card, #timerControlsWrap .task-pin-label{ pointer-events:auto; }
+  #timerMorphBg{
+    position:absolute; left:0; right:0; top:0; height:100%; z-index:-1; pointer-events:none;
+    background:var(--board);
+    -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
+    border-bottom:1px solid transparent; transition:border-color .2s ease;
+  }
+  #timerControlsWrap.morph-scrolled #timerMorphBg{ border-bottom-color:var(--card-line); }
+  .timer-ring-wrap, .timer-actions-row{ will-change:transform; }
+  .morph-mini-digits{
+    position:absolute; left:0; top:0; z-index:2; opacity:0; pointer-events:none; white-space:nowrap;
+    font-family:'JetBrains Mono'; font-weight:700; font-size:19px; color:var(--chalk); transform:translateY(-50%);
+  }
+  .morph-mini-streak{
+    position:absolute; left:0; top:0; z-index:2; opacity:0; pointer-events:none; white-space:nowrap;
+    font-size:10.5px; color:var(--chalk-faint);
+  }
+  #screen-timer.active{ animation:none; } /* a transform animation would re-anchor the fixed overlay */
+  /* Native scroll-snap: snap 1 = expanded dashboard, snap 2 = Today's sessions */
+  main.timer-scroll-mode{ scroll-snap-type:y mandatory; overscroll-behavior-y:none; }
+  main.timer-scroll-mode #screen-timer.active .timer-spacer{ scroll-snap-align:start; scroll-snap-stop:normal; }
+  main.timer-scroll-mode #screen-timer.active .session-log{
+    scroll-snap-align:start; scroll-snap-stop:normal; min-height:calc(var(--main-h, 100vh) - 60px);
+  }
+  .session-log{ margin-top:0; }
+  .session-sticky-head{ position:sticky; top:0; z-index:5; background:var(--board); margin:0 -16px; padding:10px 16px 4px; }
 
   /* ---------- Digital stopwatch (no dial — continuous count) ---------- */
   .stopwatch-face{
@@ -538,6 +578,12 @@
     .screen#screen-timer.active #timerControlsWrap{ grid-column:1; }
     .screen#screen-timer.active .session-log{ grid-column:2; margin-top:0; }
     .screen#screen-today.active, .screen#screen-week.active, .screen#screen-history.active{ max-width:640px; }
+    /* Desktop keeps the original side-by-side grid — no overlay/morph/snap; JS gates on this same query */
+    #timerControlsWrap{ position:static !important; width:auto !important; padding:0 !important; pointer-events:auto !important; }
+    #timerMorphBg, .morph-mini-digits, .morph-mini-streak, .timer-spacer{ display:none !important; }
+    .session-sticky-head{ position:static !important; margin:0; padding:0; background:none; }
+    main.timer-scroll-mode{ scroll-snap-type:none !important; }
+    .screen#screen-timer.active .session-log{ scroll-snap-align:none !important; min-height:0 !important; }
   }
 
   /* ---------- Week screen ---------- */
@@ -717,8 +763,14 @@
     display:flex !important; flex-direction:column; align-items:center; justify-content:center; min-height:88vh;
   }
   body.focus-active .focus-exit-btn{ display:block; }
-  body.focus-active .ring-outer, body.focus-active .stopwatch-face{ transform: scale(1.15); }
+  body.focus-active .ring-outer, body.focus-active .stopwatch-face{ transform: scale(1.15) !important; }
   body.focus-active .task-pin-label{ margin-top:24px; font-size:13px; }
+  body.focus-active #timerControlsWrap{ position:static !important; width:auto !important; padding:0 !important; pointer-events:auto !important; }
+  body.focus-active #timerMorphBg, body.focus-active .morph-mini-digits,
+  body.focus-active .morph-mini-streak, body.focus-active .timer-spacer{ display:none !important; }
+  body.focus-active .session-sticky-head{ position:static !important; }
+  body.focus-active .ring-svg, body.focus-active .timer-label{ opacity:1 !important; }
+  body.focus-active .timer-ring-wrap, body.focus-active .timer-actions-row{ transform:none !important; opacity:1 !important; }
   .history-day{ margin-bottom:22px; }
   .history-day-heading{
     font-family:'Kalam'; font-size:16px; color:var(--chalk-dim); margin:0 0 8px; letter-spacing:0.2px;
@@ -1328,9 +1380,11 @@
 
   <header class="top">
     <button class="avatar-btn" id="acctBtn" title="Settings"></button>
-    <div style="display:none;">
-      <h1 id="headerTitle">Study Board</h1>
-      <div class="sub" id="headerSub">stay on the clock</div>
+    <div class="header-mid-slot">
+      <div style="display:none;">
+        <h1 id="headerTitle">Study Board</h1>
+        <div class="sub" id="headerSub">stay on the clock</div>
+      </div>
     </div>
     <button class="bell-btn" id="bellBtn" title="Notifications">🔔<span class="bell-badge" id="bellBadge" style="display:none;">0</span></button>
   </header>
@@ -1352,57 +1406,67 @@
     <section class="screen active" id="screen-timer">
       <div class="friend-timer-card" id="friendTimerBanner" style="display:none;"></div>
 
+      <div class="timer-spacer" id="timerSpacer"></div>
       <div id="timerControlsWrap">
-        <div class="mode-switch mode-fade">
-          <button id="modeStopwatch">Stopwatch</button>
-          <button id="modeCountdown" class="active">Focus Timer</button>
-        </div>
+        <div id="timerMorphBg"></div>
+        <div id="dashboardUnit">
+          <div class="mode-switch mode-fade">
+            <button id="modeStopwatch">Stopwatch</button>
+            <button id="modeCountdown" class="active">Focus Timer</button>
+          </div>
 
-        <div class="timer-ring-wrap">
-          <div class="ring-outer" id="ringOuter">
-            <svg viewBox="0 0 220 220" class="ring-svg">
-              <circle cx="110" cy="110" r="100" class="ring-track"></circle>
-              <circle cx="110" cy="110" r="100" class="ring-progress" id="ringProgress"></circle>
-            </svg>
-            <div class="timer-face" id="ringDigitsFace" style="display:none;">
-              <div class="timer-digits" id="timerDigits">00:00<span class="tdig-ss">:00</span></div>
-              <div class="timer-label" id="timerStatus">ready</div>
+          <div class="timer-ring-wrap">
+            <div class="ring-outer" id="ringOuter">
+              <svg viewBox="0 0 220 220" class="ring-svg">
+                <circle cx="110" cy="110" r="100" class="ring-track"></circle>
+                <circle cx="110" cy="110" r="100" class="ring-progress" id="ringProgress"></circle>
+              </svg>
+              <div class="timer-face" id="ringDigitsFace" style="display:none;">
+                <div class="timer-digits" id="timerDigits">00:00<span class="tdig-ss">:00</span></div>
+                <div class="timer-label" id="timerStatus">ready</div>
+              </div>
+              <div class="ring-len-picker" id="ringLenPicker" style="display:flex;">
+                <div class="rlp-col">
+                  <div class="rlp-wheel" id="rlpHWheel"></div>
+                </div>
+                <div class="rlp-colon">:</div>
+                <div class="rlp-col">
+                  <div class="rlp-wheel" id="rlpMWheel"></div>
+                </div>
+              </div>
             </div>
-            <div class="ring-len-picker" id="ringLenPicker" style="display:flex;">
-              <div class="rlp-col">
-                <div class="rlp-wheel" id="rlpHWheel"></div>
+            <div class="stopwatch-face" id="stopwatchFace" style="display:none;">
+              <div class="sw-digits">
+                <span class="sw-main" id="swMain">00:00</span><span class="sw-sec" id="swSec">:00</span>
               </div>
-              <div class="rlp-colon">:</div>
-              <div class="rlp-col">
-                <div class="rlp-wheel" id="rlpMWheel"></div>
-              </div>
+              <div class="timer-label" id="swStatus">ready</div>
             </div>
           </div>
-          <div class="stopwatch-face" id="stopwatchFace" style="display:none;">
-            <div class="sw-digits">
-              <span class="sw-main" id="swMain">00:00</span><span class="sw-sec" id="swSec">:00</span>
+
+          <div class="controls-group" id="controlsGroup">
+            <button type="button" class="focus-pause-btn" id="focusPauseBtn">Pause</button>
+
+            <div class="timer-actions-row" id="timerActionsRow">
+              <select id="timerSubject" style="display:none;"></select>
+              <button type="button" class="timer-pill-btn" id="resetBtn">Reset/Stop</button>
+              <button type="button" class="timer-pill-btn" id="startBtn">Start</button>
             </div>
-            <div class="timer-label" id="swStatus">ready</div>
+            <button type="button" class="focus-toggle-btn" id="focusToggleBtn">🧘 Enter focus mode</button>
+            <div id="taskPinLabel" class="task-pin-label" style="display:none;"></div>
           </div>
-        </div>
 
-        <button type="button" class="focus-pause-btn" id="focusPauseBtn">Pause</button>
-
-        <div class="timer-actions-row" id="timerActionsRow">
-          <select id="timerSubject" style="display:none;"></select>
-          <button type="button" class="timer-pill-btn" id="resetBtn">Reset/Stop</button>
-          <button type="button" class="timer-pill-btn" id="startBtn">Start</button>
+          <div class="goal-card" id="goalCard" style="display:none;"></div>
         </div>
-        <button type="button" class="focus-toggle-btn" id="focusToggleBtn">🧘 Enter focus mode</button>
-        <div id="taskPinLabel" class="task-pin-label" style="display:none;"></div>
+        <div class="morph-mini-digits" id="hmtDigits">00:00:00</div>
+        <div class="morph-mini-streak" id="hmtStreak"></div>
       </div>
 
-      <div class="goal-card" id="goalCard" style="display:none;"></div>
-
       <div class="session-log">
-        <h3><span id="sessionListTitle">Today's sessions</span> <button type="button" class="session-log-toggle" id="sessionLogToggle" title="Show today's sessions">▾</button></h3>
-        <div id="sessionListBody" style="display:none;">
+        <div class="session-sticky-head">
+          <h3><span id="sessionListTitle">Today's sessions</span></h3>
           <div class="session-cat-filters" id="sessionCatFilters"></div>
+        </div>
+        <div id="sessionListBody">
           <div id="sessionList"></div>
         </div>
       </div>
@@ -4466,27 +4530,207 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const titles = {timer:['Now','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
       document.getElementById('headerTitle').textContent = titles[currentScreen][0];
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
-      setSessionLogExpanded(false); // collapses again every time you land on/leave the Now tab
       updateGroupBarVisibility();
       selectedDate = new Date(); // Today always opens on today — jump-to-date is a deliberate one-off action, not a sticky state
+      const mainEl = document.querySelector('main');
+      if(mainEl){
+        mainEl.scrollTop = 0; // land fresh at the top (fully expanded dashboard) every time the tab is entered
+        mainEl.classList.toggle('timer-scroll-mode', currentScreen==='timer');
+      }
+      if(currentScreen==='timer') remeasureMorph();
       render();
     });
   });
   document.getElementById('fabAdd').style.display = 'none';
   updateGroupBarVisibility();
+  document.querySelector('main').classList.toggle('timer-scroll-mode', currentScreen==='timer'); // 'timer' is the default tab on load
 
-  // ---------- Today's sessions: collapsed by default, toggled by the arrow beside the heading ----------
-  let sessionLogExpanded = false;
-  function setSessionLogExpanded(expanded){
-    sessionLogExpanded = expanded;
-    const body = document.getElementById('sessionListBody');
-    const btn = document.getElementById('sessionLogToggle');
-    if(body) body.style.display = expanded ? 'block' : 'none';
-    if(btn){ btn.textContent = expanded ? '▴' : '▾'; btn.title = expanded ? 'Hide' : "Show today's sessions"; }
+  // ---------- Today's sessions: always open now — it's the second scroll-snap section of the Now dashboard ----------
+
+  // ========== NATIVE SCROLL MORPH ENGINE (timer/"Now" dashboard only) ==========
+  // True DOM interpolation: there is exactly one Timer text, one set of controls, one streak
+  // card. As `main` scrolls, JS reads scrollTop, derives a 0..1 progress value, and drives
+  // transform/opacity/height on those same live elements — nothing is cross-faded or cloned.
+  // The physics (the actual snapping-into-place) is native CSS scroll-snap on `main`; JS only
+  // supplies the continuous interpolation *between* the two snap points.
+  let morphTicking = false, morphGeom = null, morphSig = '', morphWasActive = false;
+  const $m = id => document.getElementById(id);
+
+  function isDesktopGridLayout(){
+    // Must mirror the @media query that turns the Now screen into a 2-col grid — the morph is mobile/portrait-only.
+    return window.matchMedia('(min-width:700px) and (orientation:landscape), (min-width:1000px)').matches;
   }
-  document.getElementById('sessionLogToggle').addEventListener('click', ()=>{
-    setSessionLogExpanded(!sessionLogExpanded);
-  });
+  function morphActive(){
+    return currentScreen==='timer' && !isDesktopGridLayout() && !document.body.classList.contains('focus-active');
+  }
+  function setSt(el, prop, val){ if(el && el.style[prop] !== val) el.style[prop] = val; }
+  // Layout position of el inside `anc` (unaffected by CSS transforms, so valid at any scroll/progress).
+  function offsetIn(el, anc){
+    let x=0, y=0, n=el;
+    while(n && n!==anc){ x+=n.offsetLeft; y+=n.offsetTop; n=n.offsetParent; }
+    return n===anc ? {x,y} : null;
+  }
+
+  function resetMorphStyles(){
+    const wrap=$m('timerControlsWrap');
+    ['top','left','width','paddingTop'].forEach(p=>setSt(wrap,p,''));
+    setSt($m('timerSpacer'),'height','');
+    setSt($m('timerMorphBg'),'height','');
+    const rw = wrap && wrap.querySelector('.timer-ring-wrap');
+    [rw, $m('timerActionsRow')].forEach(el=>{ setSt(el,'transform',''); setSt(el,'transformOrigin',''); setSt(el,'opacity',''); });
+    wrap && wrap.querySelectorAll('.ring-svg,.timer-label,.mode-switch,.focus-toggle-btn,.focus-pause-btn,.task-pin-label,#goalCard,#ringLenPicker')
+      .forEach(el=>{ setSt(el,'opacity',''); setSt(el,'pointerEvents',''); });
+    ['hmtDigits','hmtStreak'].forEach(id=>setSt($m(id),'opacity',''));
+    wrap && wrap.classList.remove('morph-scrolled');
+    morphGeom = null; morphSig = '';
+  }
+
+  // Measure everything the interpolation needs (start rects from layout, end rects from the header row).
+  function computeMorphGeom(){
+    const wrap=$m('timerControlsWrap'), mainEl=document.querySelector('main'), app=document.querySelector('.app-content'), hdr=document.querySelector('header.top');
+    const av=$m('acctBtn'), bell=$m('bellBtn'), spacer=$m('timerSpacer');
+    if(!wrap||!mainEl||!app||!hdr||!av||!bell) return null;
+    const appR=app.getBoundingClientRect(), mainR=mainEl.getBoundingClientRect();
+    const avR=av.getBoundingClientRect(), bellR=bell.getBoundingClientRect();
+    if(!appR.width || !avR.width) return null;
+    const padTop = Math.max(0, mainR.top - appR.top);
+    setSt(wrap,'top',appR.top+'px'); setSt(wrap,'left',appR.left+'px'); setSt(wrap,'width',appR.width+'px'); setSt(wrap,'paddingTop',padTop+'px');
+    mainEl.style.setProperty('--main-h', mainEl.clientHeight+'px');
+    const fullH = wrap.offsetHeight;
+    if(!fullH){ setSt(spacer,'height','0px'); return null; } // wrap hidden (viewing a friend)
+    const unitH = Math.max(0, fullH - padTop);
+    setSt(spacer,'height',unitH+'px');
+
+    const rowCy = (avR.top + avR.height/2) - appR.top;
+    const miniH = Math.max(40, hdr.getBoundingClientRect().bottom - appR.top);
+    const leftEdge = avR.right - appR.left + 14, rightEdge = bellR.left - appR.left - 10;
+    const avail = Math.max(120, rightEdge - leftEdge);
+
+    // Which element is "the timer text" right now? (picker has none -> mini digits take over)
+    const sw=$m('stopwatchFace'), face=$m('ringDigitsFace');
+    let digitsEl = null;
+    if(sw && sw.offsetParent!==null) digitsEl = sw.querySelector('.sw-digits');
+    else if(face && face.offsetParent!==null) digitsEl = $m('timerDigits');
+    const g = { padTop, unitH, fullH, miniH, rowCy, leftEdge, pickerMode: !digitsEl };
+
+    // Controls: only the live Start / Pause / Reset row rides up; width-aware scale.
+    const row=$m('timerActionsRow');
+    const rb=$m('resetBtn'), sb=$m('startBtn');
+    const rw=rb?rb.offsetWidth:0, sw2=sb?sb.offsetWidth:0;
+    const natW = Math.max(60, rw + sw2 + (rw>0?10:0));
+    g.aScale = Math.max(0.35, Math.min(0.62, (avail - 84 - 10)/natW));
+    const aW = natW * g.aScale;
+    const rowPos = row && offsetIn(row, wrap);
+    if(rowPos){
+      g.aDx = (rightEdge - aW/2) - (rowPos.x + row.offsetWidth/2);
+      g.aDy = rowCy - (rowPos.y + row.offsetHeight/2);
+    }
+    // Timer text: scale around its own centre, then translate that centre into the header row.
+    const dTargetMax = Math.min(100, avail - aW - 10);
+    if(digitsEl){
+      const dp = offsetIn(digitsEl, wrap), rp = offsetIn(wrap.querySelector('.timer-ring-wrap'), wrap);
+      const dw = digitsEl.offsetWidth || 1, dh = digitsEl.offsetHeight || 1;
+      if(dp && rp){
+        const cx = dp.x + dw/2, cy = dp.y + dh/2;
+        g.dScale = Math.min(0.5, dTargetMax / dw);
+        g.originX = cx - rp.x; g.originY = cy - rp.y;
+        g.dDx = (leftEdge + (dw*g.dScale)/2) - cx;
+        g.dDy = (rowCy - 9) - cy;
+      } else g.pickerMode = true;
+    }
+    const mD=$m('hmtDigits'), mS=$m('hmtStreak');
+    setSt(mD,'left',leftEdge+'px'); setSt(mD,'top',(rowCy-9)+'px');
+    setSt(mS,'left',leftEdge+'px'); setSt(mS,'top',(rowCy+3)+'px');
+    return g;
+  }
+
+  function updateTimerMorph(){
+    const wrap=$m('timerControlsWrap'), mainEl=document.querySelector('main');
+    if(!wrap||!mainEl) return;
+    if(!morphActive()){
+      if(morphWasActive){ resetMorphStyles(); morphWasActive=false; }
+      return;
+    }
+    morphWasActive = true;
+    const sig = [timerMode, timerRunning, wrap.offsetHeight, wrap.offsetWidth, window.innerWidth, window.innerHeight,
+                 $m('resetBtn') && $m('resetBtn').offsetWidth, $m('ringLenPicker') && $m('ringLenPicker').style.display].join('|');
+    if(!morphGeom || sig!==morphSig){ morphGeom = computeMorphGeom(); morphSig = sig; }
+    const g = morphGeom;
+    if(!g) return;
+
+    // progress = scrollTop / MAX_SCROLL_DISTANCE (= dashboard height = where Today's sessions meets the header), clamped 0..1
+    const MAX_SCROLL_DISTANCE = Math.max(40, g.unitH);
+    const p = Math.min(Math.max(mainEl.scrollTop / MAX_SCROLL_DISTANCE, 0), 1);
+    wrap.classList.toggle('morph-scrolled', p > 0.96);
+    const clamp01 = v => Math.max(0, Math.min(1, v));
+
+    // Background panel: shrinks from the full dashboard to just the header row.
+    setSt($m('timerMorphBg'),'height',(g.fullH - (g.fullH - g.miniH) * p)+'px');
+
+    // Mode toggle row: fades out first.
+    const ms = wrap.querySelector('.mode-switch');
+    setSt(ms,'opacity', String(clamp01(1 - p*3.2)));
+    setSt(ms,'pointerEvents', p>0.15 ? 'none' : '');
+
+    // Timer text group (ring + digits).
+    const rwEl = wrap.querySelector('.timer-ring-wrap');
+    const ringSvg = wrap.querySelector('.ring-svg');
+    setSt(ringSvg,'opacity', String(clamp01(1 - p*2.4)));                 // ring is removed
+    wrap.querySelectorAll('.timer-label').forEach(el=>setSt(el,'opacity', String(clamp01(1 - p*2.2)))); // "running…" text too
+    if(g.pickerMode){
+      // Focus timer not started: wheels can't shrink legibly — they recede while the H:M:S readout arrives in the header row.
+      setSt(rwEl,'transform',`translateY(${-24*p}px) scale(${1-0.25*p})`);
+      setSt(rwEl,'transformOrigin','50% 40%');
+      setSt(rwEl,'opacity', String(clamp01(1 - p*2.6)));
+      setSt($m('hmtDigits'),'opacity', String(clamp01((p-0.45)/0.4)));
+    } else {
+      setSt(rwEl,'opacity','');
+      setSt(rwEl,'transformOrigin',`${g.originX}px ${g.originY}px`);
+      setSt(rwEl,'transform',`translate(${g.dDx*p}px, ${g.dDy*p}px) scale(${1+(g.dScale-1)*p})`); // the SAME digits element, shrinking into place
+      setSt($m('hmtDigits'),'opacity','0');
+    }
+
+    // Controls row (Start | Reset/Stop + Pause) travels up-right beside the mini timer; extras fade.
+    const row=$m('timerActionsRow');
+    if(row && g.aDx!==undefined){
+      setSt(row,'transformOrigin','50% 50%');
+      setSt(row,'transform',`translate(${g.aDx*p}px, ${g.aDy*p}px) scale(${1+(g.aScale-1)*p})`);
+    }
+    wrap.querySelectorAll('.focus-toggle-btn,.focus-pause-btn,.task-pin-label').forEach(el=>{
+      setSt(el,'opacity', String(clamp01(1 - p*2.6))); setSt(el,'pointerEvents', p>0.2?'none':'');
+    });
+
+    // Streak card: expanded card fades; mini streak + daily/weekly hours fade in under the mini timer.
+    const gc=$m('goalCard');
+    setSt(gc,'opacity', String(clamp01(1 - p*2.2)));
+    setSt(gc,'pointerEvents', p>0.4 ? 'none' : '');
+    setSt($m('hmtStreak'),'opacity', String(clamp01((p-0.55)/0.4)));
+  }
+
+  function remeasureMorph(){
+    morphGeom = null; morphSig = '';
+    updateTimerMorph();
+  }
+
+  document.querySelector('main').addEventListener('scroll', ()=>{
+    if(currentScreen!=='timer') return;
+    if(!morphTicking){
+      morphTicking = true;
+      requestAnimationFrame(()=>{ updateTimerMorph(); morphTicking = false; });
+    }
+  }, { passive:true });
+
+  window.addEventListener('resize', ()=>{ if(currentScreen==='timer') remeasureMorph(); });
+  if('ResizeObserver' in window){
+    const morphRO = new ResizeObserver(()=>{ if(currentScreen==='timer') remeasureMorph(); });
+    const w=$m('timerControlsWrap'); if(w) morphRO.observe(w);
+    morphRO.observe(document.querySelector('main'));
+  }
+  // Timer/goal state changes (start, pause, mode switch, picker) can change what's shown without resizing anything.
+  new MutationObserver(()=>{ if(currentScreen==='timer' && morphActive()) updateTimerMorph(); })
+    .observe($m('timerControlsWrap'), { attributes:true, subtree:true, attributeFilter:['style','class'] });
+  new MutationObserver(()=>updateTimerMorph()).observe(document.body, { attributes:true, attributeFilter:['class'] }); // focus-active on/off
+  setTimeout(remeasureMorph, 0); // initial pass after the whole module has run (timer state vars are declared further down)
 
   // ---------- TIMER LOGIC ----------
   let timerMode = 'countdown'; // or 'stopwatch' — Focus Timer is the default mode
@@ -4641,6 +4885,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.getElementById('stopwatchFace').classList.toggle('running', timerRunning);
       if(mini) mini.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
     }
+    const hmtDigits = document.getElementById('hmtDigits');
+    if(hmtDigits) hmtDigits.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
     const miniStart = document.getElementById('liveMiniStart');
     if(miniStart) miniStart.textContent = document.getElementById('startBtn').textContent;
     const focusPauseBtn = document.getElementById('focusPauseBtn');
@@ -4916,7 +5162,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(!card) return;
     const data = activeData();
     const goals = data.goals || {};
-    if(!goals.dailyMin && !goals.weeklyMin){ card.style.display='none'; return; }
+    if(!goals.dailyMin && !goals.weeklyMin){ card.style.display='none'; const ms=document.getElementById('hmtStreak'); if(ms) ms.textContent=''; return; }
     const viewerId = isViewingSelf() ? me.id : viewingId;
     const streak = isViewingSelf() ? computeStreak() : computeStreakFor(data);
     const finishedToday = todayTotalMinutesIn(data);
@@ -4926,6 +5172,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const dailyPct = goals.dailyMin ? Math.min(100, (todayMin/goals.dailyMin)*100) : 0;
     const weeklyPct = goals.weeklyMin ? Math.min(100, (weekMin/goals.weeklyMin)*100) : 0;
     card.style.display = 'block';
+    const hmtStreakEl = document.getElementById('hmtStreak');
+    if(hmtStreakEl) hmtStreakEl.textContent = `🔥${streak}d · D ${fmtHM(todayMin)} · W ${fmtHM(weekMin)}`;
     const self = isViewingSelf();
     const whoLabel = self ? '' : `<div style="font-size:11px; color:var(--chalk-faint); margin-bottom:8px;">${escapeHtml((usersList.find(u=>u.id===viewingId)||{}).name || 'Friend')}'s goals</div>`;
     // Privacy rule: others can see hours done and streak, never the exact target —
