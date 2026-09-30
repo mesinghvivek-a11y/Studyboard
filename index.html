@@ -201,9 +201,13 @@
     position:fixed; top:0; left:0; width:100%; z-index:8; box-sizing:border-box;
     padding-left:16px; padding-right:16px; pointer-events:none;
   }
-  #timerControlsWrap .mode-switch, #timerControlsWrap .ring-outer, #timerControlsWrap .stopwatch-face,
-  #timerControlsWrap .timer-actions-row, #timerControlsWrap .focus-pause-btn,
-  #timerControlsWrap .goal-card, #timerControlsWrap .task-pin-label{ pointer-events:auto; }
+  /* Only real tappable controls get pointer-events — everything else on this fixed overlay
+     must stay click-through so a touch/scroll gesture starting anywhere on the dashboard
+     (the ring, the blank space around buttons, the streak card) still scrolls `main`
+     underneath it, since main is what actually drives the collapse. */
+  #timerControlsWrap #modeStopwatch, #timerControlsWrap #modeCountdown, #timerControlsWrap .rlp-wheel,
+  #timerControlsWrap #resetBtn, #timerControlsWrap #startBtn, #timerControlsWrap #focusPauseBtn,
+  #timerControlsWrap #goalGearBtn{ pointer-events:auto; }
   #timerMorphBg{
     position:absolute; left:0; right:0; top:0; height:100%; z-index:-1; pointer-events:none;
     background:var(--board);
@@ -222,7 +226,7 @@
   }
   #screen-timer.active{ animation:none; } /* a transform animation would re-anchor the fixed overlay */
   /* Native scroll-snap: snap 1 = expanded dashboard, snap 2 = Today's sessions */
-  main.timer-scroll-mode{ scroll-snap-type:y mandatory; overscroll-behavior-y:none; }
+  main.timer-scroll-mode{ scroll-snap-type:y proximity; overscroll-behavior-y:none; }
   main.timer-scroll-mode #screen-timer.active .timer-spacer{ scroll-snap-align:start; scroll-snap-stop:normal; }
   main.timer-scroll-mode #screen-timer.active .session-log{
     scroll-snap-align:start; scroll-snap-stop:normal; min-height:calc(var(--main-h, 100vh) - 60px);
@@ -379,6 +383,14 @@
     transition:height .2s ease; flex:0 0 auto;
   }
   .garland-pill-icon{ font-size:16px; line-height:1; }
+  .garland-row.live{ cursor:default; }
+  .garland-row.live .garland-pill{ position:relative; box-shadow:0 0 0 4px color-mix(in srgb, currentColor 16%, transparent); animation:garlandLivePulse 1.8s ease-in-out infinite; }
+  .garland-live-dot{
+    position:absolute; top:-2px; right:-2px; width:9px; height:9px; border-radius:50%;
+    background:#ff4d4f; border:2px solid var(--board); animation:garlandDotPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes garlandLivePulse{ 0%,100%{ box-shadow:0 0 0 4px color-mix(in srgb, currentColor 12%, transparent); } 50%{ box-shadow:0 0 0 7px color-mix(in srgb, currentColor 22%, transparent); } }
+  @keyframes garlandDotPulse{ 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:0.55; transform:scale(0.85); } }
   .garland-col-info{ flex:1; min-width:0; }
   .g-subj{ font-size:13.5px; font-weight:700; color:var(--chalk); }
   .g-dur-tag{ font-size:11px; color:var(--chalk-faint); font-family:'JetBrains Mono'; margin-top:2px; }
@@ -433,14 +445,15 @@
 
   .task-card{
     display:flex; align-items:flex-start; gap:12px;
-    background:var(--card); border:1px solid var(--card-line); border-radius:14px;
-    padding:14px; margin-bottom:10px;
-    position:relative;
+    background:var(--card); border:1px solid var(--card-line); border-left:4px solid transparent; border-radius:14px;
+    padding:14px 14px 14px 13px; margin-bottom:10px;
+    position:relative; overflow:hidden;
+    box-shadow:0 1px 0 rgba(255,255,255,0.04) inset, 0 5px 16px rgba(0,0,0,0.10);
   }
   .task-card.done{ opacity:0.45; }
   .task-card[data-row-play]{ cursor:pointer; }
   .task-card > .progress-fill{
-    position:absolute; top:0; left:0; bottom:0; z-index:0; opacity:0.16; pointer-events:none;
+    position:absolute; top:0; left:0; bottom:0; z-index:0; opacity:1; pointer-events:none;
     transition: width 1s linear; border-radius:14px;
   }
   .task-card > .time, .task-card > .check, .task-card > .body, .task-card > .task-menu-wrap{
@@ -512,7 +525,11 @@
     flex:1.35; padding:13px 6px; background:var(--accent-dim); color:var(--chalk); border-color:var(--accent);
     font-size:14px; box-shadow:0 4px 14px rgba(0,0,0,0.25);
   }
-  .plan-card{ background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:14px 16px; margin-bottom:14px; }
+  .plan-card{
+    position:relative; background:var(--card); border:none; border-left:4px solid var(--card-line);
+    border-radius:18px; padding:15px 17px; margin-bottom:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,0.05) inset, 0 8px 22px rgba(0,0,0,0.13);
+  }
   .plan-card-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px; }
   .plan-card-title{ font-family:'Kalam'; font-size:16px; color:var(--chalk); display:flex; align-items:center; gap:7px; }
   .plan-card-dates{ font-family:'JetBrains Mono'; font-size:11.5px; color:var(--chalk-faint); margin-top:2px; }
@@ -754,7 +771,10 @@
   }
   .hidden{ display:none !important; }
   .mode-fade{ transition: opacity .28s ease, max-height .28s ease, margin .28s ease, transform .28s ease; overflow:hidden; }
-  .mode-fade.mode-collapsed{ opacity:0; max-height:0 !important; margin:0 !important; pointer-events:none; transform:translateY(-4px); }
+  .mode-fade.mode-collapsed{
+    opacity:0 !important; max-height:0 !important; padding:0 !important; border-color:transparent !important;
+    margin:0 !important; pointer-events:none !important; transform:translateY(-4px);
+  }
 
   body.focus-active{ background:var(--board); }
   body.focus-active header.top,
@@ -1576,7 +1596,7 @@
     </button>
     <button class="tab-btn" data-screen="today">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
-      TODAY
+      TO-DO
     </button>
     <button class="tab-btn" data-screen="week">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7 13h3M7 17h3M14 13h3M14 17h3"/></svg>
@@ -4544,7 +4564,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       if(currentScreen==='history' && !document.getElementById('historyDate').value){
         document.getElementById('historyDate').value = fmtDate(new Date());
       }
-      const titles = {timer:['Now','stay on the clock'], today:['Today','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
+      const titles = {timer:['Now','stay on the clock'], today:['To-Do','today\'s blocks'], week:['This Week','the macro view'], live:['Live','who\'s studying right now'], history:['Analyse','look back and track your hours']};
       document.getElementById('headerTitle').textContent = titles[currentScreen][0];
       document.getElementById('headerSub').textContent = titles[currentScreen][1];
       updateGroupBarVisibility();
@@ -4692,8 +4712,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
     // Mode toggle row: fades out first.
     const ms = wrap.querySelector('.mode-switch');
-    setSt(ms,'opacity', String(clamp01(1 - p*3.2)));
-    setSt(ms,'pointerEvents', p>0.15 ? 'none' : '');
+    if(ms && !ms.classList.contains('mode-collapsed')){
+      setSt(ms,'opacity', String(clamp01(1 - p*3.2)));
+      setSt(ms,'pointerEvents', p>0.15 ? 'none' : '');
+    }
 
     // Timer text group (ring + digits).
     const rwEl = wrap.querySelector('.timer-ring-wrap');
@@ -5028,6 +5050,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTaskPinLabel();
     startLiveUiTicker();
     notifyFirstSessionOfDayIfNeeded();
+    if(currentScreen==='timer') renderSessions();
   }
   document.getElementById('startBtn').addEventListener('click', ()=>{
     if(!timerRunning && elapsedMs===0){
@@ -5053,6 +5076,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     renderTaskPinLabel();
     stopLiveUiTicker();
     renderGoalCard(); renderPeopleRow(); // one final refresh so the paused numbers are exact
+    if(currentScreen==='timer') renderSessions();
   }
   // The universal Start button's popup, shown only in the fresh (not-committed) state. Picking a
   // subject starts the session with it immediately — there's no separate confirm step. The corner
@@ -5254,6 +5278,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     stopLiveUiTicker();
     renderGoalCard(); renderPeopleRow();
     if(currentScreen==='today') renderTaskList();
+    if(currentScreen==='timer') renderSessions();
   }
   function finishSession(completed, reason){
     timerRunning = false;
@@ -5468,6 +5493,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     liveUiTickHandle = setInterval(()=>{
       renderGoalCard();
       renderPeopleRow();
+      if(currentScreen==='timer') renderSessions();
       if(currentScreen==='today') renderTaskList();
       if(currentScreen==='history') renderHistory();
     }, 1000);
@@ -5653,6 +5679,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         renderTimerDigits();
         updateRunningDeclutter();
         startLiveUiTicker();
+        if(currentScreen==='timer') renderSessions();
       }
     } else {
       // Remote says nothing is running. If this device still thinks it's running, another
@@ -5672,6 +5699,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         stopLiveUiTicker();
         renderGoalCard(); renderPeopleRow();
         if(currentScreen==='today') renderTaskList();
+        if(currentScreen==='timer') renderSessions();
       }
     }
   }
@@ -5783,7 +5811,18 @@ window.storage = storage; // keep the rest of the app's code unchanged
     }
 
     // chronological, oldest first, regardless of insertion/edit order
-    const fullList = ((data.sessions && data.sessions[key]) || []).slice().sort((a,b)=>(a.startedAt||0)-(b.startedAt||0));
+    const fullList = ((data.sessions && data.sessions[key]) || []).slice();
+    // The current in-progress session isn't saved yet (that only happens on Reset/Stop) — show
+    // it live anyway, as an unsaved "ghost" pill that grows each second, right where Today's
+    // sessions is the actual list you're editing (i.e. only for your own board, on today's date).
+    if(editable && key===fmtDate(new Date()) && sessionStartClock && (timerRunning || elapsedMs>0)){
+      fullList.push({
+        id:'live-ghost', subject: document.getElementById('timerSubject').value,
+        duration: Math.round(elapsedMs/60000 * 10)/10, mode: timerMode, completed:false,
+        startedAt: sessionStartClock, endedAt: null, live:true
+      });
+    }
+    fullList.sort((a,b)=>(a.startedAt||0)-(b.startedAt||0));
     const filtered = sessionCategoryFilter==='all' ? fullList : fullList.filter(s=> categoryForSubject(s.subject, data).id===sessionCategoryFilter);
     // Gap/final + connectors only make sense against the true, unfiltered timeline — once a
     // category filter hides other sessions, a visible "gap" might actually be occupied by a
@@ -5808,19 +5847,20 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const color = subjectColorIn(s.subject, data);
       const pillH = Math.max(40, Math.min(220, Math.round((s.duration||0) * 2.5)));
       html += `
-        <div class="garland-row" data-sess-id="${s.id}">
+        <div class="garland-row${s.live ? ' live' : ''}" data-sess-id="${s.id}">
           <div class="garland-col-time">
             <div class="g-start">${s.startedAt ? formatClock(s.startedAt) : ''}</div>
-            <div class="g-end">${s.endedAt ? formatClock(s.endedAt) : ''}</div>
+            <div class="g-end">${s.live ? (timerRunning ? 'now' : 'paused') : (s.endedAt ? formatClock(s.endedAt) : '')}</div>
           </div>
           <div class="garland-col-pill">
             <div class="garland-pill" style="height:${pillH}px; background:${color}26; border-color:${color};">
               <span class="garland-pill-icon">${icon}</span>
+              ${s.live ? '<span class="garland-live-dot"></span>' : ''}
             </div>
           </div>
           <div class="garland-col-info">
             <div class="g-subj">${escapeHtml(subjectNameIn(s.subject, data))}</div>
-            <div class="g-dur-tag">${fmtHM(s.duration)}${s.mode==='countdown' ? (s.completed?' ✓':' ⏸'):''}</div>
+            <div class="g-dur-tag">${fmtHM(s.duration)}${s.live ? (timerRunning ? ' ●' : ' ⏸') : (s.mode==='countdown' ? (s.completed?' ✓':' ⏸') : '')}</div>
             ${s.note ? `<div class="session-note">📝 ${escapeHtml(s.note)}</div>` : ''}
           </div>
         </div>
@@ -5843,7 +5883,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     el.innerHTML = html;
 
     if(!editable) return;
-    el.querySelectorAll('.garland-row').forEach(row=>{
+    el.querySelectorAll('.garland-row:not(.live)').forEach(row=>{
       row.addEventListener('click', ()=>{
         const s = fullList.find(x=>x.id===row.dataset.sessId);
         if(s) openEditSessionModal(s, key);
@@ -6138,8 +6178,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
           const subjColor = subjectColorIn(b.subject, state);
           const lockedByTimer = isToday && timerRunning && linkedTaskId===b.id;
           return `
-            <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}" ${(isToday && status!=='done' && !timerRunning) ? `data-row-play="${b.id}"` : ''}>
-              ${pct>0 ? `<div class="progress-fill" style="width:${pct}%; background:${subjColor};"></div>` : ''}
+            <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}" style="background:${subjColor}17; border-left-color:${subjColor};" ${(isToday && status!=='done' && !timerRunning) ? `data-row-play="${b.id}"` : ''}>
+              ${pct>0 ? `<div class="progress-fill" style="width:${pct}%; background:linear-gradient(90deg, ${subjColor}4d, ${subjColor}b3);"></div>` : ''}
               <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
               <div class="check ${status||''}" data-key="${compKey}">${checkInner}</div>
               <div class="body">
@@ -6735,6 +6775,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
   function fmtPlanRange(startDate, endDate){
     return `${fmtPlanDateShort(startDate)} – ${fmtPlanDateShort(endDate)}`;
   }
+  function planCardTint(plan){
+    const c = categoryFor(plan).color;
+    return `background:linear-gradient(155deg, ${c}22, var(--card) 62%); border-left-color:${c};`;
+  }
   function planHeaderHtml(plan, editable, showEditPencil){
     const dateStr = fmtPlanRange(plan.startDate, plan.endDate);
     // Manual plan titles are gone — the date range itself is the heading. A small
@@ -6776,7 +6820,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const ongoing = allPlans.filter(p=> todayKey>=p.startDate && todayKey<=p.endDate);
       const addBtnHtml = editable ? `<button type="button" class="btn btn-primary" id="ongoingAddPlanBtn" style="width:100%; margin-top:14px;">＋ New plan</button>` : '';
       container.innerHTML = (ongoing.length ? ongoing.map(p=>`
-        <div class="plan-card" data-plan-card="${p.id}">
+        <div class="plan-card" data-plan-card="${p.id}" style="${planCardTint(p)}">
           ${planHeaderHtml(p, editable, true)}
           ${planCardBodyHtml(data, p, editable, true)}
         </div>
@@ -6786,7 +6830,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       const upcoming = allPlans.filter(p=> p.startDate > todayKey);
       const addBtnHtml = editable ? `<button type="button" class="btn btn-primary" id="upcomingNewPlanBtn" style="width:100%; margin-top:14px;">＋ New plan</button>` : '';
       container.innerHTML = (upcoming.length ? upcoming.map(p=>`
-        <div class="plan-card" data-plan-card="${p.id}">
+        <div class="plan-card" data-plan-card="${p.id}" style="${planCardTint(p)}">
           ${planHeaderHtml(p, editable, true)}
           ${planCardBodyHtml(data, p, editable, true)}
         </div>
@@ -6805,7 +6849,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         if(recurringTargets.length) statsBits.push(`${recDone}/${recDue} recurring days done`);
         if(onceTasks.length) statsBits.push(`${onceDone}/${onceTasks.length} one-off tasks done`);
         return `
-          <div class="plan-card" data-plan-card="${p.id}">
+          <div class="plan-card" data-plan-card="${p.id}" style="${planCardTint(p)}">
             ${planHeaderHtml(p, false, false)}
             <div style="font-size:12px; color:var(--chalk-faint); margin-bottom:8px;">${statsBits.join(' · ') || 'No targets in this plan.'}</div>
             ${planCardBodyHtml(data, p, false, false)}
