@@ -158,7 +158,7 @@
 
   /* ---------- Timer screen ---------- */
   .mode-switch{
-    display:flex; background:var(--card); border-radius:14px; padding:4px; margin:6px 0 22px;
+    display:flex; background:var(--card); border-radius:14px; padding:4px; margin:6px 0 16px;
     border:1px solid var(--card-line);
   }
   .mode-switch button{
@@ -170,7 +170,7 @@
   .mode-switch button.mode-collapsed{ flex:0 0 0; width:0; padding:0; margin:0; opacity:0; pointer-events:none; }
   .mode-switch button.active{ background:var(--accent-dim); color:var(--accent); }
 
-  .timer-ring-wrap{ display:flex; justify-content:center; margin: 14px 0 22px; }
+  .timer-ring-wrap{ display:flex; justify-content:center; margin: 10px 0 16px; }
   .ring-outer{ position:relative; width:264px; height:264px; }
   .ring-svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; }
   .ring-track{ fill:none; stroke:var(--card); stroke-width:14; }
@@ -225,11 +225,12 @@
     font-size:10.5px; color:var(--chalk-faint);
   }
   #screen-timer.active{ animation:none; } /* a transform animation would re-anchor the fixed overlay */
-  /* Native scroll-snap: snap 1 = expanded dashboard, snap 2 = Today's sessions */
-  main.timer-scroll-mode{ scroll-snap-type:y proximity; overscroll-behavior-y:none; }
-  main.timer-scroll-mode #screen-timer.active .timer-spacer{ scroll-snap-align:start; scroll-snap-stop:normal; }
+  /* Free scroll, no snapping: snap points here were leaving a dead zone in the middle of the
+     range where the page would get stuck instead of settling either way. The morph is already
+     driven continuously by scrollTop, so a plain, natural scroll is smoother and more reliable. */
+  main.timer-scroll-mode{ overscroll-behavior-y:none; }
   main.timer-scroll-mode #screen-timer.active .session-log{
-    scroll-snap-align:start; scroll-snap-stop:normal; min-height:calc(var(--main-h, 100vh) - 60px);
+    min-height:calc(var(--main-h, 100vh) - 60px);
   }
   .session-log{ margin-top:0; }
   .session-sticky-head{ position:sticky; top:0; z-index:5; background:var(--board); margin:0 -16px; padding:10px 16px 4px; }
@@ -353,7 +354,6 @@
   .btn-ghost{ background:var(--card); color:var(--chalk); border:1px solid var(--card-line); }
   .btn-danger{ background:var(--c1-dim); color:var(--c1); border:1px solid rgba(var(--c1-rgb),0.3); }
 
-  .session-log{ margin-top:26px; }
   .session-log h3{
     font-family:'Kalam'; font-size:18px; margin:0 0 10px; color:var(--chalk);
     display:flex; align-items:center; gap:8px;
@@ -447,7 +447,7 @@
     display:flex; align-items:flex-start; gap:12px;
     background:var(--card); border:1px solid var(--card-line); border-left:4px solid transparent; border-radius:14px;
     padding:14px 14px 14px 13px; margin-bottom:10px;
-    position:relative; overflow:hidden;
+    position:relative;
     box-shadow:0 1px 0 rgba(255,255,255,0.04) inset, 0 5px 16px rgba(0,0,0,0.10);
   }
   .task-card.done{ opacity:0.45; }
@@ -599,13 +599,12 @@
     #timerControlsWrap{ position:static !important; width:auto !important; padding:0 !important; pointer-events:auto !important; }
     #timerMorphBg, .morph-mini-digits, .morph-mini-streak, .timer-spacer{ display:none !important; }
     .session-sticky-head{ position:static !important; margin:0; padding:0; background:none; }
-    main.timer-scroll-mode{ scroll-snap-type:none !important; }
-    .screen#screen-timer.active .session-log{ scroll-snap-align:none !important; min-height:0 !important; }
+    .screen#screen-timer.active .session-log{ min-height:0 !important; }
   }
 
   /* ---------- Week screen ---------- */
   .goal-card{
-    position:relative; border:none; border-radius:22px; padding:16px 18px; margin:18px 0 10px;
+    position:relative; border:none; border-radius:22px; padding:16px 18px; margin:16px 0 4px;
     background:linear-gradient(155deg, rgba(var(--accent-rgb),0.10), var(--card) 55%);
     box-shadow:0 1px 0 rgba(255,255,255,0.05) inset, 0 10px 26px rgba(0,0,0,0.16);
   }
@@ -4582,14 +4581,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
   updateGroupBarVisibility();
   document.querySelector('main').classList.toggle('timer-scroll-mode', currentScreen==='timer'); // 'timer' is the default tab on load
 
-  // ---------- Today's sessions: always open now — it's the second scroll-snap section of the Now dashboard ----------
+  // ---------- Today's sessions: always open now — it's what's below the dashboard on the Now screen ----------
 
-  // ========== NATIVE SCROLL MORPH ENGINE (timer/"Now" dashboard only) ==========
+  // ========== SCROLL MORPH ENGINE (timer/"Now" dashboard only) ==========
   // True DOM interpolation: there is exactly one Timer text, one set of controls, one streak
-  // card. As `main` scrolls, JS reads scrollTop, derives a 0..1 progress value, and drives
+  // card. As `main` scrolls (plain free scroll — no CSS scroll-snap, which used to leave a dead
+  // zone partway through), JS reads scrollTop, derives a 0..1 progress value, and drives
   // transform/opacity/height on those same live elements — nothing is cross-faded or cloned.
-  // The physics (the actual snapping-into-place) is native CSS scroll-snap on `main`; JS only
-  // supplies the continuous interpolation *between* the two snap points.
   let morphTicking = false, morphGeom = null, morphSig = '', morphWasActive = false;
   const $m = id => document.getElementById(id);
 
@@ -4757,11 +4755,50 @@ window.storage = storage; // keep the rest of the app's code unchanged
     updateTimerMorph();
   }
 
+  // ---- Settle-to-snap: waits for scrolling to actually stop, then — only for a gentle scroll
+  // that ends inside the dashboard's collapse range — nudges to fully expanded or fully
+  // collapsed, whichever the resting position is closer to (one symmetric 50% threshold, so
+  // there's no dead zone either direction). A fast fling is left exactly where it lands: if the
+  // user's own gesture carried them further/faster than that, the snap doesn't fight it.
+  const SNAP_SETTLE_MS = 120;      // how long the scroll must be still before we settle it
+  const SNAP_FAST_PX_MS = 0.5;     // ~500px/s — at or above this, treat it as a deliberate fast scroll and leave it alone
+  let snapSettleTimer = null, snapLastY = 0, snapLastT = 0, snapVelocity = 0, snapAnimating = false;
+
+  function easeOutCubic(p){ return 1 - Math.pow(1-p, 3); }
+  function animateScrollTo(el, target, duration){
+    const startY = el.scrollTop, delta = target - startY, startT = performance.now();
+    if(Math.abs(delta) < 1) return;
+    snapAnimating = true;
+    (function step(now){
+      const p = Math.min(1, (now - startT) / duration);
+      el.scrollTop = startY + delta * easeOutCubic(p);
+      if(p < 1) requestAnimationFrame(step); else snapAnimating = false;
+    })(startT);
+  }
+  function trySnapSettle(){
+    if(currentScreen!=='timer' || isDesktopGridLayout() || !morphGeom) return;
+    const mainEl = document.querySelector('main');
+    const dist = Math.max(40, morphGeom.unitH);
+    const y = mainEl.scrollTop;
+    if(y < 0 || y > dist) return; // only settle within the dashboard's own collapse range, never inside the session list
+    if(Math.abs(snapVelocity) >= SNAP_FAST_PX_MS) return; // fast fling — match the user's own speed, don't correct it
+    const target = y < dist * 0.5 ? 0 : dist;
+    animateScrollTo(mainEl, target, 220);
+  }
+
   document.querySelector('main').addEventListener('scroll', ()=>{
     if(currentScreen!=='timer') return;
     if(!morphTicking){
       morphTicking = true;
       requestAnimationFrame(()=>{ updateTimerMorph(); morphTicking = false; });
+    }
+    if(!snapAnimating){
+      const mainEl = document.querySelector('main');
+      const now = performance.now(), y = mainEl.scrollTop, dt = now - snapLastT;
+      if(dt > 0 && dt < 100) snapVelocity = (y - snapLastY) / dt; // px/ms, ignore stale gaps (e.g. after a tab switch)
+      snapLastY = y; snapLastT = now;
+      clearTimeout(snapSettleTimer);
+      snapSettleTimer = setTimeout(trySnapSettle, SNAP_SETTLE_MS);
     }
   }, { passive:true });
 
