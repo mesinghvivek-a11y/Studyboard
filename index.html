@@ -1724,8 +1724,19 @@ const storage = {
     // nested fields (dailyExtra/sessions/completion, keyed by date) into Firestore
     // instead of replacing the whole document — this is what let one device's
     // save silently erase another device's un-synced changes.
-    const opts = (key === 'study-board-data-v1') ? { merge:true } : undefined;
-    await setDoc(ref, { value: JSON.parse(value) }, opts);
+    const parsed = JSON.parse(value);
+    let opts;
+    if(key === 'study-board-data-v1'){
+      opts = { merge:true };
+    } else if(key.startsWith('board:')){
+      // HOTFIX: the shared-board mirror used to be written with NO options, which makes Firestore
+      // REPLACE the whole boards/{uid} document with just the mirror's few fields — erasing
+      // schemaVersion, tombstones, templates, theme and every other private field on every save.
+      // mergeFields replaces only the listed fields (still propagating deletions inside them)
+      // and leaves everything else in the document untouched.
+      opts = { mergeFields: Object.keys(parsed).map(k=> 'value.'+k) };
+    }
+    await setDoc(ref, { value: parsed }, opts);
     return { key, value, shared };
   }
 };
@@ -2184,7 +2195,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
   async function migrateSimplifyTargets(fromFreshServerData){
     if((state.schemaVersion||0) >= SCHEMA_V4_TARGET_SIMPLIFY) return;
     const targets = state.targets || [];
-    const hasLegacy = targets.some(t=> t.kind==='flexible' || (t.kind==='recurring' && t.days===undefined));
+    // HOTFIX: current-format targets store explicit `dates` and no `days`; they must NOT count as legacy.
+    const isLegacyRecurring = t=> t.kind==='recurring' && t.days===undefined && t.dates===undefined;
+    const hasLegacy = targets.some(t=> t.kind==='flexible' || isLegacyRecurring(t));
     if(hasLegacy && fromFreshServerData){
       await backupNow('premigration_v'+SCHEMA_V4_TARGET_SIMPLIFY);
     }
@@ -2195,7 +2208,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const idRemap = {}; // oldId -> survivingId, only for merged-away recurring day-rows
 
     // 1) Merge same-batch recurring day-rows into one days:[] record.
-    const recurring = targets.filter(t=>t.kind==='recurring');
+    const recurring = targets.filter(isLegacyRecurring);
     const batches = new Map();
     recurring.forEach(t=>{
       const m = /^(tgt|blk)_(\d+)_\d+$/.exec(t.id);
@@ -2239,7 +2252,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
       };
     });
 
-    state.targets = [...newRecurring, ...onceTasks, ...convertedGoals];
+    // HOTFIX: carry every already-modern target (dates / days / once) through untouched.
+    const keepAsIs = targets.filter(t=> t.kind!=='flexible' && !isLegacyRecurring(t));
+    state.targets = [...keepAsIs, ...newRecurring, ...onceTasks, ...convertedGoals];
 
     // Remap completion + session links from every merged-away id onto its survivor.
     if(Object.keys(idRemap).length){
@@ -2411,6 +2426,14 @@ window.storage = storage; // keep the rest of the app's code unchanged
     hideLoadBlocker();
     if(snap.exists() && snap.data().value){
       state = Object.assign(state, snap.data().value);
+      // HOTFIX: schemaVersion used to be erased by the mirror write, so every load re-ran the old
+      // migrations on real data. A document whose targets/plans/subjects are already id-keyed maps
+      // can only have been written by v5+ code, so it is already fully migrated.
+      const sv = snap.data().value;
+      const isMap = x => x && typeof x==='object' && !Array.isArray(x);
+      if((state.schemaVersion||0) < SCHEMA_V5_KEYED_MAPS && isMap(sv.targets) && isMap(sv.plans) && isMap(sv.subjects)){
+        state.schemaVersion = SCHEMA_V5_KEYED_MAPS;
+      }
     }
     stateReadyToPersist = true;
     // The v2-v4 migrations below all assume targets/plans/subjects are arrays — true for any
