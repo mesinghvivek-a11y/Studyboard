@@ -164,6 +164,45 @@ jobs:
         run: |
           set -euo pipefail
           node "$RUNNER_TEMP/studyboard-update/apply.cjs"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          raw = p.read_bytes()
+          html = raw.decode().replace('\r\n', '\n')
+          old = "    const res = await window.storage.get('study-board-profile', false).catch(()=>null);"
+          new = """    performance.mark('studyboard-account-ready');
+              const firstBoardRead = getDocFromServer(doc(db, 'boards', user.uid)).then(
+                snapshot => { performance.mark('studyboard-board-read'); return {snapshot}; }, error => ({error})
+              );
+          """ + old
+          changes = [(old,new),
+              ('  async function loadState(){','  async function loadState(firstBoardRead){'),
+              ("        snap = await getDocFromServer(doc(db, 'boards', me.id));", """        if(firstBoardRead){
+                    const initial = await firstBoardRead;
+                    firstBoardRead = null;
+                    if(initial.error) throw initial.error;
+                    snap = initial.snapshot;
+                  }else{
+                    snap = await getDocFromServer(doc(db, 'boards', me.id));
+                  }"""),
+              ('    await loadState();', """    if(me.id !== user.uid) throw Error('The profile does not match the signed-in account.');
+              await loadState(firstBoardRead);""")]
+          metric = "+(performance.now()/1000).toFixed(2)+' s';"
+          ready_time = metric + """
+                if(new URLSearchParams(location.search).has('perf')){
+                  const account = performance.getEntriesByName?.('studyboard-account-ready')?.at(-1);
+                  const board = performance.getEntriesByName?.('studyboard-board-read')?.at(-1);
+                  if(account && board) metric.textContent += ' · Account ready at '+(account.startTime/1000).toFixed(2)+' s · Board read '+((board.startTime-account.startTime)/1000).toFixed(2)+' s';
+                }"""
+          changes.append((metric, ready_time))
+          if all(html.count(after)==1 for _, after in changes):
+              print('Concurrent startup reads already installed.')
+          else:
+              for before, after in changes:
+                  if html.count(before)!=1: raise SystemExit('Startup code changed. Review the file before applying this update.')
+                  html=html.replace(before,after)
+              p.write_bytes((html.replace('\n','\r\n') if b'\r\n' in raw else html).encode())
+          PY
           node scripts/build-studyboard.mjs --production
           for js in dist/assets/*.mjs dist/sw.js; do node --check "$js"; done
           test -f dist/.well-known/assetlinks.json
@@ -244,7 +283,7 @@ jobs:
           git apply --index "$RUNNER_TEMP/studyboard-patch/studyboard.patch"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Reduce Study Board timer reads and hidden-screen work'
+          git commit -m 'Load the Study Board profile and board concurrently'
           git push origin "HEAD:refs/heads/$branch"
           body="$RUNNER_TEMP/review.md"
           cat > "$body" <<'BODY'
