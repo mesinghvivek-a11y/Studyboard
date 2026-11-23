@@ -13,7 +13,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <script>
 (function(){
   try{
@@ -678,7 +678,7 @@
   .day-dot.done{ background:var(--wg-color, var(--accent)); border-color:var(--wg-color, var(--accent)); color:var(--ink); }
 
   .wgoal-expand{ max-height:0; overflow:hidden; transition:max-height .25s ease; margin-left:62px; }
-  .wgoal-card.open .wgoal-expand{ max-height:500px; margin-top:12px; }
+  .wgoal-card.open .wgoal-expand{ max-height:500px; overflow-y:auto; margin-top:12px; }
   .linked-item{
     display:flex; align-items:center; justify-content:space-between; font-size:12px;
     padding:7px 0; border-bottom:1px solid var(--card-line); color:var(--chalk-dim); gap:10px;
@@ -1630,9 +1630,7 @@ import {
   signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider,
   sendEmailVerification, sendPasswordResetEmail, deleteUser
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import {
-  getMessaging, getToken, onMessage, isSupported as messagingIsSupported
-} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-messaging.js";
+let foregroundPush = null;
 
 const firebaseConfig = {
   apiKey: "AIzaSyAiX0OPqh8dvHaDaMcjJznTNp7XE1iuPE4",
@@ -1683,11 +1681,13 @@ async function enablePushNotifications(){
     return { ok:false, reason:'not_configured' };
   }
   try{
-    const supported = await messagingIsSupported();
-    if(!supported) return { ok:false, reason:'unsupported' };
+    if(document.documentElement.hasAttribute('data-demo') || !('serviceWorker' in navigator)) return {ok:false,reason:'unsupported'};
     const perm = await Notification.requestPermission();
     if(perm !== 'granted') return { ok:false, reason:perm };
-    if(!swRegistration) swRegistration = await navigator.serviceWorker.ready;
+    const {getMessaging,getToken,onMessage,isSupported} = await import('https://www.gstatic.com/firebasejs/12.16.0/firebase-messaging.js');
+    if(!await isSupported()) return {ok:false,reason:'unsupported'};
+    if(!swRegistration) swRegistration=await navigator.serviceWorker.register('./sw.js');
+    await navigator.serviceWorker.ready;
     const messaging = getMessaging(fbApp);
     const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
     if(!token) return { ok:false, reason:'error', detail:'getToken returned empty (no error thrown, but no token issued)' };
@@ -1695,7 +1695,8 @@ async function enablePushNotifications(){
       await setDoc(doc(db, 'pushTokens', window.__meId), { token, updatedAt: Date.now() }, { merge:true });
     }
     // Foreground messages (app open) show as a normal system notification too
-    onMessage(messaging, (payload)=>{
+    foregroundPush?.();
+    foregroundPush = onMessage(messaging, (payload)=>{
       const title = payload.notification?.title || 'Study Board';
       const body = payload.notification?.body || '';
       if(swRegistration) swRegistration.showNotification(title, { body, icon:'./icons/icon-192.png' });
@@ -2339,6 +2340,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       mergeRemoteIntoState(snap.data().value);
       applyingRemote = false;
       setSyncStatus('ok');
+      reconcileLoggedTasks();
       render();
     }, (err)=>{
       console.warn('board sync error', err);
@@ -2402,14 +2404,21 @@ window.storage = storage; // keep the rest of the app's code unchanged
     document.getElementById('offlineBanner').style.display = 'block';
   });
 
-  async function loadState(){
+  async function loadState(firstBoardRead){
     stateReadyToPersist = false;
-    showLoadBlocker('Loading your data…');
+    showLoadBlocker('Loading your board…');
     let snap = null;
     let attempts = 0;
     while(!snap){
       try{
-        snap = await getDocFromServer(doc(db, 'boards', me.id));
+        if(firstBoardRead){
+          const initial = await firstBoardRead;
+          firstBoardRead = null;
+          if(initial.error) throw initial.error;
+          snap = initial.snapshot;
+        }else{
+          snap = await getDocFromServer(doc(db, 'boards', me.id));
+        }
       }catch(e){
         // Genuinely offline or unreachable. We deliberately do NOT fall back to a
         // local cache here (see the note by enableIndexedDbPersistence above) —
@@ -2417,13 +2426,13 @@ window.storage = storage; // keep the rest of the app's code unchanged
         // save over it is exactly how data got lost before. Wait for connectivity
         // and retry instead of guessing.
         attempts++;
+        if(attempts>=3 || ['permission-denied','unauthenticated'].includes(e.code)) throw e;
         showLoadBlocker(attempts===1
           ? "You're offline — waiting to reconnect…"
           : "Still waiting for a connection… your data is safe on the server, we just can't reach it yet.");
         await waitForOnline();
       }
     }
-    hideLoadBlocker();
     if(snap.exists() && snap.data().value){
       state = Object.assign(state, snap.data().value);
       // HOTFIX: schemaVersion used to be erased by the mirror write, so every load re-ran the old
@@ -2481,11 +2490,16 @@ window.storage = storage; // keep the rest of the app's code unchanged
     if(recoveredLocalEdit || corruptionFound) flushStateNow(); // persist the recovered edit and/or the corruption cleanup immediately
     pruneOldTombstones();
     maybeWriteDailyBackup();
-    await loadUsersList();
-    await loadMyGroupIds();
+    renderHeaderAvatar();
+    renderTaskPinLabel();
+    reconcileLoggedTasks();
+    render();
+    showApp();
+    hideLoadBlocker();
+    recordReady();
+    await Promise.all([loadUsersList(),loadMyGroupIds(),loadMyReads()]);
     await loadMyGroupsCache();
     await subscribeActiveGroup();
-    await loadMyReads();
     renderHeaderAvatar();
     renderTaskPinLabel();
     render();
@@ -2496,12 +2510,31 @@ window.storage = storage; // keep the rest of the app's code unchanged
     subscribeOwnBoard();
     renderSnapRow();
     setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // merge only — never touches studying/startedAt
-    refreshAllFriendBoards();
+    if(currentScreen==='live' && !document.hidden) refreshAllFriendBoards();
     if(friendBoardsPollHandle) clearInterval(friendBoardsPollHandle);
     friendBoardsPollHandle = setInterval(refreshAllFriendBoards, 60000);
     setSyncStatus('ok');
     checkJoinLinkParam();
   }
+
+  function recordReady(){
+    performance.mark('studyboard-ready');
+    if(document.documentElement.hasAttribute('data-demo') || new URLSearchParams(location.search).has('perf')){
+      let metric=document.getElementById('boardReadyMetric');
+      if(!metric){
+        metric=document.createElement('output'); metric.id='boardReadyMetric';
+        metric.style.cssText='position:fixed;bottom:calc(78px + env(safe-area-inset-bottom));right:8px;z-index:55;background:#153034;color:#fff;padding:4px 8px;border-radius:5px;font:12px system-ui;pointer-events:none';
+        document.body.appendChild(metric);
+      }
+      metric.textContent=(document.documentElement.hasAttribute('data-demo')?'Demo data · ':'')+'Board ready in '+(performance.now()/1000).toFixed(2)+' s';
+      if(new URLSearchParams(location.search).has('perf')){
+        const account = performance.getEntriesByName?.('studyboard-account-ready')?.at(-1);
+        const board = performance.getEntriesByName?.('studyboard-board-read')?.at(-1);
+        if(account && board) metric.textContent += ' · Account ready at '+(account.startTime/1000).toFixed(2)+' s · Board read '+((board.startTime-account.startTime)/1000).toFixed(2)+' s';
+      }
+    }
+  }
+
   function checkJoinLinkParam(){
     const params = new URLSearchParams(location.search);
     const code = params.get('join');
@@ -2569,6 +2602,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   async function markRead(cid){
     myReads[cid] = Date.now();
+    historyBadges.delete(cid);
+    threadViews.get(cid)?.nodes.forEach(btn=>paintUnread(btn,[]));
     try{ await setDoc(doc(db, 'commentReads', me.id), myReads); }catch(e){}
   }
   let saveTimeout = null;
@@ -2658,6 +2693,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   // ---------- auth: login / sign up / logout ----------
   let booted = false;
+  let pendingBoot = null;
+  let pendingBootUid = null;
   let pendingRedirectAuthError = null; // set if a signInWithRedirect() round-trip came back with an error; surfaced once boot finishes, see bootAsUser
   let anonSignInInFlight = false;
   const authScreen = document.getElementById('authScreen');
@@ -2733,9 +2770,20 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // valuable enough to be worth the complexity linkWithCredential/linkWithPopup used to carry
   // (merge-conflict prompts, "credential already in use" dead ends). Cutting over to a plain
   // create-or-sign-in, every time, removes that whole class of bug for free.
-  async function bootAsUser(user, opts){
+  function bootAsUser(user, opts){
+    if(pendingBoot && pendingBootUid===user.uid) return pendingBoot;
+    if(pendingBootUid && pendingBootUid!==user.uid){ location.reload(); return Promise.resolve(); }
+    pendingBootUid = user.uid;
+    pendingBoot = loadUserBoard(user,opts).catch(err=>{ pendingBoot=null; throw err; });
+    return pendingBoot;
+  }
+  async function loadUserBoard(user, opts){
     opts = opts || {};
     window.__meId = user.uid;
+    performance.mark('studyboard-account-ready');
+    const firstBoardRead = getDocFromServer(doc(db, 'boards', user.uid)).then(
+      snapshot => { performance.mark('studyboard-board-read'); return {snapshot}; }, error => ({error})
+    );
     const res = await window.storage.get('study-board-profile', false).catch(()=>null);
     if(res && res.value){
       me = JSON.parse(res.value);
@@ -2751,7 +2799,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
     booted = true;
     closeAuthOverlay();
     showApp();
-    await loadState();
+    if(me.id !== user.uid) throw Error('The profile does not match the signed-in account.');
+    await loadState(firstBoardRead);
     if(pendingRedirectAuthError){
       const msg = pendingRedirectAuthError;
       pendingRedirectAuthError = null;
@@ -2801,8 +2850,9 @@ window.storage = storage; // keep the rest of the app's code unchanged
     try{
       if(authMode==='signup'){
         const cred = await createUserWithEmailAndPassword(auth, email, password);
-        await bootAsUser(cred.user, { name });
+        try{ await updateProfile(cred.user,{displayName:name}); }catch(e){}
         try{ await sendEmailVerification(cred.user); }catch(e){}
+        await bootAsUser(cred.user, { name });
       } else {
         const cred = await signInWithEmailAndPassword(auth, email, password);
         await bootAsUser(cred.user, {});
@@ -3926,6 +3976,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       // No session at all (first launch, or just logged out) — drop straight into a guest
       // session rather than showing a login wall. Signing in for real is an opt-in action
       // from Settings, never a barrier to using the app.
+      if(pendingBootUid){ location.reload(); return; }
       booted = false;
       me = null;
       window.__meId = null;
@@ -3998,6 +4049,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       activeGroupData = snap.exists() ? snap.data() : null;
       if(activeGroupData) myGroupsCache[activeGroupId] = activeGroupData;
       deriveUsersList();
+      if(currentScreen==='live' && !document.hidden){ refreshLiveStatuses(); refreshAllFriendBoards(); }
       renderGroupBar();
       renderPeopleRow();
       renderSnapRow();
@@ -4084,9 +4136,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     try{
       const res = await window.storage.get('board:'+id, true);
       friendCache[id] = res && res.value ? JSON.parse(res.value) : {subjects:{},targets:{},plans:{},completion:{},sessions:{}};
-    }catch(e){
-      friendCache[id] = {subjects:{},targets:{},plans:{},completion:{},sessions:{}};
-    }
+    }catch(e){ delete friendCache[id]; }
   }
 
   // ---------- Reciprocity gate ----------
@@ -4110,7 +4160,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return personPermitsViewer(a, b) && personPermitsViewer(b, a);
   }
   function canISee(otherId){
-    if(!me) return false;
+    if(!me || (otherId!==me.id && !friendCache[otherId])) return false;
     return permits(me.id, otherId);
   }
 
@@ -4585,8 +4635,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      if(currentScreen==='history' && btn.dataset.screen!=='history') invalidateHistory();
       currentScreen = btn.dataset.screen;
       document.getElementById('screen-'+currentScreen).classList.add('active');
+      if(currentScreen==='live' && me){ refreshLiveStatuses(); refreshAllFriendBoards(); }
       if(currentScreen==='history' && !document.getElementById('historyDate').value){
         document.getElementById('historyDate').value = fmtDate(new Date());
       }
@@ -5283,6 +5335,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   function computeStreak(){ return computeStreakFor(state); }
   function renderGoalCard(){
+    if(currentScreen!=='timer') return;
     const card = document.getElementById('goalCard');
     if(!card) return;
     const data = activeData();
@@ -5368,6 +5421,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         updatedAt: Date.now()
       };
       state.sessions[key].push(justLoggedSession);
+      if(linkedTaskId && state.targets[linkedTaskId]) completeIfDue(state.targets[linkedTaskId],key,taskPercent(state.targets[linkedTaskId],key,false));
       saveState();
       renderTaskList();
       maybeNudgeGuestToSignIn();
@@ -5552,15 +5606,56 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // page in sync with the running session every second, instead of only updating once the
   // session finishes and gets saved ----------
   let liveUiTickHandle = null;
+
+  function taskPercent(task,dateKey,includeRunning){
+    const minutes = (state.sessions[dateKey] || []).reduce((sum,s)=>sum+(s.linkedTaskId===task.id ? s.duration||0 : 0),0);
+    const active = includeRunning && timerRunning && linkedTaskId===task.id ? elapsedMs/60000 : 0;
+    return Math.min(100,Math.round(100*(minutes+active)/(task.duration||30)));
+  }
+  function completeIfDue(task,dateKey,pct){
+    const key = dateKey+'|'+task.id;
+    if(pct<100 || state.completion[key]==='done' || state.completion[key]==='missed') return false;
+    state.completion[key] = 'done';
+    saveState();
+    localNotify('taskComplete','Task completed 🎉',task.label || subjectNameIn(task.subject,state));
+    return true;
+  }
+  function updateLinkedProgress(){
+    const task = linkedTaskId && state.targets[linkedTaskId];
+    if(!task) return;
+    const dateKey = fmtDate(new Date(sessionStartClock || Date.now()));
+    const pct = taskPercent(task,dateKey,true);
+    const changed = completeIfDue(task,dateKey,pct);
+    if(currentScreen!=='today' || document.hidden || fmtDate(selectedDate)!==dateKey) return;
+    if(changed){ renderTaskList(); return; }
+    if(state.completion[dateKey+'|'+task.id]) return;
+    const row = Array.from(document.querySelectorAll('[data-progress-task]')).find(el=>el.dataset.progressTask===task.id);
+    if(row){
+      row.querySelector('.progress-fill').style.width = pct+'%';
+      row.querySelector('.name-pct').textContent = pct ? pct+'%' : '';
+    }
+  }
+  function reconcileLoggedTasks(){
+    const now = new Date(), date = fmtDate(now);
+    if(!(state.sessions[date] || []).some(s=>s.linkedTaskId)) return;
+    for(const task of blocksForDateIn(state,now)) completeIfDue(task,date,taskPercent(task,date,true));
+  }
+
+
   function startLiveUiTicker(){
-    if(liveUiTickHandle) return; // already running
+    if(liveUiTickHandle) return;
+    let lastMinute = -1;
     liveUiTickHandle = setInterval(()=>{
-      renderGoalCard();
-      renderPeopleRow();
-      if(currentScreen==='timer') renderSessions();
-      if(currentScreen==='today') renderTaskList();
-      if(currentScreen==='history') renderHistory();
-    }, 1000);
+      updateLinkedProgress();
+      if(currentScreen!=='timer' || document.hidden) return;
+      const minutes = Math.round(elapsedMs/6000)/10;
+      const ghost = document.querySelector('.garland-row.live');
+      if(ghost){
+        ghost.querySelector('.garland-pill').style.height = Math.max(40,Math.min(220,Math.round(minutes*2.5)))+'px';
+        ghost.querySelector('.g-dur-tag').textContent = fmtHM(minutes)+' ●';
+      }
+      if(Math.floor(minutes)!==lastMinute){ lastMinute=Math.floor(minutes); renderGoalCard(); }
+    },1000);
   }
   function stopLiveUiTicker(){
     if(liveUiTickHandle){ clearInterval(liveUiTickHandle); liveUiTickHandle = null; }
@@ -5669,10 +5764,10 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   async function refreshLiveStatuses(){
     if(!me) return;
-    for(const u of usersList){ liveCache[u.id] = await getLiveStatus(u.id); }
+    if(currentScreen!=='live' || document.hidden) return;
+    await Promise.all(usersList.filter(u=>u.id!==me.id).map(async u=>{liveCache[u.id]=await getLiveStatus(u.id);}));
     renderPeopleRow(); renderSnapRow();
     updateFriendTimerCard();
-    refreshBellBadge();
   }
   function liveMinutesFor(st){
     let mins = (st && st.todayTotalMin) || 0;
@@ -5696,13 +5791,22 @@ window.storage = storage; // keep the rest of the app's code unchanged
       <div class="lbl">studied today</div>
     `;
   }
+  let bellWatch = null;
   function startLiveTimers(){
     stopLiveTimers();
     refreshLiveStatuses();
     livePollHandle = setInterval(refreshLiveStatuses, 6000);
-    liveTickHandle = setInterval(()=>{ renderPeopleRow(); renderSnapRow(); updateFriendTimerCard(); renderGoalCard(); }, 1000);
+    bellWatch = onSnapshot(doc(db,'notifications',me.id), snap=>{
+      const count=snap.exists() ? (snap.data().items||[]).filter(item=>!item.read).length : 0;
+      const badge=document.getElementById('bellBadge');
+      badge.style.display=count?'flex':'none'; badge.textContent=count>9?'9+':String(count);
+    },err=>console.warn('Notification badge unavailable',err));
+    liveTickHandle = setInterval(()=>{
+      if(!document.hidden && currentScreen==='live') renderSnapRow();
+    },15000);
   }
   function stopLiveTimers(){
+    if(bellWatch){ bellWatch(); bellWatch=null; }
     if(livePollHandle){ clearInterval(livePollHandle); livePollHandle = null; }
     if(liveTickHandle){ clearInterval(liveTickHandle); liveTickHandle = null; }
   }
@@ -5784,19 +5888,20 @@ window.storage = storage; // keep the rest of the app's code unchanged
     try{ await setDoc(doc(db, 'comments', cid), { items }); }
     catch(e){ console.error('comment failed', e); }
   }
-  async function checkUnread(btn){
-    const cid = btn.dataset.cid;
-    const items = await loadComments(cid);
-    if(!items.length) return;
-    const lastRead = myReads[cid] || 0;
-    const unread = items.some(c => c.ts > lastRead && c.by !== me.id);
-    if(unread) btn.classList.add('has-unread');
-  }
-  function attachCommentButtons(el){
-    el.querySelectorAll('.cmt-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=> openCommentsModal(btn.dataset.cid, btn.dataset.title, btn));
-      checkUnread(btn);
-    });
+
+  function attachCommentButtons(el,live=false){
+    const nodes = Array.from(el.querySelectorAll('.cmt-btn'));
+    for(const btn of nodes){
+      const id = btn.dataset.cid;
+      if(btn.dataset.commentWired) continue;
+      btn.dataset.commentWired = '1';
+      btn.addEventListener('click',()=>openCommentsModal(id,btn.dataset.title,btn));
+      if(!live){
+        if(!historyBadges.has(id)) historyBadges.set(id,loadComments(id));
+        historyBadges.get(id).then(items=>paintUnread(btn,items));
+      }
+    }
+    if(live) syncThreadViews(nodes);
   }
   async function openCommentsModal(cid, title, btnEl){
     const backdrop = document.createElement('div');
@@ -5855,6 +5960,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
 
   let sessionCategoryFilter = 'all'; // resets each page load, like the other view-only filters in this file
   function renderSessions(){
+    if(currentScreen!=='timer') return;
     const key = fmtDate(new Date());
     const el = document.getElementById('sessionList');
     const filtersEl = document.getElementById('sessionCatFilters');
@@ -6110,6 +6216,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
           s.updatedAt = Date.now(); // must be bumped on every edit — this is what lets the sessions merge (see mergeArraysById) know this copy is the newer one
         }
       }
+      if(isToday) reconcileLoggedTasks();
       await flushStateNow();
       if(isToday) setLiveStatus({ todayTotalMin: todayTotalMinutes() }); // profile-chip total is cached in liveStatus, not derived live — must push explicitly
       renderSessions(); renderGoalCard(); renderPeopleRow(); renderStudyChart(); renderSubjectDonut(); renderDayScroller();
@@ -6165,6 +6272,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     `;
   }
   function renderDayScroller(){
+    if(currentScreen!=='today') return;
     const el = document.getElementById('dayScroller');
     el.innerHTML='';
     const today = new Date();
@@ -6204,14 +6312,71 @@ window.storage = storage; // keep the rest of the app's code unchanged
       render();
     });
   }
+
+  const sharedView = {date:null, rows:[], unsubscribe:null};
+  const threadViews = new Map();
+  const historyBadges = new Map();
+  function syncSharedView(){
+    const date = me && currentScreen==='today' && !document.hidden ? fmtDate(selectedDate) : null;
+    if(date===sharedView.date) return;
+    sharedView.unsubscribe?.();
+    sharedView.date = date;
+    sharedView.rows = [];
+    sharedView.unsubscribe = null;
+    syncThreadViews([]);
+    if(!date) return;
+    sharedView.unsubscribe = onSnapshot(doc(db,'sharedTasks',date), snap=>{
+      if(sharedView.date!==date) return;
+      sharedView.rows = snap.exists() ? snap.data().value || [] : [];
+      renderTaskList();
+    }, err=>console.warn('Shared tasks unavailable',err));
+  }
+  function paintUnread(btn,items){
+    const unread = !!me && items.some(c=>c.by!==me.id && c.ts>(myReads[btn.dataset.cid]||0));
+    btn.classList.toggle('has-unread',unread);
+    btn.closest('.task-menu-wrap')?.querySelector('.task-menu-btn')?.classList.toggle('has-unread',unread);
+  }
+  function syncThreadViews(buttons){
+    const wanted = new Map();
+    for(const btn of buttons){
+      const id = btn.dataset.cid;
+      if(!wanted.has(id)) wanted.set(id,[]);
+      wanted.get(id).push(btn);
+    }
+    for(const [id,entry] of threadViews){
+      if(!wanted.has(id)){ threadViews.delete(id); entry.stop(); }
+    }
+    for(const [id,nodes] of wanted){
+      let entry = threadViews.get(id);
+      if(!entry){
+        entry = {nodes,items:[],stop:()=>{}};
+        threadViews.set(id,entry);
+        entry.stop = onSnapshot(doc(db,'comments',id), snap=>{
+          if(threadViews.get(id)!==entry) return;
+          entry.items = snap.exists() ? snap.data().items || [] : [];
+          entry.nodes.forEach(node=>paintUnread(node,entry.items));
+        },err=>console.warn('Comment counts unavailable',err));
+      }
+      entry.nodes = nodes;
+      nodes.forEach(node=>paintUnread(node,entry.items));
+    }
+  }
+  document.addEventListener('visibilitychange',()=>{
+    if(!me || !stateReadyToPersist) return;
+    syncSharedView();
+    if(!document.hidden && currentScreen==='today') renderTaskList();
+  });
+
   async function renderTaskList(){
+    if(currentScreen!=='today' || document.hidden || !me) return;
+    syncSharedView();
     const el = document.getElementById('taskList');
     const dateKey = fmtDate(selectedDate);
     let html = '';
 
     if(isViewingSelf()){
       const myBlocks = blocksForDateIn(state, selectedDate);
-      const sharedTasks = await loadSharedTasks(dateKey);
+      const sharedTasks = sharedView.rows;
 
       html += `<h3 class="section-title">My tasks</h3>`;
       if(myBlocks.length===0 && sharedTasks.length===0){
@@ -6222,35 +6387,22 @@ window.storage = storage; // keep the rest of the app's code unchanged
         const isToday = dateKey === fmtDate(new Date());
         html += myBlocks.map(b=>{
           const compKey = dateKey+'|'+b.id;
-          let status = state.completion[compKey]; // undefined | 'done' | 'missed'
-          let checkInner = status==='done'?'✓':(status==='missed'?'✕':(status==='moved'?'➡️':''));
-          let pct = 0;
-          if(isToday){
-            let linkedMin = (state.sessions[dateKey]||[]).filter(s=>s.linkedTaskId===b.id).reduce((s,x)=>s+(x.duration||0),0);
-            if(timerRunning && linkedTaskId===b.id) linkedMin += elapsedMs/60000; // live, not-yet-saved time on this exact task
-            if(linkedMin > 0 && status!=='missed'){
-              pct = Math.min(100, Math.round((linkedMin/(b.duration||30))*100));
-              if(pct >= 100 && status!=='done'){
-                status = 'done';
-                state.completion[compKey] = 'done';
-                saveState();
-                checkInner = '✓';
-                localNotify('taskComplete', 'Task completed 🎉', b.label || subjectNameIn(b.subject, state));
-              }
-            }
-          }
+          const pct = isToday && state.completion[compKey]!=='missed' ? taskPercent(b,dateKey,true) : 0;
+          if(isToday) completeIfDue(b,dateKey,pct);
+          const status = state.completion[compKey];
+          const checkInner = status==='done' ? '✓' : status==='missed' ? '✕' : status==='moved' ? '➡️' : '';
           const subjColor = subjectColorIn(b.subject, state);
           const lockedByTimer = isToday && timerRunning && linkedTaskId===b.id;
           const displayPct = status==='done' ? 100 : pct; // a done task stays fully, brightly filled regardless of how it was marked done
           return `
-            <div class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}" style="background:${subjColor}17; border-left-color:${subjColor};" ${(isToday && status!=='done' && !timerRunning) ? `data-row-play="${b.id}"` : ''}>
-              ${displayPct>0 ? `<div class="progress-fill" style="width:${displayPct}%; background:linear-gradient(90deg, ${subjColor}4d, ${subjColor}b3);"></div>` : ''}
+            <div data-progress-task="${escapeHtml(b.id)}" class="task-card ${status==='done'?'done':''} ${status==='missed'?'missed':''}" style="background:${subjColor}17; border-left-color:${subjColor};" ${(isToday && status!=='done' && !timerRunning) ? `data-row-play="${b.id}"` : ''}>
+              <div class="progress-fill" style="width:${displayPct}%; background:linear-gradient(90deg, ${subjColor}4d, ${subjColor}b3);"></div>
               <div class="time">${timeColHtml(b.start, b.duration||30)}</div>
               <div class="check ${status||''}" data-key="${compKey}">${checkInner}</div>
               <div class="body">
                 <div class="name-row">
                   <span class="name ${status==='done'?'strike':''}">${b.label || subjectNameIn(b.subject, state)}</span>
-                  ${pct>0 && status!=='done' ? `<span class="name-pct">${pct}%</span>` : ''}
+                  <span class="name-pct">${pct>0 && status!=='done' ? pct+'%' : ''}</span>
                 </div>
                 <div class="meta"><span class="dot" style="background:${subjColor}"></span>${subjectNameIn(b.subject, state)} · ${b.duration||30} min${lockedByTimer ? ' · ⏱ timer running' : ''}</div>
                 ${b.note ? `<div class="link-pill">📝 ${escapeHtml(b.note)}</div>` : ''}
@@ -6433,19 +6585,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       });
     });
 
-    attachCommentButtons(el);
-    // mirror the unread-comment dot onto the visible ⋮ trigger (comment button lives inside the collapsed menu)
-    el.querySelectorAll('.task-menu .cmt-btn[data-cid]').forEach(btn=>{
-      loadComments(btn.dataset.cid).then(items=>{
-        if(!items.length) return;
-        const lastRead = myReads[btn.dataset.cid] || 0;
-        const unread = items.some(c => c.ts > lastRead && c.by !== me.id);
-        if(unread){
-          const trigger = btn.closest('.task-menu-wrap')?.querySelector('.task-menu-btn');
-          if(trigger) trigger.classList.add('has-unread');
-        }
-      }).catch(()=>{});
-    });
+    attachCommentButtons(el,true);
   }
 
   // ---------- WEEK SCREEN (Plan-based) ----------
@@ -6550,7 +6690,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
         const done = doneDays.includes(d);
         return `<div class="day-dot ${due?'due':''} ${done?'done':''}">${DAY_NAMES[d][0]}</div>`;
       }).join('')}</div>`;
-      const linkedRows = dates.map(dateKey=>{
+      const linkedRows = !isOpen ? '' : dates.map(dateKey=>{
         const d = new Date(dateKey+'T00:00:00');
         const done = (data.completion||{})[dateKey+'|'+t.id]==='done';
         return `
@@ -6870,6 +7010,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     `;
   }
   function renderWeeklyGoalsList(){
+    if(currentScreen!=='week') return;
     document.querySelectorAll('.plan-subtab').forEach(b=> b.classList.toggle('sel', b.dataset.subtab===planSubtab));
     const container = document.getElementById('planSubtabContent');
     if(!container) return;
@@ -8114,6 +8255,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
   // never as a bare top-level call, or it can run ahead of later top-level `let` declarations
   // elsewhere in this file and crash with a temporal-dead-zone error before the app ever boots.
   function render(){
+    syncSharedView();
     if(!ringLenPickerBuilt){ ringLenPickerBuilt = true; buildRingLenPicker(); }
     renderPeopleRow(); renderSnapRow();
 
@@ -8134,7 +8276,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     updateFriendTimerCard();
     renderGoalCard();
 
-    renderSubjectOptions(document.getElementById('timerSubject'), document.getElementById('timerSubject').value);
+    if(currentScreen==='timer') renderSubjectOptions(document.getElementById('timerSubject'), document.getElementById('timerSubject').value);
     renderSessions();
     renderDayScroller();
     renderTaskList();
@@ -8176,6 +8318,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     const btn = document.getElementById('toggleHistoryList');
     const opening = wrap.style.display === 'none';
     wrap.style.display = opening ? 'block' : 'none';
+    if(opening) renderHistory(); else invalidateHistory();
     btn.textContent = opening ? '📋 Hide day-by-day tasks' : '📋 View day-by-day tasks';
   });
 
@@ -8213,6 +8356,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return buckets;
   }
   function renderStudyChart(){
+    if(currentScreen!=='history') return;
     const el = document.getElementById('studyChartWrap');
     if(!el) return;
     const buckets = computeChartBuckets(chartRange);
@@ -8286,6 +8430,7 @@ window.storage = storage; // keep the rest of the app's code unchanged
       .sort((a,b)=> b.minutes-a.minutes);
   }
   function renderSubjectDonut(){
+    if(currentScreen!=='history') return;
     const el = document.getElementById('subjectDonutWrap');
     if(!el) return;
     const data = activeData();
@@ -8404,7 +8549,8 @@ window.storage = storage; // keep the rest of the app's code unchanged
   }
   async function refreshAllFriendBoards(){
     const friends = usersList.filter(u=>u.id!==me.id);
-    for(const u of friends){ await fetchFriendBoard(u.id); }
+    if(currentScreen!=='live' || document.hidden) return;
+    await Promise.all(friends.map(u=>fetchFriendBoard(u.id)));
     renderPeopleRow(); renderSnapRow();
     renderSessions();
     renderGoalCard();
@@ -8470,41 +8616,42 @@ window.storage = storage; // keep the rest of the app's code unchanged
     return `<div class="history-day"><div class="history-day-heading">${heading}</div>${body}</div>`;
   }
 
-  async function loadMoreHistoryDays(){
-    if(historyLoading || historyDates.length >= HISTORY_MAX_DAYS) return;
-    historyLoading = true;
-    const el = document.getElementById('historyList');
-    const startOffset = historyDates.length;
-    let html = '';
-    for(let i=0;i<HISTORY_BATCH;i++){
-      const d = new Date(historyAnchor);
-      d.setDate(d.getDate() - (startOffset+i));
-      historyDates.push(d);
-      html += await renderHistoryDayBlock(d);
-    }
-    el.insertAdjacentHTML('beforeend', html);
-    attachCommentButtons(el);
-    historyLoading = false;
-  }
 
+  let historyGeneration = 0;
+  function historyVisible(){
+    return currentScreen==='history' && document.getElementById('historyDetailWrap').style.display!=='none';
+  }
+  function invalidateHistory(){
+    historyGeneration++; historyInitialized=false; historyLoading=false; historyDates=[];
+    historyBadges.clear();
+  }
+  async function loadMoreHistoryDays(){
+    if(!historyVisible() || !historyInitialized || historyLoading || historyDates.length>=HISTORY_MAX_DAYS) return;
+    historyLoading=true;
+    const generation=historyGeneration, offset=historyDates.length;
+    const dates=Array.from({length:Math.min(HISTORY_BATCH,HISTORY_MAX_DAYS-offset)},(_,i)=>{
+      const date=new Date(historyAnchor); date.setDate(date.getDate()-offset-i); return date;
+    });
+    try{
+      const rows=await Promise.all(dates.map(renderHistoryDayBlock));
+      if(generation!==historyGeneration || !historyVisible()) return;
+      const page=document.createElement('div'); page.innerHTML=rows.join('');
+      document.getElementById('historyList').appendChild(page);
+      historyDates.push(...dates); attachCommentButtons(page);
+    } finally{ if(generation===historyGeneration) historyLoading=false; }
+  }
   async function resetHistoryFeed(anchorDate){
-    historyDates = [];
-    historyAnchor = new Date(anchorDate);
-    document.getElementById('historyList').innerHTML = '';
-    await ensureAllFriendBoardsLoaded();
+    invalidateHistory();
+    if(!historyVisible()) return;
+    historyInitialized=true; historyAnchor=new Date(anchorDate);
+    document.getElementById('historyList').innerHTML='';
     await loadMoreHistoryDays();
   }
-
   async function renderHistory(){
-    const vid = viewingId || null;
-    if(historyInitialized && historyLastViewingId === vid) return;
-    historyInitialized = true;
-    historyLastViewingId = vid;
-    const dateInput = document.getElementById('historyDate').value || fmtDate(new Date());
-    const [y,m,d] = dateInput.split('-').map(Number);
-    await resetHistoryFeed(new Date(y, m-1, d));
+    if(!historyVisible() || historyInitialized) return;
+    const date=document.getElementById('historyDate').value || fmtDate(new Date());
+    await resetHistoryFeed(new Date(date+'T00:00:00'));
   }
-
   document.querySelector('main').addEventListener('scroll', ()=>{
     if(currentScreen!=='history') return;
     const mainEl = document.querySelector('main');

@@ -1,58 +1,30 @@
-// Study Board — service worker
-// Handles: app-shell caching (so it opens instantly / offline-ish),
-// and push notifications (Firebase Cloud Messaging arrives here as a
-// plain Web Push event, so we do NOT need the separate firebase-messaging-sw
-// script — this one file handles both).
-
-const CACHE_NAME = 'study-board-v3'; // bumped so old installs drop their stale cache
-const APP_SHELL = [
-  './index.html',
-  './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-512-maskable.png'
-];
-
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
-  );
+const RELEASE = '';
+const SHELL = ['./index.html','./manifest.json','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-512-maskable.png'];
+const cacheName='study-board-'+(RELEASE||'source-v4');
+const scope=self.registration.scope,home=new URL('./',scope).href,index=new URL('./index.html',scope).href;
+const owned=new Set(SHELL.map(p=>new URL(p,scope).href));
+self.addEventListener('install',event=>{
+  event.waitUntil(caches.open(cacheName).then(cache=>cache.addAll(SHELL.map(p=>new Request(new URL(p,scope),{cache:'reload'})))));
 });
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
+self.addEventListener('activate',event=>{
+  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('study-board-')&&k!==cacheName).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
 });
-
-// Network-first for the app page itself (so signed-in users always see
-// live Firestore-backed content when online), falling back to the cached
-// shell when offline. Cache-first for everything else (icons, fonts, etc).
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
-
-  const isAppPage = req.mode === 'navigate' || req.url.includes('index.html');
-
-  if (isAppPage) {
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
-          return res;
-        })
-        .catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
-
-  event.respondWith(
-    caches.match(req).then((cached) => cached || fetch(req).catch(() => cached))
-  );
+self.addEventListener('fetch',event=>{
+  const req=event.request,url=new URL(req.url);
+  if(req.method!=='GET' || url.origin!==new URL(scope).origin) return;
+  const navigation=req.mode==='navigate' && [home,index].includes(url.origin+url.pathname);
+  if(!navigation && !owned.has(url.href)) return;
+  event.respondWith((async()=>{
+    const cache=await caches.open(cacheName),key=navigation ? index : req;
+    if(navigation && !RELEASE){
+      try{
+        const fresh=await fetch(req);
+        if(fresh.ok)await cache.put(key,fresh.clone());
+        return fresh;
+      }catch(error){const copy=await cache.match(index);if(copy)return copy;throw error;}
+    }
+    return await cache.match(key) || fetch(req);
+  })());
 });
 
 // ---------- Push notifications ----------
